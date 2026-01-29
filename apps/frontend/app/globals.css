@@ -1,0 +1,206 @@
+/* Markdown Editor Styles - imported first as @import must precede other rules */
+@import '../styles/markdown-editor.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design System */
+:root {
+  /* Light mode */
+  --background: #ffffff;
+  --sidebar-bg: #f5f5f5;
+  --surface: #fafafa;
+  --surface-rgb: 250, 250, 250;
+  --surface-elevated: #ffffff;
+  --foreground: #1e1e1e;
+  --foreground-muted: #6b7280;
+  --foreground-subtle: #9ca3af;
+  --border: #e5e5e5;
+  --border-subtle: #f3f4f6;
+
+  /* Accent colors */
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #2563eb;
+  --accent-green: #10b981;
+  --accent-green-hover: #059669;
+  --accent-red: #ef4444;
+  --accent-red-hover: #dc2626;
+
+  /* Shadows and elevation */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+html.dark {
+  /* Dark mode */
+  --background: #141414;
+  --sidebar-bg: #0f0f0f;
+  --surface: #111111;
+  --surface-rgb: 17, 17, 17;
+  --surface-elevated: #1a1a1a;
+  --foreground: #f9fafb;
+  --foreground-muted: #9ca3af;
+  --foreground-subtle: #6b7280;
+  --border: #374151;
+  --border-subtle: #1f2937;
+
+  /* Accent colors - softer in dark mode */
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #60a5fa;
+  --accent-green: #10b981;
+  --accent-green-hover: #34d399;
+  --accent-red: #ef4444;
+  --accent-red-hover: #f87171;
+}
+
+html {
+  color-scheme: light;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  overflow-x: hidden;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* pdf.js annotation editor toolbar fixes — Tailwind Preflight overrides box-sizing
+   and pseudo-element defaults that pdf.js relies on */
+.editToolbar,
+.editToolbar *,
+.editToolbar *::before,
+.editToolbar *::after {
+  box-sizing: content-box;
+}
+
+.editToolbar .buttons .colorPicker .dropdown {
+  box-sizing: border-box;
+}
+
+/* Ensure pdf.js annotation toolbar and dropdowns are not clipped by parent containers */
+.annotationEditorLayer {
+  overflow: visible;
+}
+
+.annotationEditorLayer .selectedEditor {
+  overflow: visible;
+}
+
+/* Reset Tailwind button normalization inside pdf.js toolbars */
+.editToolbar button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Force editToolbar .buttons to be a horizontal flex row */
+.editToolbar .buttons {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0 !important;
+  height: 28px !important;
+}
+
+/* Force delete button to stay inline, fixed size, with hardcoded icon */
+.editToolbar .buttons .deleteButton {
+  width: 28px !important;
+  height: 28px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+}
+
+.editToolbar .buttons .deleteButton::before {
+  content: "" !important;
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-color: var(--editor-toolbar-fg-color, #2e2e56) !important;
+  mask-image: url(/pdfjs/images/editor-toolbar-delete.svg) !important;
+  -webkit-mask-image: url(/pdfjs/images/editor-toolbar-delete.svg) !important;
+  mask-repeat: no-repeat !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-position: center !important;
+  -webkit-mask-position: center !important;
+  mask-size: contain !important;
+  -webkit-mask-size: contain !important;
+}
+
+.editToolbar .buttons .deleteButton:hover {
+  border-radius: 2px;
+  background-color: var(--editor-toolbar-hover-bg-color, #e0e0e6);
+}
+
+.editToolbar .buttons .divider {
+  width: 0;
+  height: 28px;
+  border-left: 1px solid var(--editor-toolbar-border-color, #8f8f9d);
+  border-right: none;
+  display: inline-block;
+  margin-inline: 2px;
+  flex-shrink: 0;
+}
+
+/* Ensure the colorPicker dropdown can extend beyond the toolbar */
+.editToolbar .buttons .colorPicker {
+  overflow: visible;
+  position: relative;
+}
+
+/* Force the dropdown to be absolutely positioned (pdf.js uses deeply nested :is() selectors
+   that may not match). Without this, the dropdown renders in-flow and pushes the delete button down. */
+.editToolbar .buttons .colorPicker .dropdown {
+  position: absolute !important;
+  inset-block-start: calc(100% + 4px);
+  width: calc(100% + 4px);
+  z-index: 10;
+}
+
+/* Hidden class for pdf.js dropdown toggle */
+.editToolbar .buttons .colorPicker .dropdown.hidden {
+  display: none !important;
+}

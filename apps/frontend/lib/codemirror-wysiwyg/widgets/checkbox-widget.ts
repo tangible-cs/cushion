@@ -1,0 +1,90 @@
+import { WidgetType, EditorView } from '@codemirror/view';
+
+/**
+ * SVG-based checkbox widget for task list items.
+ * Inspired by Tangent's checkbox implementation.
+ */
+export class CheckboxWidget extends WidgetType {
+  constructor(
+    readonly checked: boolean,
+    readonly pos: number,
+  ) {
+    super();
+  }
+
+  eq(other: CheckboxWidget) {
+    return this.checked === other.checked && this.pos === other.pos;
+  }
+
+  toDOM(view: EditorView) {
+    const wrapper = document.createElement('span');
+    wrapper.className = `cm-checkbox-widget ${this.checked ? 'cm-checkbox-checked' : ''}`;
+    wrapper.setAttribute('aria-checked', this.checked.toString());
+    wrapper.setAttribute('role', 'checkbox');
+    wrapper.setAttribute('tabindex', '0');
+    
+    // Create SVG checkbox
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.style.display = 'block';
+    svg.style.cursor = 'pointer';
+    
+    // Box outline
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '1');
+    rect.setAttribute('y', '1');
+    rect.setAttribute('width', '14');
+    rect.setAttribute('height', '14');
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('fill', this.checked ? 'var(--md-accent, #6fb3d2)' : 'transparent');
+    rect.setAttribute('stroke', this.checked ? 'var(--md-accent, #6fb3d2)' : 'var(--md-text-muted, #666)');
+    rect.setAttribute('stroke-width', '1.5');
+    svg.appendChild(rect);
+    
+    // Checkmark (only visible when checked)
+    if (this.checked) {
+      const check = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      check.setAttribute('d', 'M4 8l2.5 2.5L12 5');
+      check.setAttribute('stroke', 'white');
+      check.setAttribute('stroke-width', '2');
+      check.setAttribute('stroke-linecap', 'round');
+      check.setAttribute('stroke-linejoin', 'round');
+      check.setAttribute('fill', 'none');
+      svg.appendChild(check);
+    }
+    
+    wrapper.appendChild(svg);
+    
+    // Click handler to toggle checkbox
+    const handleToggle = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const newText = this.checked ? '[ ]' : '[x]';
+      view.dispatch({
+        changes: { from: this.pos, to: this.pos + 3, insert: newText },
+      });
+    };
+    
+    wrapper.addEventListener('mousedown', handleToggle);
+    wrapper.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        handleToggle(e);
+      }
+    });
+
+    // Styling
+    wrapper.style.display = 'inline-flex';
+    wrapper.style.alignItems = 'center';
+    wrapper.style.marginRight = '8px';
+    wrapper.style.verticalAlign = 'middle';
+    wrapper.style.transition = 'transform 0.1s ease';
+    
+    return wrapper;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}

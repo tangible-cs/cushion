@@ -1,0 +1,964 @@
+/* Markdown Editor Theme - Inspired by Tangent */
+
+/* ============================================
+   CSS Custom Properties (Theming System)
+   ============================================ */
+
+:root {
+  /* Typography */
+  --md-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  --md-code-font-family: 'Fira Code', 'JetBrains Mono', Consolas, Menlo, Monaco, 'Courier New', monospace;
+  --md-font-size: 16px;
+  --md-baseline: 1.6;
+  --md-header-factor: 2.5;
+  
+  /* Spacing - matches Tangent's default "normal" margins */
+  --md-space-width: 0.25em;
+  --md-indent-size: 8;
+  --md-indent-width: calc(var(--md-indent-size) * var(--md-space-width));
+  --md-content-max-width: 900px;  /* Wider content area, like Notion */
+  --md-content-padding: 1em 1.25em;  /* Narrower side padding, like Notion */
+  
+  /* Border radius */
+  --md-border-radius: 6px;
+  --md-border-radius-sm: 3px;
+}
+
+/* Dark theme (default) */
+:root, .dark {
+  /* Colors - Base */
+  --md-bg: #1a1a1a;
+  --md-bg-secondary: #242424;
+  --md-bg-tertiary: #2d2d2d;
+  --md-text: #e0e0e0;
+  --md-text-muted: #a0a0a0;
+  --md-text-faint: #666666;
+  --md-border: #3a3a3a;
+  
+  /* Colors - Accent */
+  --md-accent-hue: 210;
+  --md-accent-saturation: 60%;
+  --md-accent: hsl(var(--md-accent-hue), var(--md-accent-saturation), 55%);
+  --md-accent-bg: hsl(var(--md-accent-hue), var(--md-accent-saturation), 20%);
+  --md-accent-bg-hover: hsl(var(--md-accent-hue), var(--md-accent-saturation), 25%);
+  
+  /* Colors - Links */
+  --md-link-color: #6fb3d2;
+  --md-link-hover: #8ec8e3;
+  --md-link-external: #b8a6d9;
+  --md-link-empty: #d97c7c;
+  
+  /* Colors - Code */
+  --md-code-bg: #2a2a2a;
+  --md-code-text: #e6db74;
+  --md-code-border: #3a3a3a;
+  --md-code-keyword: #c678dd;
+  --md-code-string: #98c379;
+  --md-code-number: #d19a66;
+  --md-code-comment: #5c6370;
+  --md-code-function: #61afef;
+  --md-code-operator: #56b6c2;
+  --md-code-type: #e5c07b;
+  --md-code-property: #d19a66;
+  --md-code-variable: #e06c75;
+  --md-code-boolean: #d19a66;
+  --md-code-null: #d19a66;
+  
+  /* Colors - Highlights */
+  --md-highlight-yellow: rgba(255, 235, 59, 0.3);
+  --md-highlight-green: rgba(76, 175, 80, 0.3);
+  --md-highlight-blue: rgba(33, 150, 243, 0.3);
+  --md-highlight-red: rgba(244, 67, 54, 0.3);
+  --md-highlight-purple: rgba(156, 39, 176, 0.3);
+  --md-highlight-orange: rgba(255, 152, 0, 0.3);
+  
+  /* Colors - Selection */
+  --md-selection-bg: rgba(100, 153, 255, 0.25);
+  
+  /* Colors - Blockquote */
+  --md-blockquote-border: #4a4a4a;
+  --md-blockquote-text: #b0b0b0;
+  
+  /* Colors - HR */
+  --md-hr-color: #4a4a4a;
+}
+
+/* Light theme */
+.light {
+  --md-bg: #ffffff;
+  --md-bg-secondary: #f8f8f8;
+  --md-bg-tertiary: #f0f0f0;
+  --md-text: #24292e;
+  --md-text-muted: #586069;
+  --md-text-faint: #959da5;
+  --md-border: #e1e4e8;
+  
+  --md-accent: hsl(var(--md-accent-hue), var(--md-accent-saturation), 40%);
+  --md-accent-bg: hsl(var(--md-accent-hue), var(--md-accent-saturation), 92%);
+  --md-accent-bg-hover: hsl(var(--md-accent-hue), var(--md-accent-saturation), 88%);
+  
+  --md-link-color: #0366d6;
+  --md-link-hover: #034289;
+  --md-link-external: #6f42c1;
+  --md-link-empty: #cb2431;
+  
+  --md-code-bg: #f6f8fa;
+  --md-code-text: #24292e;
+  --md-code-border: #e1e4e8;
+  --md-code-keyword: #d73a49;
+  --md-code-string: #032f62;
+  --md-code-number: #005cc5;
+  --md-code-comment: #6a737d;
+  --md-code-function: #6f42c1;
+  --md-code-operator: #d73a49;
+  --md-code-type: #22863a;
+  --md-code-property: #005cc5;
+  --md-code-variable: #e36209;
+  --md-code-boolean: #005cc5;
+  --md-code-null: #005cc5;
+  
+  --md-highlight-yellow: rgba(255, 235, 59, 0.4);
+  --md-highlight-green: rgba(76, 175, 80, 0.4);
+  --md-highlight-blue: rgba(33, 150, 243, 0.4);
+  --md-highlight-red: rgba(244, 67, 54, 0.4);
+  --md-highlight-purple: rgba(156, 39, 176, 0.4);
+  --md-highlight-orange: rgba(255, 152, 0, 0.4);
+  
+  --md-selection-bg: rgba(33, 150, 243, 0.2);
+  
+  --md-blockquote-border: #dfe2e5;
+  --md-blockquote-text: #6a737d;
+  
+  --md-hr-color: #e1e4e8;
+}
+
+/* ============================================
+   Editor Container
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg {
+  background: transparent;  /* Inherit from parent */
+  color: var(--md-text);
+  font-family: var(--md-font-family);
+  font-size: var(--md-font-size);
+  line-height: var(--md-baseline);
+  caret-color: var(--md-text);
+  /* Remove any borders/outlines */
+  border: none !important;
+  outline: none !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg.cm-focused {
+  outline: none !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-scroller {
+  overflow: visible;  /* Parent handles scrolling */
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-content {
+  /* Centering - like Tangent's article { margin: 0 auto } */
+  max-width: var(--md-content-max-width);
+  margin: 0 auto;
+  padding: var(--md-content-padding);
+  padding-top: 0.5em;  /* Small top padding for breathing room */
+  box-sizing: border-box;
+  /* Ensure no visual separation */
+  border: none;
+  outline: none;
+}
+
+/* Ensure lines wrap properly */
+.cm-editor.cm-markdown-wysiwyg .cm-line {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hide gutters in markdown mode */
+.cm-editor.cm-markdown-wysiwyg .cm-gutters {
+  display: none;
+  border: none;
+}
+
+/* Cursor color */
+.cm-editor.cm-markdown-wysiwyg .cm-cursor {
+  border-left-color: var(--md-text);
+}
+
+/* Selection */
+.cm-editor.cm-markdown-wysiwyg .cm-selectionBackground {
+  background: var(--md-selection-bg) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg::selection,
+.cm-editor.cm-markdown-wysiwyg *::selection {
+  background: var(--md-selection-bg);
+}
+
+/* Active line - no highlight for cleaner look */
+.cm-editor.cm-markdown-wysiwyg .cm-activeLine {
+  background: transparent;
+}
+
+/* Remove active line gutter highlight too */
+.cm-editor.cm-markdown-wysiwyg .cm-activeLineGutter {
+  background: transparent;
+}
+
+/* ============================================
+   Typography - Headings
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-1 {
+  font-size: 2em;
+  font-weight: 600;
+  line-height: 1.3;
+  padding-bottom: 0.5em;
+  color: var(--md-text);
+  letter-spacing: -0.02em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.35;
+  padding-bottom: 0.4em;
+  color: var(--md-text);
+  letter-spacing: -0.01em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.4;
+  padding-bottom: 0.3em;
+  color: var(--md-text);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: var(--md-baseline);
+  color: var(--md-text);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-5 {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: var(--md-baseline);
+  color: var(--md-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-6 {
+  font-size: 0.9em;
+  font-weight: 500;
+  font-style: italic;
+  line-height: var(--md-baseline);
+  color: var(--md-text-muted);
+}
+
+/* ============================================
+   Typography - Inline formatting
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-strong {
+  font-weight: 600;
+  color: var(--md-text);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-emphasis {
+  font-style: italic;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-strikethrough {
+  text-decoration: line-through;
+  color: var(--md-text-muted);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-inline-code {
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+  background: var(--md-code-bg);
+  color: var(--md-code-text);
+  padding: 2px 6px;
+  border-radius: var(--md-border-radius-sm);
+  border: 1px solid var(--md-code-border);
+}
+
+/* ============================================
+   Links
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-link {
+  color: var(--md-link-color);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-link:hover {
+  color: var(--md-link-hover);
+  text-decoration: underline;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-link[data-external="true"] {
+  color: var(--md-link-external);
+}
+
+/* ============================================
+   Blockquotes
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote {
+  border-left: 3px solid var(--md-blockquote-border);
+  padding-left: 16px;
+  margin-left: 8px;
+  color: var(--md-blockquote-text);
+  font-style: italic;
+}
+
+/* Nested blockquotes */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote-depth-2 {
+  border-left-width: 6px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote-depth-3 {
+  border-left-width: 9px;
+}
+
+/* ============================================
+   Lists
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-item {
+  position: relative;
+  padding-left: var(--md-indent-width);
+}
+
+/* Bullet widget */
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet {
+  color: var(--md-accent);
+  user-select: none;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+/* Checkbox widget */
+.cm-editor.cm-markdown-wysiwyg .cm-checkbox-widget {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+  accent-color: var(--md-accent);
+  border-radius: var(--md-border-radius-sm);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-checkbox-widget:checked + span {
+  text-decoration: line-through;
+  color: var(--md-text-muted);
+}
+
+/* ============================================
+   Code Blocks
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block {
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+  background: var(--md-code-bg);
+  border-left: 3px solid var(--md-accent);
+  padding: 2px 12px;
+  margin: 0;
+  border-radius: 0;
+  line-height: 1.5;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start {
+  border-top-left-radius: var(--md-border-radius);
+  border-top-right-radius: var(--md-border-radius);
+  padding-top: 6px;
+  margin-top: 4px;
+  position: relative;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start::before {
+  /* Language indicator */
+  content: attr(data-lang);
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  font-size: 0.7em;
+  color: var(--md-text-faint, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end {
+  border-bottom-left-radius: var(--md-border-radius);
+  border-bottom-right-radius: var(--md-border-radius);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+/* Hidden fence lines (``` markers) - collapsed when cursor is outside code block */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-hidden {
+  height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  border: none !important;
+  color: transparent !important;
+}
+
+/* Code block even when cursor is on line - apply minimal styling */
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(.tok-fencedCode) {
+  font-family: var(--md-code-font-family);
+  background: var(--md-code-bg);
+  border-left: 2px solid var(--md-accent);
+  padding: 2px 12px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line .tok-fencedCode {
+  color: var(--md-text-faint, #666);
+}
+
+/* Syntax highlighting colors for code blocks */
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-keyword {
+  color: var(--md-code-keyword, #c678dd);
+  font-weight: 500;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-string {
+  color: var(--md-code-string, #98c379);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-number {
+  color: var(--md-code-number, #d19a66);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-comment {
+  color: var(--md-code-comment, #5c6370);
+  font-style: italic;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-function {
+  color: var(--md-code-function, #61afef);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-operator {
+  color: var(--md-code-operator, #56b6c2);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-class {
+  color: var(--md-code-type, #e5c07b);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-property {
+  color: var(--md-code-property, #d19a66);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-variableName {
+  color: var(--md-code-variable, #e06c75);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-typeName {
+  color: var(--md-code-type, #e5c07b);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-bool {
+  color: var(--md-code-boolean, #d19a66);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-null {
+  color: var(--md-code-null, #d19a66);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-atom {
+  color: var(--md-code-boolean, #d19a66);
+}
+
+/* ============================================
+   Horizontal Rule
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-hr-widget {
+  display: block;
+  border: none;
+  border-top: 1px solid var(--md-hr-color);
+  margin: 24px 0;
+  height: 0;
+}
+
+/* ============================================
+   Images
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget {
+  display: block;
+  margin: 16px 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget img {
+  max-width: 100%;
+  border-radius: var(--md-border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.2s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget img:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================
+   Tags (pill style)
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: var(--md-accent-bg);
+  color: var(--md-accent);
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-tag:hover {
+  background: var(--md-accent-bg-hover);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-tag::before {
+  content: '#';
+  margin-right: 2px;
+  opacity: 0.7;
+}
+
+/* ============================================
+   Front Matter
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-frontmatter {
+  font-family: var(--md-code-font-family);
+  font-size: 0.85em;
+  color: var(--md-text-faint);
+  background: var(--md-bg-secondary);
+  padding: 4px 12px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-frontmatter-delimiter {
+  color: var(--md-text-faint);
+  border-top: 1px solid var(--md-border);
+  border-bottom: 1px solid var(--md-border);
+}
+
+/* ============================================
+   Math (KaTeX)
+   ============================================ */
+
+/* Math syntax when cursor is on line */
+.cm-editor.cm-markdown-wysiwyg .cm-math-syntax {
+  color: var(--md-accent);
+  font-family: var(--md-code-font-family);
+  font-size: 0.95em;
+}
+
+/* Inline math widget */
+.cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget {
+  display: inline;
+  padding: 0 2px;
+  vertical-align: baseline;
+}
+
+/* KaTeX styles override for dark theme */
+.cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget .katex {
+  color: var(--md-text);
+  font-size: 1em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget .katex .mord {
+  color: var(--md-text);
+}
+
+/* Block math widget */
+.cm-editor.cm-markdown-wysiwyg .cm-math-block-widget {
+  display: block;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* KaTeX block styles override */
+.cm-editor.cm-markdown-wysiwyg .cm-math-block-widget .katex {
+  color: var(--md-text);
+  font-size: 1.1em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-block-widget .katex-display {
+  margin: 0;
+}
+
+/* Multi-line math fence lines hidden when cursor is outside */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-fence-hidden {
+  height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  border: none !important;
+}
+
+/* Math error state */
+.cm-editor.cm-markdown-wysiwyg .cm-math-error {
+  color: var(--md-link-empty, #d97c7c);
+  background: var(--md-accent-bg);
+  padding: 2px 6px;
+  border-radius: var(--md-border-radius-sm);
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+}
+
+/* ============================================
+   Focus Mode (optional - enabled via class)
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg.focus-mode .cm-line {
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg.focus-mode .cm-line.cm-activeLine,
+.cm-editor.cm-markdown-wysiwyg.focus-mode .cm-line:focus-within {
+  opacity: 1;
+}
+
+/* ============================================
+   Syntax Reveal (when cursor on line)
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-syntax-revealed {
+  color: var(--md-text-faint);
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+}
+
+/* ============================================
+   Animations & Transitions
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-line {
+  transition: opacity 0.2s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-link,
+.cm-editor.cm-markdown-wysiwyg .cm-tag,
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget img {
+  transition: all 0.15s ease;
+}
+
+/* ============================================
+   File Header (Title)
+   ============================================ */
+
+.file-header {
+  /* No background - inherits from parent container */
+  transition: opacity 0.3s ease;
+}
+
+.file-header-title {
+  color: var(--md-text);
+  caret-color: var(--md-text);
+}
+
+.file-header-title:empty::before {
+  content: 'Untitled';
+  color: var(--md-text-faint, #666);
+  font-style: italic;
+}
+
+.file-header-title::selection {
+  background: var(--md-selection-bg, rgba(100, 153, 255, 0.25));
+}
+
+.file-header-fixed {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--md-bg, #1a1a1a);
+}
+
+/* ============================================
+   Wiki-Links [[link]]
+   Inspired by Tangent's link styling
+   Click to navigate (like Obsidian)
+   ============================================ */
+
+/* Base wiki-link styling */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link {
+  color: var(--md-link-color);
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link:hover {
+  color: var(--md-link-hover);
+  border-bottom-color: var(--md-link-hover);
+}
+
+/* Resolved wiki-link (target file exists) */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-resolved {
+  color: var(--md-link-color);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-resolved:hover {
+  color: var(--md-link-hover);
+  border-bottom-color: var(--md-link-hover);
+}
+
+/* Empty wiki-link (target file doesn't exist) */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-empty {
+  color: var(--md-link-empty);
+  border-bottom: 1px dashed var(--md-link-empty);
+  opacity: 0.85;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-empty:hover {
+  color: var(--md-link-empty);
+  opacity: 1;
+}
+
+/* Ambiguous wiki-link (multiple matches) */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-ambiguous {
+  color: var(--md-link-external);
+  border-bottom: 1px dotted var(--md-link-external);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-ambiguous:hover {
+  color: var(--md-link-external);
+  border-bottom-style: solid;
+}
+
+/* Wiki-link brackets (shown when cursor on line) */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link-bracket {
+  color: var(--md-text-faint);
+  font-size: 0.9em;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.05em;
+}
+
+/* Tooltip hint for Ctrl+Click */
+.cm-editor.cm-markdown-wysiwyg .cm-wiki-link[title] {
+  position: relative;
+}
+
+/* Light theme overrides for wiki-links */
+.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-resolved {
+  color: var(--md-link-color);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-empty {
+  color: var(--md-link-empty);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-ambiguous {
+  color: var(--md-link-external);
+}
+
+/* ============================================
+   Wiki-Link Autocomplete
+   Inspired by Tangent's autocomplete styling
+   ============================================ */
+
+/* Autocomplete tooltip container */
+.cm-editor .cm-tooltip-autocomplete {
+  background: var(--md-bg-secondary, #242424);
+  border: 1px solid var(--md-border, #3a3a3a);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+/* Autocomplete list */
+.cm-editor .cm-tooltip-autocomplete > ul {
+  font-family: var(--md-font-family);
+  font-size: 0.9em;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+/* Scrollbar styling */
+.cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-thumb {
+  background: var(--md-border, #3a3a3a);
+  border-radius: 3px;
+}
+
+.cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-thumb:hover {
+  background: var(--md-text-muted, #666);
+}
+
+/* Individual completion option */
+.cm-editor .cm-tooltip-autocomplete > ul > li {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--md-text, #e0e0e0);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  margin-bottom: 2px;
+  transition: all 0.1s ease;
+}
+
+/* Hover state */
+.cm-editor .cm-tooltip-autocomplete > ul > li:hover {
+  background: var(--md-bg-tertiary, #2d2d2d);
+  border-color: var(--md-bg-tertiary, #2d2d2d);
+}
+
+/* Selected state - accent background like Tangent */
+.cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected="true"] {
+  background: var(--md-accent-bg, hsl(210, 60%, 18%));
+  border-color: var(--md-accent, hsl(210, 60%, 45%));
+}
+
+/* Completion icon */
+.cm-editor .cm-completionIcon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.6;
+  font-size: 14px;
+}
+
+/* Note/text file icon */
+.cm-editor .cm-completionIcon-text::after {
+  content: '📝';
+}
+
+/* Generic file icon */
+.cm-editor .cm-completionIcon-file::after {
+  content: '📄';
+}
+
+/* Create new icon */
+.cm-editor .cm-completionIcon-keyword::after {
+  content: '✨';
+}
+
+/* Completion label (main text) */
+.cm-editor .cm-completionLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* Match highlighting */
+.cm-editor .cm-completionMatchedText {
+  color: var(--md-accent, hsl(210, 60%, 60%));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Detail text (directory path) */
+.cm-editor .cm-completionDetail {
+  color: var(--md-text-faint, #666);
+  font-size: 0.8em;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+  font-weight: 400;
+}
+
+/* Create new note option */
+.cm-editor .cm-tooltip-autocomplete > ul > li.cm-wiki-link-create {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--md-border, #3a3a3a);
+  border-radius: 0 0 6px 6px;
+}
+
+.cm-editor .cm-wiki-link-create .cm-completionDetail {
+  color: var(--md-link-empty, #e8a87c);
+  font-style: italic;
+}
+
+/* Keyboard hint footer - via ::after on the ul */
+.cm-editor .cm-tooltip-autocomplete > ul::after {
+  content: '↑↓ navigate • Enter select • Esc dismiss';
+  display: block;
+  padding: 8px 12px;
+  margin-top: 6px;
+  border-top: 1px solid var(--md-border, #3a3a3a);
+  color: var(--md-text-faint, #666);
+  font-size: 0.75em;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+/* Light theme overrides */
+.light .cm-editor .cm-tooltip-autocomplete {
+  background: var(--md-bg, #ffffff);
+  border-color: var(--md-border, #e1e4e8);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.light .cm-editor .cm-tooltip-autocomplete > ul > li:hover {
+  background: var(--md-bg-secondary, #f6f8fa);
+  border-color: var(--md-bg-secondary, #f6f8fa);
+}
+
+.light .cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected="true"] {
+  background: var(--md-accent-bg, hsl(210, 60%, 95%));
+  border-color: var(--md-accent, hsl(210, 60%, 50%));
+}
+
+.light .cm-editor .cm-completionMatchedText {
+  color: var(--md-accent, hsl(210, 60%, 45%));
+}
+
+.light .cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-thumb {
+  background: var(--md-border, #d1d5db);
+}

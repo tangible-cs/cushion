@@ -1,0 +1,23 @@
+{
+  "name": "cushion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cushion monorepo",
+  "scripts": {
+    "dev": "concurrently --names coordinator,frontend --prefix-colors blue,green \"pnpm --filter coordinator dev\" \"pnpm --filter frontend dev\"",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:coordinator": "pnpm --filter coordinator dev",
+    "build": "pnpm --filter @cushion/types build && pnpm --filter frontend build && pnpm --filter coordinator build",
+    "type-check": "pnpm --recursive run type-check",
+    "lint": "pnpm --recursive run lint",
+    "clean": "pnpm --recursive exec rm -rf node_modules dist .next"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.0"
+  }
+}
