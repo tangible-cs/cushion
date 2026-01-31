@@ -1,0 +1,84 @@
+'use client';
+
+import { useCallback, type HTMLAttributes, type MouseEvent as ReactMouseEvent } from 'react';
+
+type ResizeHandleProps = Omit<HTMLAttributes<HTMLDivElement>, 'onResize'> & {
+  direction: 'horizontal' | 'vertical';
+  edge?: 'start' | 'end';
+  size: number;
+  min: number;
+  max: number;
+  onResize: (size: number) => void;
+  onCollapse?: () => void;
+  collapseThreshold?: number;
+};
+
+export function ResizeHandle({
+  direction,
+  edge,
+  size,
+  min,
+  max,
+  onResize,
+  onCollapse,
+  collapseThreshold,
+  className,
+  ...rest
+}: ResizeHandleProps) {
+  const handleMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const resolvedEdge = edge ?? (direction === 'vertical' ? 'start' : 'end');
+      const start = direction === 'horizontal' ? event.clientX : event.clientY;
+      const startSize = size;
+      let current = startSize;
+
+      document.body.style.userSelect = 'none';
+      document.body.style.overflow = 'hidden';
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const pos = direction === 'horizontal' ? moveEvent.clientX : moveEvent.clientY;
+        const delta =
+          direction === 'vertical'
+            ? resolvedEdge === 'end'
+              ? pos - start
+              : start - pos
+            : resolvedEdge === 'start'
+              ? start - pos
+              : pos - start;
+        current = startSize + delta;
+        const clamped = Math.min(max, Math.max(min, current));
+        onResize(clamped);
+      };
+
+      const onMouseUp = () => {
+        document.body.style.userSelect = '';
+        document.body.style.overflow = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+
+        const threshold = collapseThreshold ?? 0;
+        if (onCollapse && threshold > 0 && current < threshold) {
+          onCollapse();
+        }
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [collapseThreshold, direction, edge, max, min, onCollapse, onResize, size]
+  );
+
+  const resolvedEdge = edge ?? (direction === 'vertical' ? 'start' : 'end');
+
+  return (
+    <div
+      {...rest}
+      data-component="resize-handle"
+      data-direction={direction}
+      data-edge={resolvedEdge}
+      className={className}
+      onMouseDown={handleMouseDown}
+    />
+  );
+}

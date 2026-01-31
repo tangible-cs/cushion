@@ -528,8 +528,8 @@ function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]
 export const hideMarkupPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
-    private cursorLineNumber: number;
-    private pendingUpdate: number | null = null;
+    cursorLineNumber: number;
+    pendingUpdate: number | null = null;
 
     constructor(view: EditorView) {
       this.decorations = buildDecorations(view.state);

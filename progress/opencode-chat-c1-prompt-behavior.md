@@ -1,0 +1,41 @@
+# C1 - Prompt Input Behavior
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Document mentions, slash commands, history, attachments.
+- Inputs: `opencode/packages/app/src/components/prompt-input.tsx`
+- Outputs: Behavior spec and edge cases (no code).
+- Notes:
+  - Input uses a contenteditable surface that mirrors prompt parts into inline “pills” for files and agents.
+  - Prompt parts are parsed from DOM on input and include text, file pills, agent pills, and image attachments.
+  - Popovers:
+    - “@” mentions trigger a filtered list that mixes agents, recent files, and file search results.
+    - “/” triggers slash commands; custom commands are prefixed and insert a slash template.
+    - Popover navigation supports arrow keys and Ctrl+N/Ctrl+P; Tab selects active item.
+  - History:
+    - Separate history for normal and shell mode.
+    - Arrow up/down navigates history when caret is at boundaries; preserves a saved prompt to restore.
+  - Modes:
+    - Shell mode toggles with “!” at start; Escape or backspace at start exits to normal mode.
+    - Shell mode sends command instead of prompt; uses separate history.
+  - Attachments:
+    - Drag/drop and paste accept image/PDF file types; unsupported files show a toast.
+    - Image attachments display thumbnails with remove buttons.
+  - Context pills:
+    - Context items (file + selection + comment) are shown as removable pills with optional comment text.
+    - Clicking a comment context navigates to review or file view and focuses the comment.
+  - Input behavior:
+    - Shift+Enter inserts newline; Enter submits if not composing IME.
+    - IME composition is respected; Enter is ignored during composition.
+    - Backspace edge cases handle zero-width placeholders.
+    - Cursor preservation attempts to maintain selection when re-rendering prompt parts.
+  - Submission flow:
+    - Validates model/agent selection; shows toast if missing.
+    - Supports slash custom commands; supports shell command send.
+    - Regular prompt builds request parts: text + file parts + context parts + agent parts + image parts.
+    - Optimistic message insertion + rollback on failure (documented in B4).
+  - Placeholder:
+    - Rotates sample prompts when not in a session.
+- Decisions:
+  - For Cushion, mirror the behavior set (mentions, slash commands, history, drag/drop, shell mode) but keep UI native to Cushion’s sidebar.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

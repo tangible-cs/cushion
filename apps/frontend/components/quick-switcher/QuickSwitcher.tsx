@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { FileText, FilePlus, Folder } from 'lucide-react';
 import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { FileTreeNode } from '@cushion/types';
@@ -71,7 +71,7 @@ function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: 
     return <span>{text}</span>;
   }
 
-  const parts: JSX.Element[] = [];
+  const parts: ReactNode[] = [];
   let lastIndex = 0;
 
   for (const idx of matchIndices) {

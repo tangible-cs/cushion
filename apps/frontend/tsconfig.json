@@ -5,6 +5,21 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@cushion/types": [
+        "../../packages/types/src/index.ts"
+      ],
+      "@cushion/types/*": [
+        "../../packages/types/src/*"
+      ],
+      "@opencode-ai/sdk/v2/client": [
+        "./lib/opencode-sdk.ts"
+      ],
+      "@opencode-ai/sdk": [
+        "../../opencode/packages/sdk/js/src/index.ts"
+      ],
+      "@opencode-ai/sdk/*": [
+        "../../opencode/packages/sdk/js/src/*"
       ]
     },
     "isolatedModules": true

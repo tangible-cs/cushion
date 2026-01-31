@@ -21,6 +21,7 @@ interface FileBrowserProps {
   onSearch?: () => void;
   onIntelligence?: () => void;
   onSettings?: () => void;
+  onAskAIFile?: (path: string) => void;
 }
 
 export interface FileBrowserHandle {
@@ -28,7 +29,7 @@ export interface FileBrowserHandle {
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onIntelligence, onSettings }, ref) {
+  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onIntelligence, onSettings, onAskAIFile }, ref) {
   const { metadata, currentFile } = useWorkspaceStore();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -355,6 +356,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               onFileClick={handleFileClick}
               currentFile={currentFile}
               onLoadDirectory={loadDirectory}
+              onAskAI={onAskAIFile}
               creatingFileAtRoot={creatingFileAtRoot}
               creatingFolderAtRoot={creatingFolderAtRoot}
               onRootCreationDone={() => {

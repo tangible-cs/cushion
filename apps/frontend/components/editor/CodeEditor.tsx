@@ -30,11 +30,20 @@ interface CodeEditorProps {
   language?: string;
   onChange?: (content: string) => void;
   onSave?: () => void;
+  onSelectionChange?: (selection: SelectionInfo | null) => void;
   /** File tree for wiki-link resolution */
   fileTree?: FileTreeNode[];
   /** Callback when a wiki-link is clicked (Ctrl+Click) */
   onWikiLinkNavigate?: WikiLinkNavigateCallback;
 }
+
+export type SelectionInfo = {
+  text: string;
+  startLine: number;
+  startChar: number;
+  endLine: number;
+  endChar: number;
+};
 
 /**
  * Language descriptions for code blocks inside markdown.
@@ -110,6 +119,7 @@ export function CodeEditor({
   language,
   onChange,
   onSave,
+  onSelectionChange,
   fileTree,
   onWikiLinkNavigate,
 }: CodeEditorProps) {
@@ -118,11 +128,13 @@ export function CodeEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
+  const onSelectionChangeRef = useRef(onSelectionChange);
 
   // Keep callback refs up to date without re-creating the editor
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
+  onSelectionChangeRef.current = onSelectionChange;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -197,6 +209,27 @@ export function CodeEditor({
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           onChangeRef.current?.(update.state.doc.toString());
+        }
+        if (update.selectionSet) {
+          const selection = update.state.selection.main;
+          const hasSelection = selection.from !== selection.to;
+          const callback = onSelectionChangeRef.current;
+          if (!callback) return;
+          if (!hasSelection) {
+            callback(null);
+            return;
+          }
+          const from = Math.min(selection.from, selection.to);
+          const to = Math.max(selection.from, selection.to);
+          const fromLine = update.state.doc.lineAt(from);
+          const toLine = update.state.doc.lineAt(to);
+          callback({
+            text: update.state.doc.sliceString(from, to),
+            startLine: fromLine.number,
+            startChar: from - fromLine.from,
+            endLine: toLine.number,
+            endChar: to - toLine.from,
+          });
         }
       }),
       keymap.of([

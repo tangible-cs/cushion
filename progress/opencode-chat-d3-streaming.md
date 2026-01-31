@@ -1,0 +1,23 @@
+# D3 - Streaming Updates
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Define streaming update triggers and UI updates.
+- Inputs: OpenCode global SSE events, `opencode/packages/app/src/context/global-sync.tsx`, `opencode/packages/ui/src/components/session-turn.tsx`, `opencode/packages/ui/src/components/message-part.tsx`
+- Outputs: Streaming rules and consistency notes (no code).
+- Notes:
+  - Streaming is driven by global SSE events:
+    - message.updated inserts or updates messages in the session list.
+    - message.part.updated inserts or updates parts per message ID.
+    - message.part.removed and message.removed remove part/message data.
+  - Part ordering is stable by part id; updates either replace or insert into the sorted list.
+  - Text rendering is throttled (~100ms) to reduce UI churn during streaming; markdown rendering updates are batched by this throttle.
+  - The active turn status (thinking/running tool/etc.) is derived from the most recent part and rate-limited to avoid flicker (min ~2.5s between changes).
+  - Auto-scroll behavior:
+    - If the user has not scrolled away, streaming keeps the view pinned to bottom.
+    - User scrolls pause auto-scroll and show a “resume” affordance.
+    - New permission prompts force scroll to bottom.
+  - When streaming completes, the UI hides redundant “response part” scaffolding so the final text appears once.
+- Decisions:
+  - For Cushion, rely on SSE global events to drive streaming updates and use throttled text rendering to keep the sidebar performant.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

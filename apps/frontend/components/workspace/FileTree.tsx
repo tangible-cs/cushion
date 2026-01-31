@@ -18,6 +18,7 @@ interface FileTreeProps {
   onDelete?: (path: string) => void;
   onDuplicate?: (path: string) => void;
   onMoveTo?: (path: string) => void;
+  onAskAI?: (path: string) => void;
   /** Externally trigger creating a file at root level (increment to re-trigger) */
   creatingFileAtRoot?: number;
   /** Externally trigger creating a folder at root level (increment to re-trigger) */
@@ -89,6 +90,7 @@ export function FileTree({
   onDelete,
   onDuplicate,
   onMoveTo,
+  onAskAI,
   creatingFileAtRoot,
   creatingFolderAtRoot,
   onRootCreationDone,
@@ -446,6 +448,7 @@ export function FileTree({
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
                 onMoveTo={onMoveTo}
+                onAskAI={onAskAI}
               />
             </div>
 
@@ -453,18 +456,19 @@ export function FileTree({
             {isFolder && isExpanded && (
               <>
                 {children && (
-                  <FileTree
-                    nodes={children}
-                    onFileClick={onFileClick}
-                    currentFile={currentFile}
-                    level={level + 1}
-                    onLoadDirectory={onLoadDirectory}
-                    onAddFile={onAddFile}
-                    onRename={onRename}
-                    onDelete={onDelete}
-                    onDuplicate={onDuplicate}
-                    onMoveTo={onMoveTo}
-                  />
+                    <FileTree
+                      nodes={children}
+                      onFileClick={onFileClick}
+                      currentFile={currentFile}
+                      level={level + 1}
+                      onLoadDirectory={onLoadDirectory}
+                      onAddFile={onAddFile}
+                      onRename={onRename}
+                      onDelete={onDelete}
+                      onDuplicate={onDuplicate}
+                      onMoveTo={onMoveTo}
+                      onAskAI={onAskAI}
+                    />
                 )}
 
                 {/* New file input row */}

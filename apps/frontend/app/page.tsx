@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { TerminalSquare, Link2, GitBranch } from 'lucide-react';
+import { TerminalSquare, Link2, GitBranch, Sparkles } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useChatStore } from '@/stores/chatStore';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { FileBrowser, FileBrowserHandle } from '@/components/workspace/FileBrowser';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
@@ -11,6 +12,8 @@ import { EditorPanel } from '@/components/editor/EditorPanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { GraphView } from '@/components/graph/GraphView';
 import { QuickSwitcher } from '@/components/quick-switcher';
+import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { buildLinkIndex, type LinkIndex } from '@/lib/link-index';
 import { flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
@@ -18,13 +21,17 @@ import type { FileTreeNode } from '@cushion/types';
 
 export default function Home() {
   const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects } = useWorkspaceStore();
+  const connectChat = useChatStore((state) => state.connect);
+  const disconnectChat = useChatStore((state) => state.disconnect);
+  const addContextItem = useChatStore((state) => state.addContextItem);
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fileTree, setFileTree] = useState<FileTreeNode[]>([]);
   const [linkIndex, setLinkIndex] = useState<LinkIndex | null>(null);
-  const [showBacklinks, setShowBacklinks] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<'none' | 'backlinks' | 'chat'>('none');
+  const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [showGraph, setShowGraph] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
@@ -51,6 +58,23 @@ export default function Home() {
       cancelled = true;
     };
   }, [setClient]);
+
+  // Connect to OpenCode when workspace is available
+  useEffect(() => {
+    const directory = metadata?.projectPath;
+    if (!directory) {
+      disconnectChat();
+      return;
+    }
+
+    connectChat(directory).catch((err) => {
+      console.error('[Page] Failed to connect to OpenCode:', err);
+    });
+
+    return () => {
+      disconnectChat();
+    };
+  }, [metadata?.projectPath, connectChat, disconnectChat]);
 
   // Auto-open most recent workspace if available
   useEffect(() => {
@@ -162,7 +186,7 @@ export default function Home() {
       // Ctrl+B to toggle backlinks
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
-        setShowBacklinks((v) => !v);
+        setRightPanelMode((mode) => (mode === 'backlinks' ? 'none' : 'backlinks'));
       }
       // Escape to close modals
       if (e.key === 'Escape') {
@@ -177,6 +201,33 @@ export default function Home() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showGraph, showQuickSwitcher]);
 
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('cushion-right-panel') : null;
+    if (!stored) return;
+    if (stored === 'none' || stored === 'backlinks' || stored === 'chat') {
+      setRightPanelMode(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('cushion-right-panel-width');
+    if (!stored) return;
+    const parsed = Number(stored);
+    if (!Number.isFinite(parsed)) return;
+    setRightPanelWidth(parsed);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('cushion-right-panel', rightPanelMode);
+  }, [rightPanelMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('cushion-right-panel-width', String(rightPanelWidth));
+  }, [rightPanelWidth]);
+
   // File selection handler — reads file via coordinator and opens in editor
   const handleFileOpen = useCallback(
     (filePath: string, content: string) => {
@@ -189,9 +240,29 @@ export default function Home() {
     setShowWorkspaceModal(true);
   }, []);
 
+  const openChatSidebar = useCallback(() => {
+    setRightPanelMode('chat');
+  }, []);
+
+  const handleAskAIFile = useCallback((filePath: string) => {
+    addContextItem({ path: filePath });
+    setRightPanelMode('chat');
+  }, [addContextItem]);
+
   const handleSidebarToggle = useCallback((collapsed: boolean) => {
     setSidebarCollapsed(collapsed);
   }, []);
+
+  const rightPanelMin = 280;
+  const rightPanelMax = typeof window !== 'undefined'
+    ? Math.max(rightPanelMin, Math.floor(window.innerWidth * 0.45))
+    : 520;
+  const resolvedRightPanelWidth = Math.min(rightPanelMax, Math.max(rightPanelMin, rightPanelWidth));
+
+  useEffect(() => {
+    if (resolvedRightPanelWidth === rightPanelWidth) return;
+    setRightPanelWidth(resolvedRightPanelWidth);
+  }, [rightPanelWidth, resolvedRightPanelWidth]);
 
   // Called when a file is renamed from the editor header (or a wiki-link creates a new file)
   const handleFileRenamed = useCallback(() => {
@@ -237,23 +308,23 @@ export default function Home() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex">
       {/* LEFT: File browser sidebar - uses negative margin to collapse */}
-      <FileBrowser
-        ref={fileBrowserRef}
-        client={client}
-        onFileOpen={handleFileOpen}
-        onOpenWorkspace={handleOpenWorkspace}
-        onSidebarToggle={handleSidebarToggle}
-        isCollapsed={sidebarCollapsed}
-        onSearch={() => setShowQuickSwitcher(true)}
-        onIntelligence={() => {
-          // TODO: Implement Intelligence feature
-          console.log('[Page] Intelligence clicked');
-        }}
-        onSettings={() => {
-          // TODO: Implement Settings modal
-          console.log('[Page] Settings clicked');
-        }}
-      />
+        <FileBrowser
+          ref={fileBrowserRef}
+          client={client}
+          onFileOpen={handleFileOpen}
+          onOpenWorkspace={handleOpenWorkspace}
+          onSidebarToggle={handleSidebarToggle}
+          isCollapsed={sidebarCollapsed}
+          onSearch={() => setShowQuickSwitcher(true)}
+          onIntelligence={() => {
+            setRightPanelMode('chat');
+          }}
+          onAskAIFile={handleAskAIFile}
+          onSettings={() => {
+            // TODO: Implement Settings modal
+            console.log('[Page] Settings clicked');
+          }}
+        />
 
       {/* CENTER: Editor panel - flex grows to fill remaining space */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -265,6 +336,7 @@ export default function Home() {
                 fileTree={fileTree}
                 sidebarCollapsed={sidebarCollapsed && !!metadata}
                 onExpandSidebar={() => setSidebarCollapsed(false)}
+                onOpenChat={openChatSidebar}
               />
             ) : (
               <EditorPlaceholder />
@@ -272,10 +344,10 @@ export default function Home() {
           </div>
 
           {/* BOTTOM: Terminal toggle bar + panel */}
-          {!terminalVisible && (
-            <div className="flex items-center border-t" style={{ backgroundColor: 'var(--md-bg-secondary, #242424)', borderColor: 'var(--md-border, #3a3a3a)' }}>
-              <button
-                onClick={() => setTerminalVisible(true)}
+           {!terminalVisible && (
+             <div className="flex items-center border-t" style={{ backgroundColor: 'var(--md-bg-secondary, #242424)', borderColor: 'var(--md-border, #3a3a3a)' }}>
+               <button
+                 onClick={() => setTerminalVisible(true)}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
                 style={{ color: 'var(--md-text-muted, #a0a0a0)' }}
               >
@@ -284,17 +356,26 @@ export default function Home() {
                 <span className="ml-1" style={{ color: 'var(--md-text-faint, #666)' }}>Ctrl+`</span>
               </button>
               <div className="flex-1" />
-              <button
-                onClick={() => setShowBacklinks(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                style={{ color: showBacklinks ? 'var(--md-accent)' : 'var(--md-text-muted, #a0a0a0)' }}
-                title="Toggle backlinks (Ctrl+B)"
-              >
-                <Link2 size={13} />
-                Backlinks
-              </button>
-              <button
-                onClick={() => setShowGraph(true)}
+               <button
+                 onClick={() => setRightPanelMode((mode) => (mode === 'backlinks' ? 'none' : 'backlinks'))}
+                 className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
+                 style={{ color: rightPanelMode === 'backlinks' ? 'var(--md-accent)' : 'var(--md-text-muted, #a0a0a0)' }}
+                 title="Toggle backlinks (Ctrl+B)"
+               >
+                 <Link2 size={13} />
+                 Backlinks
+               </button>
+               <button
+                 onClick={() => setRightPanelMode((mode) => (mode === 'chat' ? 'none' : 'chat'))}
+                 className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
+                 style={{ color: rightPanelMode === 'chat' ? 'var(--md-accent)' : 'var(--md-text-muted, #a0a0a0)' }}
+                 title="Toggle chat sidebar"
+               >
+                 <Sparkles size={13} />
+                 Chat
+               </button>
+               <button
+                 onClick={() => setShowGraph(true)}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
                 style={{ color: 'var(--md-text-muted, #a0a0a0)' }}
                 title="Open graph view (Ctrl+G)"
@@ -310,20 +391,37 @@ export default function Home() {
           />
         </main>
 
-      {/* RIGHT: Backlinks panel - also uses negative margin for smooth transition */}
-      <aside
-        className={`
-          h-screen w-[280px] flex-shrink-0 border-l border-border bg-background
-          transition-[margin] duration-300 ease-in-out
-          ${showBacklinks ? 'mr-0' : '-mr-[280px]'}
-        `}
-      >
-        <BacklinksPanel
-          currentFile={currentFile}
-          linkIndex={linkIndex}
-          onNavigate={handleNavigateToFile}
-        />
-      </aside>
+       {/* RIGHT: Backlinks/Chat panel - also uses negative margin for smooth transition */}
+       <aside
+         className="relative h-screen flex-shrink-0 border-l border-border bg-background transition-[margin] duration-300 ease-in-out"
+         style={{
+           width: resolvedRightPanelWidth,
+           marginRight: rightPanelMode === 'none' ? -resolvedRightPanelWidth : 0,
+         }}
+       >
+         {rightPanelMode !== 'none' && (
+           <ResizeHandle
+             direction="horizontal"
+             edge="start"
+             size={resolvedRightPanelWidth}
+             min={rightPanelMin}
+             max={rightPanelMax}
+             collapseThreshold={Math.max(0, rightPanelMin - 40)}
+             onResize={setRightPanelWidth}
+             onCollapse={() => setRightPanelMode('none')}
+           />
+         )}
+         {rightPanelMode === 'backlinks' && (
+           <BacklinksPanel
+             currentFile={currentFile}
+             linkIndex={linkIndex}
+             onNavigate={handleNavigateToFile}
+           />
+         )}
+         {rightPanelMode === 'chat' && (
+           <ChatSidebar />
+         )}
+       </aside>
 
       {/* Graph view modal */}
       {showGraph && (

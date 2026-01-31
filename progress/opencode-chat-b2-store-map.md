@@ -1,0 +1,32 @@
+# B2 - Zustand Store Map
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Define store shape and event reducer plan (no code).
+- Inputs: `opencode/packages/app/src/context/global-sync.tsx`, `opencode/packages/app/src/context/sync.tsx`, `opencode/packages/app/src/context/sdk.tsx`
+- Outputs: Store sections, actions, and event mapping (no code).
+- Notes:
+  - OpenCode state is split into a global store plus per-directory child stores.
+  - Global store holds: readiness, path, projects list, provider list + auth, global config, and a reload flag.
+  - Each directory store holds: project id + metadata, icon, provider list, config, path, status, agent list, command list, sessions, session status, session diffs, todos, permissions, questions, MCP status, LSP status, VCS info, message lists by session, and part lists by message.
+  - SDK context listens to global SSE and re-emits typed events to directory-bound listeners.
+  - Bootstrap flow:
+    - Global bootstrap loads path, global config, projects, provider list, provider auth.
+    - Per-directory bootstrap loads project current, providers, agents, config, then non-blocking loads path, commands, session status, sessions list, MCP, LSP, VCS, permissions, and questions.
+  - Sync utilities manage message pagination and hydration:
+    - Message fetch uses chunk size 400; limits are tracked per session key, with loading/complete flags.
+    - Session sync fetches session info and messages when missing.
+    - Dedicated loaders for session diff and todo with inflight guards.
+    - Optimistic user message insertion stores a message shell and attached parts.
+  - Global event handling updates the directory store by event type:
+    - session.created/updated/deleted update session list and sessionTotal, and purge caches on archive/delete.
+    - session.diff, todo.updated, session.status update dedicated maps.
+    - message.updated adds or updates message list for session.
+    - message.removed removes message + parts.
+    - message.part.updated/removed updates part list per message.
+    - permission.asked/replied and question.asked/replied/rejected maintain per-session queues.
+    - vcs.branch.updated updates VCS cache; lsp.updated triggers a refresh.
+- Decisions:
+  - Mirror a global + per-workspace store split in Cushion with similar event reducers.
+  - Track per-session message hydration metadata (limit/complete/loading) to support history paging.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

@@ -1,0 +1,25 @@
+# F2 - Error Handling Requirements
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Define user-visible error states and recovery.
+- Inputs: SDK v2 error behavior, OpenCode server routes, prompt submit flow
+- Outputs: Error cases and UX responses (no code).
+- Notes:
+  - Connection errors:
+    - Health check failure or SSE disconnect should show a reconnecting state and non-blocking banner.
+    - Retry with exponential backoff; do not block editor or file browser.
+  - Auth errors:
+    - If server requires basic auth, surface a clear “authentication required” state with a recovery action.
+  - Prompt send errors:
+    - On failure, restore prompt input content and context items, and remove optimistic message.
+    - Provide a toast with the server error message when available.
+  - Worktree prep timeout:
+    - If worktree remains pending past timeout, show a failure message and restore prompt.
+  - Permission/question gating:
+    - Show explicit prompts for permission or questions; allow deny/allow once/allow always options.
+  - File reference errors:
+    - If file paths cannot be resolved or read, show a contextual warning and omit the file part.
+- Decisions:
+  - Treat chat failures as recoverable; never crash the sidebar or block other UI surfaces.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

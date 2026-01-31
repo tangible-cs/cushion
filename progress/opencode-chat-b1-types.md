@@ -1,0 +1,26 @@
+# B1 - Message/Part/Context Types
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Extract message, part, and context schemas from OpenCode.
+- Inputs: `opencode/packages/app/src/context/prompt.tsx`, `opencode/packages/sdk/js/src/v2/gen/types.gen.ts`
+- Outputs: Type glossary and field list (no code).
+- Notes:
+  - Prompt content parts in the OpenCode UI are modeled as a list of content parts with inline ranges.
+    - Text part includes content plus start/end offsets.
+    - File attachment part includes path and optional selection (line/char range).
+    - Agent part includes agent name.
+    - Image attachment part includes id, filename, mime, and data URL.
+  - Prompt context items are file-based context items with optional selection, comment metadata, and preview text.
+  - Server message info types are user and assistant messages:
+    - User message includes id, sessionID, role, time.created, agent and model identifiers, plus optional summary/diffs.
+    - Assistant message includes id, sessionID, role, time created/completed, parentID, model/provider IDs, mode, agent, path (cwd/root), token and cost metrics, and optional error.
+  - Message parts from the server include many part categories, most relevant to MVP:
+    - Text, file, tool, agent, snapshot/patch, step-start/step-finish, retry, compaction, reasoning, subtask.
+    - File parts include mime, url, and optional source with text + range metadata.
+    - Tool parts include tool name, call ID, and state (pending, running, completed, error).
+  - Global event payloads include message updates, message part updates/removals, session status updates, session events, permissions/questions, and file watcher updates.
+  - Session status is a union of idle, busy, and retry (with attempt/message/next timestamp).
+- Decisions:
+  - For MVP, model prompt parts locally (text/file/agent/image) and map server parts to a smaller render set (text/file/tool/agent + essential streaming events).
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

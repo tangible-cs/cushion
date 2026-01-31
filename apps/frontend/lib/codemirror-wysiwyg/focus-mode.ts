@@ -5,7 +5,7 @@ import {
   DecorationSet,
   EditorView,
 } from '@codemirror/view';
-import { StateField, StateEffect, Facet } from '@codemirror/state';
+import { StateField, StateEffect, Facet, Range } from '@codemirror/state';
 
 /**
  * Focus mode for markdown editor.
@@ -46,7 +46,7 @@ function buildFocusDecorations(view: EditorView): DecorationSet {
     return Decoration.none;
   }
 
-  const decorations: ReturnType<typeof Decoration.line>[] = [];
+  const decorations: Range<Decoration>[] = [];
   const { doc, selection } = view.state;
   const cursorLine = doc.lineAt(selection.main.head).number;
   const range = view.state.facet(focusModeRange);

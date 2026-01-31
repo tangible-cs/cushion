@@ -1,0 +1,23 @@
+# D1 - Message List Layout
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Message list layout, scrolling, and interaction model.
+- Inputs: `opencode/packages/app/src/pages/session.tsx`
+- Outputs: Layout rules and UI behavior (no code).
+- Notes:
+  - Message list uses a single scroll container with auto-scroll support and a content ref for scroll tracking.
+  - User turns are rendered as grouped “SessionTurn” blocks; the list iterates over user messages only and relies on turn components to render assistant parts.
+  - Initial render uses batching/backfill: render only the last N turns (init 20), then backfill in chunks while preserving scroll position.
+  - “Load earlier” button triggers history fetch and resets the turn start to show more messages.
+  - Auto-scroll:
+    - When the user is at the bottom, new messages keep the view pinned.
+    - When the user scrolls up, auto-scroll pauses and shows a “resume” control.
+    - Clicking resume scrolls to bottom and clears any message hash.
+  - Message anchor behavior:
+    - Each user message has a stable DOM id; hash navigation uses `message-<id>`.
+    - If a hash exists but message isn’t loaded yet, it waits and retries after turns are backfilled.
+  - Prompt dock reserves bottom padding on the message list so the input doesn’t cover the last message.
+- Decisions:
+  - For Cushion, replicate the single scroll container + backfill strategy to maintain performance on large histories in the sidebar.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

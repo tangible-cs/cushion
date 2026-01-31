@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc -b"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.3",
@@ -25,6 +25,7 @@
     "@cushion/types": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.3",
+    "@types/dompurify": "^3.2.0",
     "@types/katex": "^0.16.8",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
@@ -32,6 +33,9 @@
     "@xterm/xterm": "^5.5.0",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.1",
+    "diff": "^8.0.3",
+    "dompurify": "^3.3.1",
+    "fuzzysort": "^3.1.0",
     "katex": "^0.16.28",
     "lucide-react": "^0.546.0",
     "marked": "^17.0.1",
@@ -47,6 +51,7 @@
   "devDependencies": {
     "@cushion/tsconfig": "workspace:*",
     "@tailwindcss/typography": "^0.5.19",
+    "@types/diff": "^8.0.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.2",

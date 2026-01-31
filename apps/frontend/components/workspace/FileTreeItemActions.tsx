@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreVertical, Plus, FolderInput, FolderPlus, Pencil, Trash2, Files } from 'lucide-react';
+import { MoreVertical, Plus, FolderInput, FolderPlus, Pencil, Trash2, Files, Sparkles } from 'lucide-react';
 import type { FileTreeNode } from '@cushion/types';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ interface FileTreeItemActionsProps {
   onDelete?: (path: string) => void;
   onDuplicate?: (path: string) => void;
   onMoveTo?: (path: string) => void;
+  onAskAI?: (path: string) => void;
 }
 
 export function FileTreeItemActions({
@@ -26,6 +27,7 @@ export function FileTreeItemActions({
   onDelete,
   onDuplicate,
   onMoveTo,
+  onAskAI,
 }: FileTreeItemActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -48,6 +50,13 @@ export function FileTreeItemActions({
   };
 
   const menuItems: ContextMenuItem[] = [
+    ...(node.type === 'file' ? [{
+      id: 'ask-ai',
+      label: 'Ask AI about this file',
+      icon: Sparkles,
+      onClick: () => onAskAI?.(node.path),
+      separator: true,
+    } as ContextMenuItem] : []),
     ...(node.type === 'directory' ? [{
       id: 'new-folder',
       label: 'New folder',

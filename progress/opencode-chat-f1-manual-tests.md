@@ -1,0 +1,37 @@
+# F1 - Manual Test Matrix
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Manual scenarios for core flows.
+- Inputs: Sessions A-E outputs
+- Outputs: Test matrix and expected outcomes (no code).
+- Notes:
+  - Connectivity:
+    - Connect to OpenCode server on default URL; confirm health endpoint passes and global SSE connects.
+    - Disconnect server and verify sidebar shows reconnect state and auto-recovers.
+  - Session lifecycle:
+    - Create a new session from the chat sidebar and verify route/session key changes.
+    - Switch workspaces and confirm session state isolation.
+  - Prompt input:
+    - Submit plain text; verify optimistic user message appears and is replaced by server updates.
+    - Submit with @file mention and ensure file part is attached.
+    - Submit with selection context and ensure synthetic comment text is included.
+    - Use slash command and verify command handling (if enabled).
+    - Enter shell mode and verify command send + exit behavior.
+  - Streaming:
+    - Verify streamed parts update text progressively without UI jitter.
+    - Verify status label updates based on tool/reasoning/text parts and does not flicker.
+  - Sidebar cohesion:
+    - Toggle Backlinks/Chat and verify sidebar width is stable; no overlap with terminal.
+    - Use Intelligence button to open chat sidebar.
+  - File browser integration:
+    - Use “Ask AI about this file” context menu; verify chat opens and context item appears.
+  - Editor integration:
+    - Select text and trigger “Ask AI about selection”; verify correct range mapping.
+  - Persistence:
+    - Reload app; verify prompt/context/scroll state is restored within limits.
+  - Error handling:
+    - Force request failure and confirm UI restores prompt and removes optimistic message.
+- Decisions:
+  - Keep manual test coverage minimal for MVP; expand after message streaming stability is confirmed.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

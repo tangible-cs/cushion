@@ -1,0 +1,22 @@
+# E2 - Editor Selection Integration
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Map editor selections to context items and ranges.
+- Inputs: `apps/frontend/components/editor/CodeEditor.tsx`, OpenCode `FileSelection` shape
+- Outputs: Selection mapping rules (no code).
+- Notes:
+  - OpenCode selection shape uses startLine/startChar/endLine/endChar and is line-based; line numbers are 1-based.
+  - Cushion’s CodeEditor does not currently expose selection changes; it will need a selection callback wired from the CodeMirror update listener.
+  - Mapping rules:
+    - Use the primary selection only; if multiple selections exist, take the main selection.
+    - Convert from/to offsets into line/char using the document line lookup; char is offset within the line.
+    - Normalize so start <= end; if selection is reversed, swap.
+    - If selection is empty, no context item is created unless explicitly asked to attach the whole file.
+  - When mapping selections to context items:
+    - Use workspace-relative file path; keep it consistent with the FileBrowser paths.
+    - Provide a preview snippet (if available) for UI pill display.
+- Decisions:
+  - Use 1-based line numbers and 0-based char offsets to match OpenCode expectations.
+  - Surface a selection action (“Ask AI about selection”) in the editor context only when selection is non-empty.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

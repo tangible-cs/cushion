@@ -1,0 +1,25 @@
+# A1 - OpenCode Server Map
+
+- Status: [x] Complete
+- Owner: Subagent
+- Scope: Map server routes, SSE streams, and event names.
+- Inputs: `opencode/packages/opencode/src/server/server.ts`, `opencode/packages/opencode/src/server/routes/global.ts`, `opencode/packages/opencode/src/server/routes/session.ts`
+- Outputs: Route list, event types, lifecycle summary (no code).
+- Notes:
+  - Default server URL resolves to http://localhost:4096.
+  - Optional HTTP basic auth is enabled when OPENCODE_SERVER_PASSWORD is set; username defaults to opencode when not provided.
+  - Directory selection comes from query param directory or header x-opencode-directory; falls back to process cwd.
+  - CORS allows localhost, 127.0.0.1, tauri origins, and *.opencode.ai; also accepts a server whitelist list.
+  - Global SSE stream is at /global/event. It emits a server.connected event on connect and a server.heartbeat event every 30s. Payloads are sent as SSE data containing a JSON envelope with directory + payload.
+  - Global endpoints include /global/health, /global/config (get + patch), /global/dispose.
+  - Session endpoints relevant to chat:
+    - List and status: /session, /session/status, /session/:sessionID.
+    - Messages: /session/:sessionID/message (list, get), /session/:sessionID/message/:messageID, part update/delete endpoints.
+    - Prompting: /session/:sessionID/message (streamed JSON response), /session/:sessionID/prompt_async (accepted, async).
+    - Commands: /session/:sessionID/command, /session/:sessionID/shell.
+    - Control: /session/:sessionID/abort, /session/:sessionID/fork, /session/:sessionID/share, /session/:sessionID/unshare.
+    - Summary and diffs: /session/:sessionID/summarize, /session/:sessionID/diff.
+  - Additional routes exist (file, project, provider, permission, question, pty, config, experimental, mcp, tui) but are not required for MVP chat flow.
+- Decisions:
+  - Use global SSE events for realtime updates; session prompt uses streamed JSON response, not SSE.
+- Rule: Copy from OpenCode when it fits perfectly; avoid unnecessary implementation.

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { CodeEditor } from './CodeEditor';
+import { CodeEditor, type SelectionInfo } from './CodeEditor';
+import { useChatStore } from '@/stores/chatStore';
 import { EditorTabs } from './EditorTabs';
 import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
 import { FileHeader } from './FileHeader';
@@ -23,9 +24,18 @@ interface EditorPanelProps {
   sidebarCollapsed?: boolean;
   /** Called to expand the sidebar */
   onExpandSidebar?: () => void;
+  /** Open the chat sidebar */
+  onOpenChat?: () => void;
 }
 
-export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed, onExpandSidebar }: EditorPanelProps) {
+export function EditorPanel({
+  client,
+  onFileRenamed,
+  fileTree,
+  sidebarCollapsed,
+  onExpandSidebar,
+  onOpenChat,
+}: EditorPanelProps) {
   const currentFile = useWorkspaceStore((s) => s.currentFile);
   const tabs = useWorkspaceStore((s) => s.tabs);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
@@ -35,6 +45,8 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
   const closeFile = useWorkspaceStore((s) => s.closeFile);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const openFile = useWorkspaceStore((s) => s.openFile);
+  const addContextItem = useChatStore((s) => s.addContextItem);
+  const [selection, setSelection] = useState<SelectionInfo | null>(null);
 
   // Tab navigation history (using ref to avoid stale closure issues)
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({
@@ -111,7 +123,7 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
       client.didOpen({
         textDocument: {
           uri: `file://${fileState.absolutePath}`,
-          languageId: fileState.language,
+          languageId: fileState.language || 'plaintext',
           version: fileState.version,
           text: fileState.content,
         },
@@ -156,6 +168,14 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
       console.error('[EditorPanel] Save failed:', err);
     }
   }, [currentFile, client, markFileSaved]);
+
+  const handleSelectionChange = useCallback((next: SelectionInfo | null) => {
+    setSelection(next);
+  }, []);
+
+  useEffect(() => {
+    setSelection(null);
+  }, [currentFile]);
 
   const handleSelectTab = useCallback(
     (filePath: string) => {
@@ -242,6 +262,21 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
       new FocusEvent('focus', { bubbles: true })
     );
   }, []);
+
+  const handleAskSelection = useCallback(() => {
+    if (!currentFile || !selection) return;
+    addContextItem({
+      path: currentFile,
+      selection: {
+        startLine: selection.startLine,
+        startChar: selection.startChar,
+        endLine: selection.endLine,
+        endChar: selection.endChar,
+      },
+      preview: selection.text,
+    });
+    onOpenChat?.();
+  }, [addContextItem, currentFile, selection, onOpenChat]);
 
   // Handle wiki-link navigation (click on [[link]])
   const handleWikiLinkNavigate: WikiLinkNavigateCallback = useCallback(
@@ -396,6 +431,23 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
               onExit={handleHeaderExit}
               showExtension={!/\.(md|markdown)$/i.test(currentFile)}
             />
+            {selection && selection.text.trim().length > 0 && (
+              <div
+                className="flex items-center justify-end px-5 pb-2"
+                style={{
+                  maxWidth: 'var(--md-content-max-width, 900px)',
+                  margin: '0 auto',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleAskSelection}
+                  className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Ask AI about selection
+                </button>
+              </div>
+            )}
             {/* Editor */}
             <CodeEditor
               filePath={currentFile}
@@ -403,6 +455,7 @@ export function EditorPanel({ client, onFileRenamed, fileTree, sidebarCollapsed,
               language={fileState.language}
               onChange={handleChange}
               onSave={handleSave}
+              onSelectionChange={handleSelectionChange}
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}
             />
