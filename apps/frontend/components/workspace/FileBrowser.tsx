@@ -7,6 +7,7 @@ import { MoveToDialog } from './MoveToDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { FilePlus, FolderPlus, RefreshCw, ChevronsLeft, FolderOpen, Search, Sparkles, Settings, ChevronDown } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { cn } from '@/lib/utils';
 import type { FileTreeNode } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
@@ -30,7 +31,7 @@ export interface FileBrowserHandle {
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onIntelligence, onSettings, onAskAIFile }, ref) {
-  const { metadata, currentFile } = useWorkspaceStore();
+  const { metadata, currentFile, preferences, updatePreferences } = useWorkspaceStore();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +47,17 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const [creatingFolderAtRoot, setCreatingFolderAtRoot] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const sidebarRef = useRef<ElementRef<"aside">>(null);
+  const sidebarMin = 200;
+  const sidebarMax = typeof window !== 'undefined'
+    ? Math.max(sidebarMin, Math.floor(window.innerWidth * 0.45))
+    : 520;
+  const rawSidebarWidth = Number.isFinite(preferences.sidebarWidth) ? preferences.sidebarWidth : 240;
+  const resolvedSidebarWidth = Math.min(sidebarMax, Math.max(sidebarMin, rawSidebarWidth));
+
+  useEffect(() => {
+    if (resolvedSidebarWidth === rawSidebarWidth) return;
+    updatePreferences({ sidebarWidth: resolvedSidebarWidth });
+  }, [rawSidebarWidth, resolvedSidebarWidth, updatePreferences]);
 
   const loadDirectory = useCallback(async (relativePath: string): Promise<FileTreeNode[]> => {
     if (!client) {
@@ -91,6 +103,13 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [onSidebarToggle]);
 
+  const handleSidebarResize = useCallback(
+    (nextWidth: number) => {
+      updatePreferences({ sidebarWidth: nextWidth });
+    },
+    [updatePreferences]
+  );
+
   // Mobile auto-collapse - only run when isMobile changes
   useEffect(() => {
     if (isMobile) {
@@ -119,6 +138,13 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const handleFileClick = async (filePath: string) => {
     if (!client) {
       console.warn('[FileBrowser] Client not available');
+      return;
+    }
+
+    // Binary files (images, PDFs) are loaded via readFileBase64 in EditorPanel
+    const binaryExts = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
+    if (binaryExts.test(filePath)) {
+      onFileOpen(filePath, '');
       return;
     }
 
@@ -181,11 +207,26 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       <aside
         ref={sidebarRef}
         className={cn(
-          "group/sidebar h-screen w-[240px] flex-shrink-0 bg-sidebar-bg flex flex-col",
-          "transition-[margin] duration-300 ease-in-out",
-          isCollapsed && "-ml-[240px]"
+          "group/sidebar h-screen flex-shrink-0 bg-sidebar-bg flex flex-col relative",
+          "transition-[margin] duration-300 ease-in-out"
         )}
+        style={{
+          width: resolvedSidebarWidth,
+          marginLeft: isCollapsed ? -resolvedSidebarWidth : 0,
+        }}
       >
+        {!isCollapsed && !isMobile && (
+          <ResizeHandle
+            direction="horizontal"
+            edge="end"
+            size={resolvedSidebarWidth}
+            min={sidebarMin}
+            max={sidebarMax}
+            collapseThreshold={Math.max(0, sidebarMin - 40)}
+            onResize={handleSidebarResize}
+            onCollapse={collapseSidebar}
+          />
+        )}
         {/* Top bar — h-10 to align with tab bar */}
         <div className="flex-shrink-0 h-10 px-3 flex items-center gap-2">
           {/* Logo placeholder */}
@@ -313,7 +354,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         <div className="flex-shrink-0 h-2" />
 
         {/* Root folder toggle + file tree */}
-        <div className="flex-1 overflow-y-auto px-2 py-1">
+        <div className="flex-1 overflow-y-auto px-2 py-1 thin-scrollbar">
           {/* Root folder row */}
           <button
             onClick={() => setRootExpanded(!rootExpanded)}

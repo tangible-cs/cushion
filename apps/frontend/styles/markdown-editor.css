@@ -268,6 +268,13 @@
    Typography - Inline formatting
    ============================================ */
 
+.cm-editor.cm-markdown-wysiwyg .cm-syntax-hidden {
+  font-size: 0;
+  line-height: 0;
+  overflow: hidden;
+  display: inline;
+}
+
 .cm-editor.cm-markdown-wysiwyg .cm-strong {
   font-weight: 600;
   color: var(--md-text);
@@ -318,8 +325,7 @@
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote {
   border-left: 3px solid var(--md-blockquote-border);
-  padding-left: 16px;
-  margin-left: 8px;
+  padding-left: 24px;
   color: var(--md-blockquote-text);
   font-style: italic;
 }
@@ -347,7 +353,74 @@
   color: var(--md-accent);
   user-select: none;
   font-weight: 600;
-  margin-right: 8px;
+  margin-right: 4px;
+  display: inline-block;
+  min-width: 1.25em;
+  text-align: left;
+}
+
+/* Hidden list marker with pseudo-element rendering */
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden {
+  position: relative;
+  display: inline-block;
+  min-width: 1.25em;
+  text-align: left;
+  margin-right: 4px;
+  color: transparent;
+  user-select: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden * {
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden::after {
+  content: attr(data-list-marker);
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--md-accent);
+  font-weight: 600;
+  font-size: var(--md-font-size);
+  line-height: var(--md-baseline);
+}
+
+/* Raw list marker (cursor line) */
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker {
+  display: inline-block;
+  min-width: 1.25em;
+  text-align: left;
+  margin-right: 4px;
+}
+
+/* Depth-specific marker widths */
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-0,
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-0 {
+  min-width: 1.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-1,
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-1 {
+  min-width: 1.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-2,
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-2 {
+  min-width: 2.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-0 {
+  min-width: 1.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-1 {
+  min-width: 1.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-2 {
+  min-width: 2.25em;
 }
 
 /* Checkbox widget */
@@ -361,9 +434,17 @@
   border-radius: var(--md-border-radius-sm);
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-checkbox-widget:checked + span {
+.cm-editor.cm-markdown-wysiwyg .cm-task-checked {
   text-decoration: line-through;
   color: var(--md-text-muted);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-bullet,
+.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-marker,
+.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-marker-hidden,
+.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-checkbox-widget {
+  text-decoration: none;
+  color: var(--md-accent);
 }
 
 /* ============================================
@@ -384,8 +465,7 @@
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start {
   border-top-left-radius: var(--md-border-radius);
   border-top-right-radius: var(--md-border-radius);
-  padding-top: 6px;
-  margin-top: 4px;
+  padding-top: 10px;
   position: relative;
 }
 
@@ -406,8 +486,7 @@
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end {
   border-bottom-left-radius: var(--md-border-radius);
   border-bottom-right-radius: var(--md-border-radius);
-  padding-bottom: 6px;
-  margin-bottom: 4px;
+  padding-bottom: 10px;
 }
 
 /* Hidden fence lines (``` markers) - collapsed when cursor is outside code block */
@@ -520,6 +599,78 @@
 
 .cm-editor.cm-markdown-wysiwyg .cm-image-widget img:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================
+   Embeds (![[file]])
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-widget {
+  display: inline-block;
+  max-width: 100%;
+  margin: 12px 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-widget.cm-embed-block {
+  display: block;
+  width: 100%;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-widget.cm-embed-inline {
+  vertical-align: middle;
+  margin: 0 6px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-placeholder {
+  padding: 10px 12px;
+  border: 1px dashed var(--md-border, #3a3a3a);
+  border-radius: var(--md-border-radius, 6px);
+  background: var(--md-bg-secondary, #242424);
+  color: var(--md-text-muted, #a0a0a0);
+  font-size: 0.85em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-placeholder.cm-embed-error {
+  border-color: var(--md-link-empty, #d97c7c);
+  color: var(--md-link-empty, #d97c7c);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-image,
+.cm-editor.cm-markdown-wysiwyg .cm-embed-video,
+.cm-editor.cm-markdown-wysiwyg .cm-embed-pdf {
+  max-width: 100%;
+  border-radius: var(--md-border-radius, 6px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-video {
+  background: #000;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-audio {
+  width: 100%;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-pdf {
+  width: 100%;
+  min-height: 320px;
+  border: 1px solid var(--md-border, #3a3a3a);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-caption {
+  margin-top: 6px;
+  color: var(--md-text-muted, #a0a0a0);
+  font-size: 0.85em;
+  text-align: center;
+  font-style: italic;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-markdown {
+  background: var(--md-bg-secondary, #242424);
+  border: 1px solid var(--md-border, #3a3a3a);
+  border-radius: var(--md-border-radius, 6px);
+  padding: 12px 16px;
+  color: var(--md-text, #e0e0e0);
 }
 
 /* ============================================

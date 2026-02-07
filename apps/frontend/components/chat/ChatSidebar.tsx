@@ -1,62 +1,25 @@
 'use client';
 
-import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore, type PromptInputPayload } from '@/stores/chatStore';
 import { MessageList } from './MessageList';
 import { PromptInput } from './PromptInput';
-import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import type { PermissionRequest, QuestionRequest } from '@opencode-ai/sdk/v2/client';
-
-const statusLabel: Record<string, string> = {
-  idle: 'Idle',
-  connecting: 'Connecting',
-  connected: 'Connected',
-  reconnecting: 'Reconnecting',
-  error: 'Error',
-};
 
 export function ChatSidebar() {
   const connection = useChatStore((state) => state.connection);
-  const baseUrl = useChatStore((state) => state.baseUrl);
-  const directory = useChatStore((state) => state.directory);
   const sendPrompt = useChatStore((state) => state.sendPrompt);
-  const sessions = useChatStore((state) => state.sessions);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
-  const sessionErrors = useChatStore((state) => state.sessionErrors);
-  const setActiveSession = useChatStore((state) => state.setActiveSession);
-  const setBaseUrl = useChatStore((state) => state.setBaseUrl);
-  const providerAuthErrors = useChatStore((state) => state.providerAuthErrors);
-  const clearProviderAuthError = useChatStore((state) => state.clearProviderAuthError);
-  const requestProviderAuth = useChatStore((state) => state.requestProviderAuth);
   const permissions = useChatStore((state) => state.permissions);
   const questions = useChatStore((state) => state.questions);
   const respondToPermission = useChatStore((state) => state.respondToPermission);
   const replyToQuestion = useChatStore((state) => state.replyToQuestion);
   const rejectQuestion = useChatStore((state) => state.rejectQuestion);
   const isConnected = connection.status === 'connected';
-  const [draftBaseUrl, setDraftBaseUrl] = useState(baseUrl);
-  const [promptHeight, setPromptHeight] = useState(160);
-  const activeSessionError = activeSessionId ? sessionErrors[activeSessionId] : undefined;
   const pendingPermissions = activeSessionId ? permissions[activeSessionId] ?? [] : [];
   const pendingQuestions = activeSessionId ? questions[activeSessionId] ?? [] : [];
-
-  useEffect(() => {
-    setDraftBaseUrl(baseUrl);
-  }, [baseUrl]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('cushion-prompt-height');
-    if (!stored) return;
-    const parsed = Number(stored);
-    if (!Number.isFinite(parsed)) return;
-    setPromptHeight(parsed);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('cushion-prompt-height', String(promptHeight));
-  }, [promptHeight]);
+  const promptDockRef = useRef<HTMLDivElement | null>(null);
+  const [promptDockHeight, setPromptDockHeight] = useState(0);
 
   const handleSubmit = useCallback((value: PromptInputPayload) => {
     sendPrompt(value).catch((error) => {
@@ -64,152 +27,52 @@ export function ChatSidebar() {
     });
   }, [sendPrompt]);
 
-  const promptMin = 120;
-  const promptMax = typeof window !== 'undefined'
-    ? Math.max(promptMin, Math.min(360, Math.floor(window.innerHeight * 0.6)))
-    : 360;
-  const resolvedPromptHeight = Math.min(promptMax, Math.max(promptMin, promptHeight));
-  const rootStyle = {
-    '--prompt-height': `${resolvedPromptHeight}px`,
-  } as CSSProperties;
-
   useEffect(() => {
-    if (resolvedPromptHeight === promptHeight) return;
-    setPromptHeight(resolvedPromptHeight);
-  }, [promptHeight, resolvedPromptHeight]);
+    const node = promptDockRef.current;
+    if (!node) return undefined;
+    const update = () => {
+      setPromptDockHeight(Math.ceil(node.getBoundingClientRect().height));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="h-full flex flex-col" style={rootStyle}>
-      <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium">Chat</div>
-          <div
-            className="text-xs px-2 py-0.5 rounded-full"
-            style={{
-              backgroundColor: 'var(--md-bg-secondary, #242424)',
-              color: connection.status === 'error' ? 'var(--md-danger, #ff6b6b)' : 'var(--md-text-muted, #a0a0a0)',
-            }}
-          >
-            {statusLabel[connection.status] ?? 'Unknown'}
-          </div>
-        </div>
-        {connection.status === 'error' && connection.error && (
-          <div className="mt-2 text-xs text-red-400 break-words">{connection.error}</div>
-        )}
-        {activeSessionError && (
-          <div className="mt-2 text-xs text-red-400 break-words">{activeSessionError}</div>
-        )}
-        <div className="mt-2">
-          <div className="text-[11px] text-muted-foreground">OpenCode URL</div>
-          <div className="mt-1 flex items-center gap-2">
-            <input
-              value={draftBaseUrl}
-              onChange={(event) => setDraftBaseUrl(event.target.value)}
-              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-              placeholder="http://localhost:4096"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setBaseUrl(draftBaseUrl).catch(() => undefined);
-              }}
-              disabled={draftBaseUrl.trim().length === 0 || draftBaseUrl.trim() === baseUrl}
-              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-            >
-              Update
-            </button>
-          </div>
-        </div>
-        {Object.keys(providerAuthErrors).length > 0 && (
-          <div className="mt-2 space-y-2">
-            {Object.entries(providerAuthErrors).map(([providerID, message]) => (
-              <div key={providerID} className="rounded-md border border-border bg-muted/20 p-2 text-xs">
-                <div className="text-muted-foreground">Provider auth required</div>
-                <div className="mt-1 text-foreground">{providerID}</div>
-                <div className="mt-1 text-muted-foreground">{message}</div>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      requestProviderAuth(providerID).then((url) => {
-                        if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                      }).catch(() => undefined);
-                    }}
-                    className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Authorize
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => clearProviderAuthError(providerID)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="mt-2">
-          <select
-            value={activeSessionId ?? ''}
-            onChange={(event) => {
-              const next = event.target.value || null;
-              setActiveSession(next).catch(() => undefined);
-            }}
-            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-          >
-            <option value="">New session</option>
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.title || session.id}
-              </option>
-            ))}
-          </select>
-        </div>
-        {directory && (
-          <div className="mt-1 text-[11px] text-muted-foreground truncate" title={directory}>
-            {directory}
-          </div>
-        )}
-      </div>
+    <div
+      className="h-full flex flex-col relative"
+      style={{ '--prompt-dock-height': `${promptDockHeight}px` } as React.CSSProperties}
+    >
+      <MessageList className="flex-1 min-h-0" />
 
-      <MessageList className="flex-1" />
-
-      {(pendingPermissions.length > 0 || pendingQuestions.length > 0) && (
-        <div className="border-t border-border px-4 py-3 space-y-3">
-          {pendingPermissions.length > 0 && (
-            <PermissionPanel
-              requests={pendingPermissions}
-              onRespond={(input) => respondToPermission(input).catch(() => undefined)}
-            />
+      <div className="absolute inset-x-0 bottom-0 pt-10 pb-4 flex flex-col items-center z-30 px-4 bg-gradient-to-t from-background via-background to-transparent pointer-events-none chat-dock">
+        <div ref={promptDockRef} className="w-full flex flex-col gap-3 pointer-events-auto">
+          {(pendingPermissions.length > 0 || pendingQuestions.length > 0) && (
+            <div className="chat-dock-panel rounded-md border border-border bg-background/90 px-3 py-3 space-y-3">
+              {pendingPermissions.length > 0 && (
+                <PermissionPanel
+                  requests={pendingPermissions}
+                  onRespond={(input) => respondToPermission(input).catch(() => undefined)}
+                />
+              )}
+              {pendingQuestions.length > 0 && (
+                <QuestionPanel
+                  requests={pendingQuestions}
+                  onReply={(input) => replyToQuestion(input).catch(() => undefined)}
+                  onReject={(input) => rejectQuestion(input).catch(() => undefined)}
+                />
+              )}
+            </div>
           )}
-          {pendingQuestions.length > 0 && (
-            <QuestionPanel
-              requests={pendingQuestions}
-              onReply={(input) => replyToQuestion(input).catch(() => undefined)}
-              onReject={(input) => rejectQuestion(input).catch(() => undefined)}
-            />
-          )}
-        </div>
-      )}
 
-      <div className="relative" style={{ height: resolvedPromptHeight }}>
-        <ResizeHandle
-          direction="vertical"
-          size={resolvedPromptHeight}
-          min={promptMin}
-          max={promptMax}
-          onResize={setPromptHeight}
-        />
-        <PromptInput
-          className="h-full flex flex-col"
-          editorWrapperClassName="flex-1 min-h-0"
-          disabled={!isConnected}
-          placeholder={isConnected ? 'Ask the workspace...' : 'Connect to OpenCode to start chatting'}
-          onSubmit={handleSubmit}
-        />
+          <PromptInput
+            className="flex flex-col"
+            disabled={!isConnected}
+            placeholder={isConnected ? 'Ask workspace...' : 'Connect to OpenCode to start chatting'}
+            onSubmit={handleSubmit}
+          />
+        </div>
       </div>
     </div>
   );

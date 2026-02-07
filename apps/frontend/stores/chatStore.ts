@@ -52,6 +52,8 @@ type ChatState = {
   providerDefaults: Record<string, string>;
   selectedModel: SelectedModel | null;
   selectedModelByDirectory: Record<string, SelectedModel | null>;
+  selectedVariant: string | null;
+  selectedVariantByDirectory: Record<string, string | null>;
   providerAuthErrors: Record<string, string>;
   messageMeta: Record<string, MessageMeta>;
   sessions: Session[];
@@ -80,11 +82,18 @@ type ChatActions = {
   setSelectedAgent: (agent: string | null) => void;
   setActiveSession: (sessionID: string | null) => Promise<void>;
   setSelectedModel: (model: SelectedModel | null) => void;
+  setSelectedVariant: (variant: string | null) => void;
   clearProviderAuthError: (providerID: string) => void;
   requestProviderAuth: (providerID: string) => Promise<string | null>;
   respondToPermission: (input: { sessionID: string; permissionID: string; response: 'once' | 'always' | 'reject' }) => Promise<void>;
   replyToQuestion: (input: { requestID: string; answers: string[][] }) => Promise<void>;
   rejectQuestion: (input: { requestID: string }) => Promise<void>;
+  abortSession: (sessionID?: string | null) => Promise<void>;
+  undoSession: () => Promise<void>;
+  redoSession: () => Promise<void>;
+  compactSession: () => Promise<void>;
+  shareSession: () => Promise<string | null>;
+  unshareSession: () => Promise<void>;
 };
 
 const initialState: ChatState = {
@@ -107,6 +116,8 @@ const initialState: ChatState = {
   providerDefaults: {},
   selectedModel: null,
   selectedModelByDirectory: {},
+  selectedVariant: null,
+  selectedVariantByDirectory: {},
   providerAuthErrors: {},
   messageMeta: {},
   sessions: [],
@@ -453,11 +464,100 @@ function resolveModel(
   return null;
 }
 
+type ModelVariantOption = {
+  key: string;
+  label: string;
+};
+
+function normalizeModelVariants(variants: unknown): ModelVariantOption[] {
+  if (!variants) return [];
+  if (Array.isArray(variants)) {
+    return variants
+      .map((item) => {
+        if (typeof item === 'string') {
+          return { key: item, label: item };
+        }
+        if (!item || typeof item !== 'object') return null;
+        const variant = item as { key?: unknown; id?: unknown; name?: unknown; label?: unknown };
+        const key = (variant.key ?? variant.id ?? variant.name ?? variant.label);
+        if (typeof key !== 'string' || !key) return null;
+        const label = typeof variant.label === 'string'
+          ? variant.label
+          : typeof variant.name === 'string'
+            ? variant.name
+            : key;
+        return { key, label };
+      })
+      .filter((item): item is ModelVariantOption => !!item);
+  }
+  if (typeof variants === 'object') {
+    return Object.entries(variants as Record<string, unknown>)
+      .map(([key, value]) => {
+        if (!key) return null;
+        if (typeof value === 'string') {
+          return { key, label: value || key };
+        }
+        if (value && typeof value === 'object') {
+          const variant = value as { label?: unknown; name?: unknown };
+          const label = typeof variant.label === 'string'
+            ? variant.label
+            : typeof variant.name === 'string'
+              ? variant.name
+              : key;
+          return { key, label };
+        }
+        return { key, label: key };
+      })
+      .filter((item): item is ModelVariantOption => !!item);
+  }
+  return [];
+}
+
+export function getModelVariantOptions(
+  providers: Provider[],
+  selectedModel: SelectedModel | null
+): ModelVariantOption[] {
+  if (!selectedModel) return [];
+  const provider = providers.find((item) => item.id === selectedModel.providerID);
+  const model = provider?.models?.[selectedModel.modelID] as { variants?: unknown } | undefined;
+  return normalizeModelVariants(model?.variants);
+}
+
+function resolveModelVariant(
+  providers: Provider[],
+  selectedModel: SelectedModel | null,
+  variant: string | null | undefined
+) {
+  const options = getModelVariantOptions(providers, selectedModel);
+  if (options.length === 0) return null;
+  if (variant && options.some((option) => option.key === variant)) return variant;
+  return null;
+}
+
 function resolveAgentName(agents: Agent[], selected: string | null) {
   if (selected) return selected;
   const visible = agents.find((agent) => !agent.hidden);
   if (visible) return visible.name;
   return agents[0]?.name ?? null;
+}
+
+function getSessionById(sessions: Session[], sessionID: string | null) {
+  if (!sessionID) return undefined;
+  return sessions.find((session) => session.id === sessionID);
+}
+
+function findLastUserMessage(messages: Message[], beforeId?: string) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== 'user') continue;
+    if (beforeId && message.id >= beforeId) continue;
+    return message;
+  }
+  return undefined;
+}
+
+function findNextUserMessage(messages: Message[], afterId: string) {
+  return messages.find((message) => message.role === 'user' && message.id > afterId);
 }
 
 function getProviderAuthError(error: unknown) {
@@ -672,12 +772,39 @@ export const useChatStore = create<ChatState & ChatActions>()(
     setSelectedModel: (model: SelectedModel | null) => {
       set((state) => {
         const directory = state.directory;
-        if (!directory) return { selectedModel: model };
+        if (!directory) {
+          const resolvedVariant = resolveModelVariant(state.providers, model, state.selectedVariant);
+          return { selectedModel: model, selectedVariant: resolvedVariant };
+        }
+        const resolvedVariant = resolveModelVariant(
+          state.providers,
+          model,
+          state.selectedVariantByDirectory[directory] ?? state.selectedVariant
+        );
         return {
           selectedModel: model,
           selectedModelByDirectory: {
             ...state.selectedModelByDirectory,
             [directory]: model,
+          },
+          selectedVariant: resolvedVariant,
+          selectedVariantByDirectory: {
+            ...state.selectedVariantByDirectory,
+            [directory]: resolvedVariant,
+          },
+        };
+      });
+    },
+
+    setSelectedVariant: (variant: string | null) => {
+      set((state) => {
+        const directory = state.directory;
+        if (!directory) return { selectedVariant: variant };
+        return {
+          selectedVariant: variant,
+          selectedVariantByDirectory: {
+            ...state.selectedVariantByDirectory,
+            [directory]: variant,
           },
         };
       });
@@ -779,6 +906,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const promptText = getStoredPromptText(state, directory, activeSessionId);
       const selectedAgent = state.selectedAgentByDirectory[directory] ?? null;
       const storedModel = state.selectedModelByDirectory[directory] ?? null;
+      const storedVariant = state.selectedVariantByDirectory[directory] ?? null;
 
       set({
         baseUrl,
@@ -807,6 +935,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const providerDefaults = providerData?.default ?? state.providerDefaults;
       const storedModelResolved = storedModel ?? state.selectedModel;
       const selectedModelResolved = resolveModel(providers, providerDefaults, storedModelResolved);
+      const selectedVariantResolved = resolveModelVariant(
+        providers,
+        selectedModelResolved,
+        storedVariant ?? state.selectedVariant
+      );
       const hasSessions = sessionData !== undefined;
       const sessions = hasSessions ? sessionData : [];
       const ids = hasSessions ? new Set(sessions.map((item) => item.id)) : new Set<string>();
@@ -853,6 +986,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
             ...prev.selectedModelByDirectory,
             [directory]: selectedModelResolved,
           },
+          selectedVariant: selectedVariantResolved,
+          selectedVariantByDirectory: {
+            ...prev.selectedVariantByDirectory,
+            [directory]: selectedVariantResolved,
+          },
           promptSessionOrder: pruned.promptSessionOrder,
           promptBySession: pruned.promptBySession,
           contextBySession: pruned.contextBySession,
@@ -883,6 +1021,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         activeSessionByDirectory: state.activeSessionByDirectory,
         selectedAgentByDirectory: state.selectedAgentByDirectory,
         selectedModelByDirectory: state.selectedModelByDirectory,
+        selectedVariantByDirectory: state.selectedVariantByDirectory,
       }));
     },
 
@@ -1208,6 +1347,122 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const nextLimit = currentLimit + DEFAULT_MESSAGE_LIMIT;
       await get().loadSessionMessages(sessionID, nextLimit);
     },
+    abortSession: async (sessionID?: string | null) => {
+      const state = get();
+      const directory = state.directory;
+      const targetSession = sessionID ?? state.activeSessionId;
+      if (!directory || !targetSession) return;
+      const client = getDirectoryClient(directory, state.baseUrl);
+      await client.session.abort({ sessionID: targetSession, directory }).catch(() => undefined);
+    },
+    undoSession: async () => {
+      const state = get();
+      const directory = state.directory;
+      const sessionID = state.activeSessionId;
+      if (!directory || !sessionID) {
+        throw new Error('No active session to undo.');
+      }
+      const session = getSessionById(state.sessions, sessionID);
+      const messages = state.messages[sessionID] ?? [];
+      const target = findLastUserMessage(messages, session?.revert?.messageID);
+      if (!target) {
+        throw new Error('Nothing to undo.');
+      }
+      if (state.sessionStatus[sessionID]?.type !== 'idle') {
+        await get().abortSession(sessionID).catch(() => undefined);
+      }
+      const client = getDirectoryClient(directory, state.baseUrl);
+      await client.session.revert({ sessionID, messageID: target.id, directory });
+    },
+    redoSession: async () => {
+      const state = get();
+      const directory = state.directory;
+      const sessionID = state.activeSessionId;
+      if (!directory || !sessionID) {
+        throw new Error('No active session to redo.');
+      }
+      const session = getSessionById(state.sessions, sessionID);
+      const revertMessageID = session?.revert?.messageID;
+      if (!revertMessageID) {
+        throw new Error('Nothing to redo.');
+      }
+      const messages = state.messages[sessionID] ?? [];
+      const nextMessage = findNextUserMessage(messages, revertMessageID);
+      const client = getDirectoryClient(directory, state.baseUrl);
+      if (!nextMessage) {
+        await client.session.unrevert({ sessionID, directory });
+        return;
+      }
+      await client.session.revert({ sessionID, messageID: nextMessage.id, directory });
+    },
+    compactSession: async () => {
+      const state = get();
+      const directory = state.directory;
+      const sessionID = state.activeSessionId;
+      if (!directory || !sessionID) {
+        throw new Error('No active session to compact.');
+      }
+      const messages = state.messages[sessionID] ?? [];
+      const hasUserMessages = messages.some((message) => message.role === 'user');
+      if (!hasUserMessages) {
+        throw new Error('Nothing to compact.');
+      }
+      let model = state.selectedModel;
+      if (!model) {
+        const storedSelection = state.selectedModelByDirectory[directory] ?? null;
+        const resolved = resolveModel(state.providers, state.providerDefaults, storedSelection);
+        if (resolved) {
+          model = resolved;
+          set((prev) => ({
+            selectedModel: resolved,
+            selectedModelByDirectory: {
+              ...prev.selectedModelByDirectory,
+              [directory]: resolved,
+            },
+          }));
+        }
+      }
+      if (!model) {
+        throw new Error('No model available for compaction.');
+      }
+      const client = getDirectoryClient(directory, state.baseUrl);
+      await client.session.summarize({
+        sessionID,
+        providerID: model.providerID,
+        modelID: model.modelID,
+        directory,
+      });
+    },
+    shareSession: async () => {
+      const state = get();
+      const directory = state.directory;
+      const sessionID = state.activeSessionId;
+      if (!directory || !sessionID) {
+        throw new Error('No active session to share.');
+      }
+      const session = getSessionById(state.sessions, sessionID);
+      if (session?.share?.url) {
+        throw new Error('Session is already shared.');
+      }
+      const client = getDirectoryClient(directory, state.baseUrl);
+      const shared = unwrap(await client.session.share({ sessionID, directory }));
+      if (!shared) return null;
+      return shared.share?.url ?? null;
+    },
+    unshareSession: async () => {
+      const state = get();
+      const directory = state.directory;
+      const sessionID = state.activeSessionId;
+      if (!directory || !sessionID) {
+        throw new Error('No active session to unshare.');
+      }
+      const session = getSessionById(state.sessions, sessionID);
+      if (!session?.share?.url) {
+        throw new Error('Session is not currently shared.');
+      }
+      const client = getDirectoryClient(directory, state.baseUrl);
+      await client.session.unshare({ sessionID, directory });
+    },
     sendPrompt: async (input: PromptInputPayload) => {
       const state = get();
       const directory = state.directory;
@@ -1286,6 +1541,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
         throw new Error(message);
       }
 
+      const storedVariant = state.selectedVariantByDirectory[directory] ?? state.selectedVariant;
+      const resolvedVariant = resolveModelVariant(state.providers, resolvedModel, storedVariant);
+
       const sessionKey = getPromptKey(directory, nextSessionId);
       const workspaceKey = getPromptKey(directory, null);
       const updateWorkspaceKey = state.activeSessionId === null && workspaceKey !== sessionKey;
@@ -1316,13 +1574,15 @@ export const useChatStore = create<ChatState & ChatActions>()(
           };
         });
         try {
-          await client.session.shell({
+          const payload = {
             sessionID: nextSessionId,
             directory,
             command,
             agent: resolvedAgent,
             model: resolvedModel ?? undefined,
-          });
+          } as any;
+          if (resolvedVariant) payload.variant = resolvedVariant;
+          await client.session.shell(payload);
         } catch (error) {
           const message = getSessionErrorMessage(error);
           set((prev) => {
@@ -1384,7 +1644,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
             };
           });
           try {
-            await client.session.command({
+            const payload = {
               sessionID: nextSessionId,
               directory,
               command: commandName,
@@ -1392,7 +1652,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
               agent: resolvedAgent,
               model: resolvedModel ? `${resolvedModel.providerID}/${resolvedModel.modelID}` : undefined,
               parts: commandParts.length > 0 ? commandParts : undefined,
-            });
+            } as any;
+            if (resolvedVariant) payload.variant = resolvedVariant;
+            await client.session.command(payload);
           } catch (error) {
             const message = getSessionErrorMessage(error);
             set((prev) => {
@@ -1588,14 +1850,16 @@ export const useChatStore = create<ChatState & ChatActions>()(
       // All updates come via SSE events, not the response body
       void (async () => {
         try {
-          await client.session.prompt({
+          const payload = {
             sessionID: nextSessionId,
             directory,
             messageID: messageId,
             parts: requestParts,
             agent: resolvedAgent,
             model: resolvedModel ?? undefined,
-          });
+          } as any;
+          if (resolvedVariant) payload.variant = resolvedVariant;
+          await client.session.prompt(payload);
         } catch (error) {
           const message = getSessionErrorMessage(error);
           const authError = getProviderAuthError(error);
@@ -1659,6 +1923,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           activeSessionByDirectory: state.activeSessionByDirectory,
           selectedAgentByDirectory: state.selectedAgentByDirectory,
           selectedModelByDirectory: state.selectedModelByDirectory,
+          selectedVariantByDirectory: state.selectedVariantByDirectory,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;

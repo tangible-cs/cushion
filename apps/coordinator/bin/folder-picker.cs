@@ -47,7 +47,11 @@ class Program {
         if (dlg.Show(IntPtr.Zero) != 0) return 1;
         IShellItem item; dlg.GetResult(out item);
         string p; item.GetDisplayName(0x80058000, out p);
-        Console.Write(p);
+        // Write raw UTF-8 bytes to stdout (Console.Write uses OEM codepage,
+        // and Console.OutputEncoding crashes on -target:winexe with no console)
+        var bytes = System.Text.Encoding.UTF8.GetBytes(p);
+        using (var stdout = Console.OpenStandardOutput())
+            stdout.Write(bytes, 0, bytes.Length);
         return 0;
     }
 }

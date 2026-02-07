@@ -22,7 +22,10 @@ import {
   updateWikiLinkFileTree,
   setWikiLinkNavigateCallback,
   type WikiLinkNavigateCallback,
+  setEmbedResolver,
+  type EmbedResolver,
 } from '@/lib/codemirror-wysiwyg';
+import { TaskListWithCanceled } from '@/lib/markdown-extensions';
 
 interface CodeEditorProps {
   filePath: string;
@@ -35,6 +38,8 @@ interface CodeEditorProps {
   fileTree?: FileTreeNode[];
   /** Callback when a wiki-link is clicked (Ctrl+Click) */
   onWikiLinkNavigate?: WikiLinkNavigateCallback;
+  /** Resolver for embed content (e.g., ![[file]]) */
+  embedResolver?: EmbedResolver;
 }
 
 export type SelectionInfo = {
@@ -89,7 +94,7 @@ function getLanguageExtension(filePath: string, language?: string): Extension | 
     case 'md':
     case 'markdown':
       // Configure markdown with code block syntax highlighting
-      return markdown({ codeLanguages: markdownCodeLanguages, extensions: [Table] });
+      return markdown({ codeLanguages: markdownCodeLanguages, extensions: [Table, TaskListWithCanceled] });
     case 'js':
     case 'jsx':
     case 'javascript':
@@ -122,18 +127,21 @@ export function CodeEditor({
   onSelectionChange,
   fileTree,
   onWikiLinkNavigate,
+  embedResolver,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
+  const embedResolverRef = useRef(embedResolver);
   const onSelectionChangeRef = useRef(onSelectionChange);
 
   // Keep callback refs up to date without re-creating the editor
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
+  embedResolverRef.current = embedResolver;
   onSelectionChangeRef.current = onSelectionChange;
 
   useEffect(() => {
@@ -289,6 +297,11 @@ export function CodeEditor({
     setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
       console.log('[CodeEditor] Navigation callback invoked, ref exists:', !!onWikiLinkNavigateRef.current);
       onWikiLinkNavigateRef.current?.(href, resolvedPath, createIfMissing);
+    });
+
+    setEmbedResolver(view, (path, options) => {
+      if (!embedResolverRef.current) return Promise.resolve(null);
+      return embedResolverRef.current(path, options);
     });
 
     return () => {

@@ -24,6 +24,7 @@ import { useAutoScroll } from './useAutoScroll';
 import { Markdown } from './Markdown';
 import { Icon, getToolIconName } from './Icon';
 import { Collapsible } from './Collapsible';
+import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 
 type MessageListProps = {
   className?: string;
@@ -196,19 +197,43 @@ function formatDuration(startMs: number, endMs: number) {
 
 export function MessageList({ className }: MessageListProps) {
   const activeSessionId = useChatStore((state) => state.activeSessionId);
+  const sessions = useChatStore((state) => state.sessions);
   const messagesBySession = useChatStore((state) => state.messages);
   const messageMeta = useChatStore((state) => state.messageMeta);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
+  const setActiveSession = useChatStore((state) => state.setActiveSession);
+  const [sessionQuery, setSessionQuery] = useState('');
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
 
   const resolvedSessionId = useMemo(() => activeSessionId ?? null, [activeSessionId]);
+  const activeSession = useMemo(() => {
+    if (!resolvedSessionId) return undefined;
+    return sessions.find((session) => session.id === resolvedSessionId);
+  }, [resolvedSessionId, sessions]);
+  const sessionTitle = activeSession?.title ?? '';
+  const showTitle = true;
+  const titleLabel = sessionTitle.trim().length > 0 ? sessionTitle : 'New session';
+  const filteredSessions = useMemo(() => {
+    const query = sessionQuery.trim().toLowerCase();
+    if (!query) return sessions;
+    return sessions.filter((session) => {
+      const label = (session.title ?? session.id).toLowerCase();
+      return label.includes(query);
+    });
+  }, [sessionQuery, sessions]);
   const messages = resolvedSessionId ? messagesBySession[resolvedSessionId] ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
+  const revertMessageId = activeSession?.revert?.messageID;
+  const visibleMessages = useMemo(() => {
+    if (!revertMessageId) return messages;
+    return messages.filter((message) => message.id < revertMessageId);
+  }, [messages, revertMessageId]);
   const meta = resolvedSessionId ? messageMeta[resolvedSessionId] : undefined;
   const status = resolvedSessionId ? sessionStatus[resolvedSessionId] : undefined;
   const isWorking = status?.type === 'busy' || status?.type === 'retry';
 
   // Group messages into turns for better performance
-  const turns = useMemo(() => groupMessagesIntoTurns(messages), [messages]);
+  const turns = useMemo(() => groupMessagesIntoTurns(visibleMessages), [visibleMessages]);
   const lastTurn = turns[turns.length - 1];
   const isLastTurnWorking = isWorking && lastTurn?.userMessage.role === 'user';
 
@@ -227,21 +252,12 @@ export function MessageList({ className }: MessageListProps) {
     }
   }, [turns.length, isWorking, autoScroll.forceScrollToBottom]);
 
-  if (!resolvedSessionId) {
-    return (
-      <div className={`flex-1 overflow-auto p-4 text-sm text-muted-foreground ${className ?? ''}`}>
-        Start a new chat to create a session.
-      </div>
-    );
-  }
-
-  if (messages.length === 0) {
-    return (
-      <div className={`flex-1 overflow-auto p-4 text-sm text-muted-foreground ${className ?? ''}`}>
-        No messages yet.
-      </div>
-    );
-  }
+  const emptyState = !resolvedSessionId
+    ? 'Start a new chat to create a session.'
+    : visibleMessages.length === 0
+      ? 'No messages yet.'
+      : null;
+  const sessionId = resolvedSessionId ?? '';
 
   return (
     <div className={`relative flex-1 min-h-0 ${className ?? ''}`.trim()}>
@@ -261,9 +277,87 @@ export function MessageList({ className }: MessageListProps) {
         ref={autoScroll.scrollRef}
         onScroll={autoScroll.handleScroll}
         data-slot="session-turn-content"
+        style={{ '--session-title-height': showTitle ? '40px' : '0px' } as React.CSSProperties}
       >
+        {showTitle && (
+          <div className="sticky top-0 z-30 bg-background px-4">
+            <div className="h-10 flex items-center justify-between gap-2">
+              <Popover open={sessionMenuOpen} onOpenChange={setSessionMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-muted/40"
+                    aria-label="Select session"
+                  >
+                    <span className="truncate max-w-[240px]">{titleLabel}</span>
+                    <Icon name="chevron-down" size="small" className="text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-80">
+                  <div className="p-2 border-b border-border">
+                    <input
+                      value={sessionQuery}
+                      onChange={(event) => setSessionQuery(event.target.value)}
+                      placeholder="Search sessions..."
+                      className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
+                    />
+                  </div>
+                  <div className="max-h-72 overflow-auto p-1 thin-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSessionMenuOpen(false);
+                        setActiveSession(null).catch(() => undefined);
+                      }}
+                      className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                    >
+                      <Icon name="plus-small" size="small" />
+                      New session
+                    </button>
+                    {filteredSessions.map((session) => {
+                      const label = session.title?.trim() || session.id;
+                      const isActive = session.id === resolvedSessionId;
+                      return (
+                        <button
+                          key={session.id}
+                          type="button"
+                          onClick={() => {
+                            setSessionMenuOpen(false);
+                            setActiveSession(session.id).catch(() => undefined);
+                          }}
+                          className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                        >
+                          <span className="truncate">{label}</span>
+                          {isActive && <Icon name="check-small" size="small" className="text-muted-foreground" />}
+                        </button>
+                      );
+                    })}
+                    {filteredSessions.length === 0 && (
+                      <div className="px-2 py-2 text-xs text-muted-foreground">No sessions found</div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionMenuOpen(false);
+                  setActiveSession(null).catch(() => undefined);
+                }}
+                className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                aria-label="New session"
+              >
+                <Icon name="plus-small" size="small" />
+              </button>
+            </div>
+          </div>
+        )}
         {meta?.hasMore && (
-          <div className="sticky top-0 z-30 flex justify-center bg-background/90 py-2">
+          <div className="flex justify-center bg-background/90 py-2">
             <button
               type="button"
               disabled={meta.loading}
@@ -277,16 +371,24 @@ export function MessageList({ className }: MessageListProps) {
             </button>
           </div>
         )}
-        <div ref={autoScroll.contentRef} data-slot="session-turn-list">
-          {turns.map((turn) => (
-            <Turn
-              key={turn.userMessage.id}
-              turn={turn}
-              sessionId={resolvedSessionId}
-              isWorking={isLastTurnWorking && turn === lastTurn}
-              onInteract={autoScroll.handleInteraction}
-            />
-          ))}
+        <div
+          ref={autoScroll.contentRef}
+          data-slot="session-turn-list"
+          style={{ paddingBottom: 'calc(48px + var(--prompt-dock-height, 0px))' }}
+        >
+          {emptyState ? (
+            <div className="px-4 py-4 text-sm text-muted-foreground">{emptyState}</div>
+          ) : (
+            turns.map((turn) => (
+              <Turn
+                key={turn.userMessage.id}
+                turn={turn}
+                sessionId={sessionId}
+                isWorking={isLastTurnWorking && turn === lastTurn}
+                onInteract={autoScroll.handleInteraction}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

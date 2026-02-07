@@ -1,7 +1,8 @@
-import type { Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { Prec, type Extension } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
 import { hideMarkupPlugin, linkClickHandler } from './hide-markup';
 import { focusModeExtension, toggleFocusMode, setFocusMode, isFocusModeEnabled } from './focus-mode';
+import { embedResolverField, setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 import {
   wikiLinkExtension,
   updateWikiLinkFileTree,
@@ -11,6 +12,7 @@ import {
 import { combinedAutocomplete } from './combined-autocomplete';
 import { codeBlockHighlighter } from './code-block-highlight';
 import { slashCommandExtension } from './slash-command';
+import { listKeymap } from './list-commands';
 import type { FileTreeNode } from '@cushion/types';
 
 // Re-export focus mode utilities
@@ -22,6 +24,8 @@ export {
   setWikiLinkNavigateCallback,
   type WikiLinkNavigateCallback,
 } from './wiki-link-plugin';
+
+export { setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 
 /**
  * Prose-optimized theme for markdown editing.
@@ -106,16 +110,56 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     borderRadius: '3px',
   },
   
-  // List bullets
+  // List bullets — base styles; depth-specific minWidth below
   '.cm-list-bullet': {
     color: 'var(--md-accent, #6fb3d2)',
     userSelect: 'none',
     fontWeight: '600',
-    marginRight: '8px',
+    marginRight: '4px',
     display: 'inline-block',
-    width: '1em',
-    textAlign: 'center',
+    minWidth: '1.25em',
+    textAlign: 'left',
   },
+  '.cm-list-marker-hidden': {
+    position: 'relative',
+    display: 'inline-block',
+    minWidth: '1.25em',
+    textAlign: 'left',
+    marginRight: '4px',
+    color: 'transparent',
+    userSelect: 'none',
+  },
+  '.cm-list-marker-hidden *': {
+    color: 'transparent !important',
+    fontSize: '0 !important',
+    lineHeight: '0 !important',
+  },
+  '.cm-list-marker-hidden::after': {
+    content: 'attr(data-list-marker)',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    color: 'var(--md-accent, #6fb3d2)',
+    fontWeight: '600',
+    fontSize: 'var(--md-font-size, 16px)',
+    lineHeight: 'var(--md-baseline, 1.6)',
+  },
+  '.cm-list-marker': {
+    display: 'inline-block',
+    minWidth: '1.25em',
+    textAlign: 'left',
+    marginRight: '4px',
+  },
+  // Depth-specific marker widths so items at the same depth align
+  '.cm-list-bullet.cm-list-depth-0': { minWidth: '1.25em' },  // numbers: 1–999
+  '.cm-list-bullet.cm-list-depth-1': { minWidth: '1.25em' },  // alpha: a–zz
+  '.cm-list-bullet.cm-list-depth-2': { minWidth: '2.25em' },  // roman: i–xxviii+
+  '.cm-list-marker.cm-list-depth-0': { minWidth: '1.25em' },  // numbers: 1–999
+  '.cm-list-marker.cm-list-depth-1': { minWidth: '1.25em' },  // alpha: a–zz
+  '.cm-list-marker.cm-list-depth-2': { minWidth: '2.25em' },  // roman: i–xxviii+
+  '.cm-list-marker-hidden.cm-list-depth-0': { minWidth: '1.25em' },
+  '.cm-list-marker-hidden.cm-list-depth-1': { minWidth: '1.25em' },
+  '.cm-list-marker-hidden.cm-list-depth-2': { minWidth: '2.25em' },
   
   // Horizontal rules
   '.cm-hr-widget': {
@@ -295,6 +339,9 @@ export function wysiwygExtension(options: { focusMode?: boolean } = {}): Extensi
     editorAttributes,
     markdownProseTheme,
     wysiwygWidgetTheme,
+    embedResolverField,
+    // List-aware Tab/Shift+Tab/Enter — must run before indentWithTab and default Enter
+    Prec.high(keymap.of(listKeymap)),
     hideMarkupPlugin,
     linkClickHandler,
     focusModeExtension(focusMode),

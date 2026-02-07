@@ -33,6 +33,13 @@ import type {
   TerminalResizeParams,
 } from '@cushion/types';
 import { WorkspaceManager } from './workspace/manager.js';
+import { CredentialStorage } from './providers/storage.js';
+import { getAllProviders, getProviderByID, getPopularProviderIDs } from './providers/registry.js';
+import { getModelsDevCache } from './providers/models-dev.js';
+import { getOAuthHandler } from './providers/oauth.js';
+import { OLLAMA_PROVIDER_ID, checkOllamaHealth, OLLAMA_DEFAULT_URL, getOllamaModels, pullOllamaModel, deleteOllamaModel } from './providers/ollama.js';
+import { discoverModels, estimateContextWindow } from './providers/ollama-discover.js';
+import { writeOllamaToConfig } from './providers/ollama-config.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -45,11 +52,19 @@ export class CoordinatorServer {
   private workspaceManager: WorkspaceManager;
   private terminalSessions = new Map<WebSocket, any>();
   private terminalProcesses = new Map<WebSocket, any>();
+  private credentialStorage: CredentialStorage;
 
   constructor(private port: number = 3001) {
     this.workspaceManager = new WorkspaceManager();
+    this.credentialStorage = new CredentialStorage();
     this.wss = new WebSocketServer({ port });
     this.setupHandlers();
+
+    // Cleanup expired OAuth states every 5 minutes
+    setInterval(() => {
+      const oauth = getOAuthHandler();
+      oauth.cleanupExpiredStates();
+    }, 5 * 60 * 1000);
   }
 
   private setupHandlers() {
@@ -183,6 +198,54 @@ export class CoordinatorServer {
 
         case 'terminal/destroy':
           result = await this.handleTerminalDestroy(ws);
+          break;
+
+        case 'provider/list':
+          result = await this.handleProviderList();
+          break;
+
+        case 'provider/refresh':
+          result = await this.handleProviderRefresh();
+          break;
+
+        case 'provider/popular':
+          result = { ids: getPopularProviderIDs() };
+          break;
+
+        case 'provider/auth/methods':
+          result = await this.handleProviderAuthMethods();
+          break;
+
+        case 'provider/auth/set':
+          result = await this.handleProviderAuthSet(request.params as { providerID: string; apiKey: string });
+          break;
+
+        case 'provider/auth/remove':
+          result = await this.handleProviderAuthRemove(request.params as { providerID: string });
+          break;
+
+        case 'provider/oauth/authorize':
+          result = await this.handleProviderOAuthAuthorize(request.params as { providerID: string; method: number });
+          break;
+
+        case 'provider/oauth/callback':
+          result = await this.handleProviderOAuthCallback(request.params as { providerID: string; method: number; code?: string });
+          break;
+
+        case 'provider/ollama/list':
+          result = await this.handleOllamaList();
+          break;
+
+        case 'provider/ollama/pull':
+          result = await this.handleOllamaPull(request.params as { model: string });
+          break;
+
+        case 'provider/ollama/delete':
+          result = await this.handleOllamaDelete(request.params as { model: string });
+          break;
+
+        case 'provider/ollama/write-config':
+          result = await this.handleOllamaWriteConfig(request.params as { baseUrl?: string; models?: any[] });
           break;
 
         default:
@@ -618,6 +681,396 @@ export class CoordinatorServer {
     } catch (error) {
       console.error('[Coordinator] Error destroying terminal:', error);
       return { success: false };
+    }
+  }
+
+  private async handleProviderList(): Promise<{
+    providers: any[];
+    connected: string[];
+  }> {
+    try {
+      const providers = await getAllProviders();
+      const connected = await this.credentialStorage.getConnectedProviderIDs();
+
+      return {
+        providers,
+        connected,
+      };
+    } catch (error) {
+      console.error('[Coordinator] Error listing providers:', error);
+      throw error;
+    }
+  }
+
+  private async handleProviderRefresh(): Promise<{ providers: any[]; connected: string[] }> {
+    try {
+      const cache = getModelsDevCache();
+      await cache.refresh();
+
+      const providers = await getAllProviders();
+      const connected = await this.credentialStorage.getConnectedProviderIDs();
+
+      return {
+        providers,
+        connected,
+      };
+    } catch (error) {
+      console.error('[Coordinator] Error refreshing providers:', error);
+      throw error;
+    }
+  }
+
+  private async handleProviderAuthMethods(): Promise<Record<string, Array<{ type: string; label: string }>>> {
+    try {
+      const providers = await getAllProviders();
+      const authMethods: Record<string, Array<{ type: string; label: string }>> = {};
+
+      for (const provider of providers) {
+        if (provider.authMethods) {
+          authMethods[provider.id] = provider.authMethods.map((m) => ({
+            type: m.type,
+            label: m.label,
+          }));
+        } else {
+          authMethods[provider.id] = [{ type: 'api', label: 'API Key' }];
+        }
+      }
+
+      return authMethods;
+    } catch (error) {
+      console.error('[Coordinator] Error getting provider auth methods:', error);
+      throw error;
+    }
+  }
+
+  private async handleProviderAuthSet(params: {
+    providerID: string;
+    apiKey: string;
+  }): Promise<{ success: boolean }> {
+    const { providerID, apiKey } = params;
+
+    try {
+      const provider = await getProviderByID(providerID);
+      if (!provider) {
+        throw new Error(`Unknown provider: ${providerID}`);
+      }
+
+      // Validate API key format before storing
+      if (!apiKey || apiKey.trim().length === 0) {
+        throw new Error('API key cannot be empty');
+      }
+
+      // Validate API key works with provider's API
+      await this.validateApiKey(providerID, apiKey);
+
+      // Store credential
+      await this.credentialStorage.setCredential(providerID, apiKey);
+
+      console.log(`[Coordinator] Provider auth set successfully for ${providerID}`);
+      return { success: true };
+    } catch (error) {
+      console.error('[Coordinator] Error setting provider auth:', error);
+      throw error;
+    }
+  }
+
+  private async validateApiKey(providerID: string, apiKey: string): Promise<void> {
+    try {
+      switch (providerID) {
+        case OLLAMA_PROVIDER_ID:
+          await this.validateOllamaConnection(apiKey || OLLAMA_DEFAULT_URL);
+          break;
+        case 'anthropic':
+          await this.validateAnthropicKey(apiKey);
+          break;
+        case 'openai':
+          await this.validateOpenAIKey(apiKey);
+          break;
+        case 'google':
+          await this.validateGoogleKey(apiKey);
+          break;
+        case 'meta':
+          // Meta keys are validated at use time
+          break;
+        case 'openrouter':
+          await this.validateOpenRouterKey(apiKey);
+          break;
+        default:
+          console.warn(`[Coordinator] No validation for provider: ${providerID}`);
+      }
+    } catch (error) {
+      console.error(`[Coordinator] API key validation failed for ${providerID}:`, error);
+      throw error;
+    }
+  }
+
+  private async validateAnthropicKey(apiKey: string): Promise<void> {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'test' }],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      if (response.status === 401) {
+        throw new Error('Invalid API key');
+      }
+      throw new Error(`API key validation failed: ${response.status} ${error}`);
+    }
+  }
+
+  private async validateOpenAIKey(apiKey: string): Promise<void> {
+    const response = await fetch('https://api.openai.com/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      if (response.status === 401) {
+        throw new Error('Invalid API key');
+      }
+      throw new Error(`API key validation failed: ${response.status} ${error}`);
+    }
+  }
+
+  private async validateGoogleKey(apiKey: string): Promise<void> {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      if (response.status === 403) {
+        throw new Error('Invalid API key');
+      }
+      throw new Error(`API key validation failed: ${response.status} ${error}`);
+    }
+  }
+
+  private async validateOpenRouterKey(apiKey: string): Promise<void> {
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      if (response.status === 401) {
+        throw new Error('Invalid API key');
+      }
+      throw new Error(`API key validation failed: ${response.status} ${error}`);
+    }
+  }
+
+  private async validateOllamaConnection(baseUrl: string): Promise<void> {
+    try {
+      const isRunning = await checkOllamaHealth(baseUrl);
+      if (!isRunning) {
+        throw new Error(
+          'Ollama server not running. Start with: ollama serve'
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        'Cannot connect to Ollama. Ensure it is running with: ollama serve'
+      );
+    }
+  }
+
+  private async handleProviderAuthRemove(params: {
+    providerID: string;
+  }): Promise<{ success: boolean }> {
+    const { providerID } = params;
+
+    try {
+      await this.credentialStorage.removeCredential(providerID);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[Coordinator] Error removing provider auth:', error);
+      throw error;
+    }
+  }
+
+  private async handleProviderOAuthAuthorize(params: {
+    providerID: string;
+    method: number;
+    inputs?: Record<string, string>;
+  }): Promise<{ url: string; method: 'auto' | 'code'; instructions: string }> {
+    const { providerID, method, inputs = {} } = params;
+
+    try {
+      const provider = await getProviderByID(providerID);
+      if (!provider) {
+        throw new Error(`Unknown provider: ${providerID}`);
+      }
+
+      const authMethod = provider.authMethods?.[method];
+      if (!authMethod) {
+        throw new Error(`Invalid auth method index: ${method}`);
+      }
+
+      if (authMethod.type !== 'oauth') {
+        throw new Error(`Auth method is not OAuth: ${authMethod.type}`);
+      }
+
+      const oauth = getOAuthHandler();
+      return await oauth.authorize(providerID, method, inputs);
+    } catch (error) {
+      console.error('[Coordinator] Error authorizing OAuth:', error);
+      throw error;
+    }
+  }
+
+  private async handleProviderOAuthCallback(params: {
+    providerID: string;
+    method: number;
+    code?: string;
+  }): Promise<{ success: boolean }> {
+    const { providerID, method, code } = params;
+
+    try {
+      const provider = await getProviderByID(providerID);
+      if (!provider) {
+        throw new Error(`Unknown provider: ${providerID}`);
+      }
+
+      const authMethod = provider.authMethods?.[method];
+      if (!authMethod) {
+        throw new Error(`Invalid auth method index: ${method}`);
+      }
+
+      const oauth = getOAuthHandler();
+      const result = await oauth.callback(providerID, method, code);
+
+      if (!result.success) {
+        throw new Error('OAuth callback failed');
+      }
+
+      // Store the credential
+      if (result.type === 'api' && result.key) {
+        await this.credentialStorage.setCredential(providerID, result.key);
+      } else if (result.type === 'oauth') {
+        await this.credentialStorage.setOAuthCredential(providerID, {
+          access: result.access!,
+          refresh: result.refresh,
+          expires: result.expires,
+          accountId: result.accountId,
+        });
+      }
+
+      console.log(`[Coordinator] OAuth callback successful for ${providerID}`);
+      return { success: true };
+    } catch (error) {
+      console.error('[Coordinator] Error OAuth callback:', error);
+      throw error;
+    }
+  }
+
+  private async handleOllamaList(): Promise<{ models: any[]; running: boolean }> {
+    try {
+      const ollamaConfig = await this.credentialStorage.getOllamaConfig();
+      const baseUrl = ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
+      
+      const running = await checkOllamaHealth(baseUrl);
+      if (!running) {
+        return { models: [], running: false };
+      }
+      
+      const models = await getOllamaModels(baseUrl);
+      return { models: Object.values(models), running: true };
+    } catch (error) {
+      console.error('[Coordinator] Error listing Ollama models:', error);
+      throw error;
+    }
+  }
+
+  private async handleOllamaPull(params: { model: string }): Promise<{ success: boolean; error?: string }> {
+    const { model } = params;
+    
+    try {
+      const ollamaConfig = await this.credentialStorage.getOllamaConfig();
+      const baseUrl = ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
+      
+      const result = await pullOllamaModel(model, baseUrl);
+      return result;
+    } catch (error) {
+      console.error('[Coordinator] Error pulling Ollama model:', error);
+      throw error;
+    }
+  }
+
+  private async handleOllamaDelete(params: { model: string }): Promise<{ success: boolean; error?: string }> {
+    const { model } = params;
+
+    try {
+      const ollamaConfig = await this.credentialStorage.getOllamaConfig();
+      const baseUrl = ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
+
+      const result = await deleteOllamaModel(model, baseUrl);
+      return result;
+    } catch (error) {
+      console.error('[Coordinator] Error deleting Ollama model:', error);
+      throw error;
+    }
+  }
+
+  private async handleOllamaWriteConfig(params: { baseUrl?: string; models?: any[] }): Promise<{ success: boolean; message: string }> {
+    try {
+      const ollamaConfig = await this.credentialStorage.getOllamaConfig();
+      const baseUrl = params.baseUrl || ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
+
+      const discovery = await discoverModels(baseUrl);
+
+      if (!discovery.running) {
+        return {
+          success: false,
+          message: 'Ollama server is not running. Please start Ollama with: ollama serve',
+        };
+      }
+
+      // If partial models passed from frontend (just id/name), enrich with discovery data
+      let models = params.models || discovery.models;
+      if (params.models && params.models.length > 0 && !params.models[0].family) {
+        const discoveryMap = new Map(discovery.models.map((m: any) => [m.id, m]));
+        models = params.models
+          .map((m: any) => discoveryMap.get(m.id) || m)
+          .filter((m: any) => m.family);
+      }
+      const contextWindows: Record<string, number> = {};
+
+      for (const model of models) {
+        contextWindows[model.id] = estimateContextWindow(model);
+      }
+
+      await writeOllamaToConfig(baseUrl, models, contextWindows);
+
+      return {
+        success: true,
+        message: `Successfully configured ${models.length} Ollama model${models.length !== 1 ? 's' : ''} for OpenCode`,
+      };
+    } catch (error) {
+      console.error('[Coordinator] Error writing Ollama config:', error);
+      throw error;
     }
   }
 

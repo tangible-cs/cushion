@@ -17,7 +17,7 @@ import {
   WidgetType,
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
-import { cursorOnLine } from './reveal-on-cursor';
+import { cursorInRange } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
 import { resolveWikiLink, flattenFileTree } from '../wiki-link-resolver';
 import type { FileTreeNode, WikiLinkInfo, WikiLinkState } from '@cushion/types';
@@ -92,6 +92,9 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
   while ((match = regex.exec(text)) !== null) {
     const start = match.index;
     const end = match.index + match[0].length;
+
+    const isEmbed = start > 0 && text[start - 1] === '!' && text[start - 2] !== '\\';
+    if (isEmbed) continue;
     
     // Parse the link components
     const href = match[1].trim();
@@ -120,18 +123,22 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       }
     }
     
-    // Check if cursor is on this line
-    const isOnLine = cursorOnLine(state, start);
+    // Check if cursor is inside this wiki-link range
+    const isInLink = cursorInRange(state, start, end);
     
-    if (!isOnLine) {
+    if (!isInLink) {
       // Hide opening brackets [[
-      decorations.push(Decoration.replace({}).range(start, openBracketEnd));
+      decorations.push(
+        Decoration.mark({ class: 'cm-syntax-hidden' }).range(start, openBracketEnd),
+      );
       
       // If there's display text, also hide the href|
       if (match[3]) {
         const pipePos = text.indexOf('|', openBracketEnd);
         if (pipePos !== -1 && pipePos < closeBracketStart) {
-          decorations.push(Decoration.replace({}).range(openBracketEnd, pipePos + 1));
+          decorations.push(
+            Decoration.mark({ class: 'cm-syntax-hidden' }).range(openBracketEnd, pipePos + 1),
+          );
         }
       }
       
@@ -139,17 +146,21 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       if (match[2] && !match[3]) {
         const hashPos = text.indexOf('#', openBracketEnd);
         if (hashPos !== -1 && hashPos < closeBracketStart) {
-          decorations.push(Decoration.replace({}).range(hashPos, closeBracketStart));
+          decorations.push(
+            Decoration.mark({ class: 'cm-syntax-hidden' }).range(hashPos, closeBracketStart),
+          );
         }
       }
       
       // Hide closing brackets ]]
-      decorations.push(Decoration.replace({}).range(closeBracketStart, end));
+      decorations.push(
+        Decoration.mark({ class: 'cm-syntax-hidden' }).range(closeBracketStart, end),
+      );
     }
     
     // Style the link content
-    const actualContentStart = isOnLine ? openBracketEnd : contentStart;
-    const actualContentEnd = isOnLine ? closeBracketStart : contentEnd;
+    const actualContentStart = isInLink ? openBracketEnd : contentStart;
+    const actualContentEnd = isInLink ? closeBracketStart : contentEnd;
     
     // Only add mark if there's content to mark
     if (actualContentEnd > actualContentStart) {
@@ -167,8 +178,8 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       );
     }
     
-    // If on line, also style the brackets
-    if (isOnLine) {
+    // If inside link, also style the brackets
+    if (isInLink) {
       decorations.push(
         Decoration.mark({
           class: 'cm-wiki-link-bracket',
@@ -227,34 +238,35 @@ export const wikiLinkPlugin = ViewPlugin.fromClass(
  * Ctrl+Click also works.
  */
 export const wikiLinkClickHandler = EditorView.domEventHandlers({
-  click(event, view) {
-    const target = event.target as HTMLElement;
-    
-    // Check if clicked on a wiki-link
-    const wikiLinkEl = target.closest('[data-wiki-link="true"]');
+  mousedown(event, view) {
+    if (event.button !== 0) return false;
+
+    const target = event.target as HTMLElement | null;
+    const wikiLinkEl = target?.closest?.('[data-wiki-link="true"]') as HTMLElement | null;
+
     if (!wikiLinkEl) return false;
-    
+
     const href = wikiLinkEl.getAttribute('data-href');
     const resolvedPathAttr = wikiLinkEl.getAttribute('data-resolved-path');
     const linkState = wikiLinkEl.getAttribute('data-link-state') as WikiLinkState;
-    
-    console.log('[WikiLink] Click detected:', { href, resolvedPathAttr, linkState });
-    
+
     if (!href) return false;
-    
+
+    console.log('[WikiLink] Click detected:', { href, resolvedPathAttr, linkState });
+
     // Get the navigation callback from state
     const navigate = view.state.field(navigateCallbackField, false);
-    
+
     console.log('[WikiLink] Navigate callback exists:', !!navigate);
-    
+
     if (navigate) {
       // For empty links, pass createIfMissing = true (like Tangent)
       const createIfMissing = linkState === 'empty';
       // Empty string should be treated as null
       const resolvedPath = resolvedPathAttr && resolvedPathAttr.length > 0 ? resolvedPathAttr : null;
-      
+
       console.log('[WikiLink] Navigating:', { href, resolvedPath, createIfMissing });
-      
+
       navigate(href, resolvedPath, createIfMissing);
       event.preventDefault();
       event.stopPropagation();
@@ -262,7 +274,7 @@ export const wikiLinkClickHandler = EditorView.domEventHandlers({
     } else {
       console.warn('[WikiLink] No navigate callback set!');
     }
-    
+
     return false;
   },
 });

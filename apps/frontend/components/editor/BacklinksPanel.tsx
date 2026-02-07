@@ -93,7 +93,7 @@ export function BacklinksPanel({ currentFile, linkIndex, onNavigate }: Backlinks
       </div>
       
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto thin-scrollbar">
         {groupedBacklinks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[var(--md-text-muted)] text-sm p-4">
             <ArrowLeft size={32} className="mb-2 opacity-30" />

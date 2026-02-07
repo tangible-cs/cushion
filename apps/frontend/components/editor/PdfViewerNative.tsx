@@ -764,7 +764,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
       <div className="flex-1 relative min-h-0">
         <div
           ref={containerRef}
-          className="absolute inset-0 overflow-auto bg-[#525659]"
+          className="absolute inset-0 overflow-auto bg-[#525659] thin-scrollbar"
         >
           <div ref={viewerRef} className="pdfViewer" />
 

@@ -4,22 +4,24 @@ import { WidgetType, EditorView } from '@codemirror/view';
  * SVG-based checkbox widget for task list items.
  * Inspired by Tangent's checkbox implementation.
  */
+type CheckboxState = 'open' | 'checked';
+
 export class CheckboxWidget extends WidgetType {
   constructor(
-    readonly checked: boolean,
+    readonly state: CheckboxState,
     readonly pos: number,
   ) {
     super();
   }
 
   eq(other: CheckboxWidget) {
-    return this.checked === other.checked && this.pos === other.pos;
+    return this.state === other.state && this.pos === other.pos;
   }
 
   toDOM(view: EditorView) {
     const wrapper = document.createElement('span');
-    wrapper.className = `cm-checkbox-widget ${this.checked ? 'cm-checkbox-checked' : ''}`;
-    wrapper.setAttribute('aria-checked', this.checked.toString());
+    wrapper.className = `cm-checkbox-widget cm-checkbox-${this.state}`;
+    wrapper.setAttribute('aria-checked', this.state === 'checked' ? 'true' : 'false');
     wrapper.setAttribute('role', 'checkbox');
     wrapper.setAttribute('tabindex', '0');
     
@@ -38,13 +40,16 @@ export class CheckboxWidget extends WidgetType {
     rect.setAttribute('width', '14');
     rect.setAttribute('height', '14');
     rect.setAttribute('rx', '2');
-    rect.setAttribute('fill', this.checked ? 'var(--md-accent, #6fb3d2)' : 'transparent');
-    rect.setAttribute('stroke', this.checked ? 'var(--md-accent, #6fb3d2)' : 'var(--md-text-muted, #666)');
+    const isChecked = this.state === 'checked';
+    const accent = 'var(--md-accent, #6fb3d2)';
+
+    rect.setAttribute('fill', isChecked ? accent : 'transparent');
+    rect.setAttribute('stroke', isChecked ? accent : 'var(--md-text-muted, #666)');
     rect.setAttribute('stroke-width', '1.5');
     svg.appendChild(rect);
     
     // Checkmark (only visible when checked)
-    if (this.checked) {
+    if (isChecked) {
       const check = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       check.setAttribute('d', 'M4 8l2.5 2.5L12 5');
       check.setAttribute('stroke', 'white');
@@ -61,7 +66,7 @@ export class CheckboxWidget extends WidgetType {
     const handleToggle = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      const newText = this.checked ? '[ ]' : '[x]';
+      const newText = this.state === 'open' ? '[x]' : '[ ]';
       view.dispatch({
         changes: { from: this.pos, to: this.pos + 3, insert: newText },
       });

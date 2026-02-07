@@ -1,5 +1,6 @@
 /* Markdown Editor Styles - imported first as @import must precede other rules */
 @import '../styles/markdown-editor.css';
+@import '../components/chat/provider-icon.css';
 
 @tailwind base;
 @tailwind components;
@@ -648,12 +649,44 @@ html, body {
   display: none;
 }
 
+/* Inline pill styles – colored text only, no box */
+[data-slot="prompt-input-editor"] [data-type="file"],
+[data-slot="prompt-input-editor"] [data-type="agent"] {
+  color: var(--md-accent);
+  font-weight: 500;
+}
+
 .no-scrollbar {
   scrollbar-width: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.15) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 2px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.35);
+}
+
+.chat-dock [data-slot="prompt-input-form"],
+.chat-dock .chat-dock-panel {
+  border-color: color-mix(in srgb, var(--border) 75%, #000);
 }
 
 [data-slot="session-turn-sticky"]::before {
@@ -736,7 +769,7 @@ html, body {
 [data-slot="session-turn-resume"] {
   position: absolute;
   left: 50%;
-  bottom: 12px;
+  bottom: calc(28px + var(--prompt-dock-height, 0px));
   z-index: 60;
   opacity: 0;
   transform: translateX(-50%) translateY(8px) scale(0.95);

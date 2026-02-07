@@ -8,6 +8,7 @@ import type {
   DidOpenTextDocumentParams,
   DidChangeTextDocumentParams,
   FileTreeNode,
+  Provider,
 } from '@cushion/types';
 
 interface JSONRPCRequest {
@@ -167,7 +168,7 @@ export class CoordinatorClient {
     this.pendingRequests.delete(response.id);
 
     if (response.error) {
-      pending.reject(new Error(response.error.message));
+      pending.reject(new Error(response.error.message || response.error.data?.toString() || 'Unknown error'));
     } else {
       pending.resolve(response.result);
     }
@@ -331,4 +332,111 @@ export class CoordinatorClient {
 
     this.terminalOutputCallbacks.push(callback);
   }
+
+  /**
+   * Provider: list all providers
+   */
+  async listProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
+    return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/list', {});
+  }
+
+  /**
+   * Provider: get auth methods for all providers
+   */
+  async listProviderAuthMethods(): Promise<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>> {
+    return this.sendRequest<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>>('provider/auth/methods', {});
+  }
+
+  /**
+   * Provider: refresh providers from models.dev
+   */
+  async refreshProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
+    return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/refresh', {});
+  }
+
+  /**
+   * Provider: get popular provider IDs
+   */
+  async getPopularProviders(): Promise<{ ids: string[] }> {
+    return this.sendRequest<{ ids: string[] }>('provider/popular', {});
+  }
+
+  /**
+   * Provider: set API key authentication
+   */
+  async setProviderAuth(params: { providerID: string; apiKey: string }): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('provider/auth/set', params);
+  }
+
+  /**
+   * Provider: remove authentication
+   */
+  async removeProviderAuth(params: { providerID: string }): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('provider/auth/remove', params);
+  }
+
+  /**
+   * Provider: authorize OAuth flow
+   */
+  async authorizeOAuth(params: { providerID: string; method: number }): Promise<{ url: string; method: 'auto' | 'code'; instructions: string }> {
+    return this.sendRequest<{ url: string; method: 'auto' | 'code'; instructions: string }>('provider/oauth/authorize', params);
+  }
+
+  /**
+   * Provider: OAuth callback
+   */
+  async oauthCallback(params: { providerID: string; method: number; code?: string }): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('provider/oauth/callback', params);
+  }
+
+  /**
+   * Ollama: list installed models
+   */
+  async listOllamaModels(): Promise<{ models: any[]; running: boolean }> {
+    return this.sendRequest<{ models: any[]; running: boolean }>('provider/ollama/list', {});
+  }
+
+  /**
+   * Ollama: pull a model from library
+   */
+  async pullOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
+    return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/pull', { model });
+  }
+
+  /**
+    * Ollama: delete a model
+    */
+  async deleteOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
+    return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/delete', { model });
+  }
+
+  /**
+    * Ollama: write discovered models to OpenCode config
+    */
+  async writeOllamaConfig(params: { baseUrl?: string; models?: any[] }): Promise<{ success: boolean; message: string }> {
+    return this.sendRequest<{ success: boolean; message: string }>('provider/ollama/write-config', params);
+  }
 }
+
+let clientInstance: CoordinatorClient | null = null;
+let connectionPromise: Promise<void> | null = null;
+
+export function getCoordinatorClient(): CoordinatorClient {
+  if (!clientInstance) {
+    clientInstance = new CoordinatorClient();
+  }
+  return clientInstance;
+}
+
+export async function ensureCoordinatorConnection(): Promise<void> {
+  const client = getCoordinatorClient();
+  if (client.isConnected()) return;
+
+  if (!connectionPromise) {
+    connectionPromise = client.connect().finally(() => {
+      connectionPromise = null;
+    });
+  }
+  return connectionPromise;
+}
+

@@ -1,8 +1,8 @@
-export * from '../../../opencode/packages/sdk/js/src/v2/gen/types.gen';
+export * from '../../../opencode/packages/sdk/js/dist/v2/gen/types.gen';
 
-import { createClient } from '../../../opencode/packages/sdk/js/src/v2/gen/client/client.gen';
-import type { Config } from '../../../opencode/packages/sdk/js/src/v2/gen/client/types.gen';
-import { OpencodeClient } from '../../../opencode/packages/sdk/js/src/v2/gen/sdk.gen';
+import { createClient } from '../../../opencode/packages/sdk/js/dist/v2/gen/client/client.gen';
+import type { Config } from '../../../opencode/packages/sdk/js/dist/v2/gen/client/types.gen';
+import { OpencodeClient } from '../../../opencode/packages/sdk/js/dist/v2/gen/sdk.gen';
 
 export { OpencodeClient };
 export type { Config as OpencodeClientConfig };

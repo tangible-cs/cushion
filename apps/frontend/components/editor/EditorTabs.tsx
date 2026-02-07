@@ -22,7 +22,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
   const openFiles = useWorkspaceStore((s) => s.openFiles);
 
   return (
-    <div className="flex h-10 items-center gap-1 px-2 overflow-x-auto">
+    <div className="flex h-10 items-center gap-1 px-2 overflow-x-auto overflow-y-hidden thin-scrollbar">
       {tabs.map((tab) => {
         const isActive = tab.filePath === currentFile;
         const file = openFiles.get(tab.filePath);
@@ -32,15 +32,16 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
           <div
             key={tab.id}
             className={cn(
-              "group flex items-center gap-1.5 h-7 px-3 rounded text-sm cursor-pointer select-none shrink-0",
+              "group flex items-center gap-1.5 h-7 px-3 rounded text-sm cursor-pointer select-none min-w-0 min-w-[60px]",
               "transition-colors duration-150",
               isActive
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
             )}
+            title={getFileName(tab.filePath)}
             onClick={() => onSelectTab(tab.filePath)}
           >
-            <span className={cn("truncate max-w-[120px]", tab.isPreview && "italic")}>
+            <span className={cn("truncate min-w-0", tab.isPreview && "italic")}>
               {getFileName(tab.filePath)}
             </span>
             {isDirty && (

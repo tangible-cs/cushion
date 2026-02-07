@@ -6,13 +6,14 @@ import { CodeEditor, type SelectionInfo } from './CodeEditor';
 import { useChatStore } from '@/stores/chatStore';
 import { EditorTabs } from './EditorTabs';
 import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
+import { ImageViewer } from './ImageViewer';
 import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
 import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
-import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
+import type { WikiLinkNavigateCallback, EmbedResolver, EmbedResolverResult } from '@/lib/codemirror-wysiwyg';
 
 interface EditorPanelProps {
   client: CoordinatorClient;
@@ -39,6 +40,7 @@ export function EditorPanel({
   const currentFile = useWorkspaceStore((s) => s.currentFile);
   const tabs = useWorkspaceStore((s) => s.tabs);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
+  const preferences = useWorkspaceStore((s) => s.preferences);
   const updateFileContent = useWorkspaceStore((s) => s.updateFileContent);
   const markFileSaved = useWorkspaceStore((s) => s.markFileSaved);
   const setCurrentFile = useWorkspaceStore((s) => s.setCurrentFile);
@@ -55,6 +57,7 @@ export function EditorPanel({
     navigating: false,
   });
   const [, forceUpdate] = useState(0);
+  const autosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Track tab switches in history
   useEffect(() => {
@@ -97,9 +100,29 @@ export function EditorPanel({
   // Track which files we've already sent didOpen for
   const openedUrisRef = useRef<Set<string>>(new Set());
   const [pdfData, setPdfData] = useState<{ filePath: string; base64: string } | null>(null);
+  const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
+  const embedCacheRef = useRef(new Map<string, Promise<EmbedResolverResult | null>>());
 
   const fileState = currentFile ? openFiles.get(currentFile) : null;
   const isPdf = currentFile?.toLowerCase().endsWith('.pdf') ?? false;
+  const imageExtensions = /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i;
+  const isImage = imageExtensions.test(currentFile ?? '');
+
+  useEffect(() => {
+    if (preferences.autoSave) return;
+    const timers = autosaveTimersRef.current;
+    if (timers.size === 0) return;
+    timers.forEach((timer) => clearTimeout(timer));
+    timers.clear();
+  }, [preferences.autoSave]);
+
+  useEffect(() => {
+    return () => {
+      const timers = autosaveTimersRef.current;
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   // Load PDF binary data when a PDF file is selected
   useEffect(() => {
@@ -115,6 +138,21 @@ export function EditorPanel({
     });
     return () => { cancelled = true; };
   }, [isPdf, currentFile, client]);
+
+  // Load image binary data when an image file is selected
+  useEffect(() => {
+    if (!isImage || !currentFile) {
+      setImageData(null);
+      return;
+    }
+    let cancelled = false;
+    client.readFileBase64(currentFile).then((result) => {
+      if (!cancelled) setImageData({ filePath: currentFile, base64: result.base64, mimeType: result.mimeType });
+    }).catch((err) => {
+      console.error('[EditorPanel] Failed to load image:', err);
+    });
+    return () => { cancelled = true; };
+  }, [isImage, currentFile, client]);
 
   // Send didOpen if not already sent for this file
   if (fileState && currentFile && !openedUrisRef.current.has(currentFile)) {
@@ -152,8 +190,33 @@ export function EditorPanel({
       } catch {
         // Client may not be connected
       }
+
+      if (
+        preferences.autoSave &&
+        /\.(md|markdown)$/i.test(currentFile) &&
+        content !== file.savedContent
+      ) {
+        const delay = Number.isFinite(preferences.autoSaveDelay)
+          ? Math.max(0, preferences.autoSaveDelay)
+          : 1000;
+        const timers = autosaveTimersRef.current;
+        const existingTimer = timers.get(currentFile);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        const timeout = setTimeout(async () => {
+          timers.delete(currentFile);
+          try {
+            await client.saveFile(currentFile, content);
+            markFileSaved(currentFile, content);
+          } catch (err) {
+            console.error('[EditorPanel] Autosave failed:', err);
+          }
+        }, delay);
+        timers.set(currentFile, timeout);
+      }
     },
-    [currentFile, client, updateFileContent]
+    [currentFile, client, updateFileContent, markFileSaved, preferences.autoSave, preferences.autoSaveDelay]
   );
 
   const handleSave = useCallback(async () => {
@@ -161,9 +224,17 @@ export function EditorPanel({
     const file = useWorkspaceStore.getState().openFiles.get(currentFile);
     if (!file) return;
 
+    const timers = autosaveTimersRef.current;
+    const pendingTimer = timers.get(currentFile);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      timers.delete(currentFile);
+    }
+
     try {
-      await client.saveFile(currentFile, file.content);
-      markFileSaved(currentFile, file.content);
+      const contentToSave = file.content;
+      await client.saveFile(currentFile, contentToSave);
+      markFileSaved(currentFile, contentToSave);
     } catch (err) {
       console.error('[EditorPanel] Save failed:', err);
     }
@@ -172,6 +243,30 @@ export function EditorPanel({
   const handleSelectionChange = useCallback((next: SelectionInfo | null) => {
     setSelection(next);
   }, []);
+
+  const handleEmbedResolve = useCallback<EmbedResolver>(async (path, options) => {
+    const hint = options?.hint ?? 'binary';
+    const cacheKey = `${hint}:${path}`;
+    const cached = embedCacheRef.current.get(cacheKey);
+    if (cached) return cached;
+
+    const promise = (async () => {
+      try {
+        if (hint === 'text') {
+          const { content } = await client.readFile(path);
+          return { type: 'text', text: content } as const;
+        }
+        const { base64, mimeType } = await client.readFileBase64(path);
+        return { type: 'binary', dataUrl: `data:${mimeType};base64,${base64}`, mimeType } as const;
+      } catch (err) {
+        console.error('[EditorPanel] Embed resolve failed:', err);
+        return null;
+      }
+    })();
+
+    embedCacheRef.current.set(cacheKey, promise);
+    return promise;
+  }, [client]);
 
   useEffect(() => {
     setSelection(null);
@@ -396,7 +491,7 @@ export function EditorPanel({
 
       {/* Editor content with rounded top corners */}
       <div
-        className="flex-1 min-h-0 overflow-auto rounded-tl-lg"
+        className="flex-1 min-h-0 overflow-auto rounded-tl-lg thin-scrollbar"
         ref={editorContainerRef}
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
@@ -420,6 +515,12 @@ export function EditorPanel({
                 alert('Failed to save PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
               }
             }}
+          />
+        ) : isImage && imageData ? (
+          <ImageViewer
+            filePath={currentFile!}
+            base64Data={imageData.base64}
+            mimeType={imageData.mimeType}
           />
         ) : fileState && currentFile ? (
           <>
@@ -458,6 +559,7 @@ export function EditorPanel({
               onSelectionChange={handleSelectionChange}
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}
+              embedResolver={handleEmbedResolve}
             />
           </>
         ) : (

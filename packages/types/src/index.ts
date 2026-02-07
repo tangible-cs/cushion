@@ -122,6 +122,7 @@ export interface WorkspaceState {
   openFiles: Map<string, FileState>;
   tabs: TabState[];
   currentFile: string | null;
+  fileTree: FileTreeNode[];
   fileWatcher: FileWatcherState;
   recentProjects: WorkspaceMetadata[];
   recentFiles: string[];
@@ -271,3 +272,79 @@ export interface ResolvedWikiLink {
   /** Matched file path(s) - empty if state is 'empty', multiple if 'ambiguous' */
   targets: string[];
 }
+
+// =============================================================================
+// Provider Types
+// =============================================================================
+
+/** Model capability flags */
+export interface ModelCapabilities {
+  text: boolean;
+  images: boolean;
+  audio: boolean;
+}
+
+/** Model cost per million tokens */
+export interface ModelCost {
+  input: number;
+  output: number;
+}
+
+/** Model limits */
+export interface ModelLimit {
+  context: number;
+  maxTokens: number;
+}
+
+/** A model definition */
+export interface Model {
+  id: string;
+  providerID: string;
+  name: string;
+  capabilities: ModelCapabilities;
+  cost: ModelCost;
+  limit: ModelLimit;
+}
+
+/** Provider source type */
+export type ProviderSource = 'env' | 'config' | 'custom' | 'api';
+
+/** Auth method definition */
+export interface AuthMethod {
+  type: 'api' | 'oauth';
+  label: string;
+}
+
+/** A provider with its models */
+export interface Provider {
+  id: string;
+  name: string;
+  source: ProviderSource;
+  models: Record<string, Model>;
+  authMethods?: AuthMethod[];
+}
+
+/** API key authentication */
+export interface ApiAuth {
+  type: 'api';
+  key: string;
+}
+
+/** OAuth authentication */
+export interface OAuthAuth {
+  type: 'oauth';
+  access: string;
+  refresh?: string;
+  expires?: number;
+  accountId?: string;
+}
+
+/** Authentication method union type */
+export type AuthCredential = ApiAuth | OAuthAuth;
+
+/** Stored credential for a provider */
+export interface Credential {
+  providerID: string;
+  auth: AuthCredential;
+}
+

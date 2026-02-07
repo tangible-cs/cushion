@@ -96,6 +96,9 @@ importers:
       '@cushion/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@lezer/common':
+        specifier: ^1.2.3
+        version: 1.5.0
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3

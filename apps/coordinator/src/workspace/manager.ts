@@ -399,6 +399,9 @@ export class WorkspaceManager {
       '.jpeg': 'image/jpeg',
       '.gif': 'image/gif',
       '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.ico': 'image/x-icon',
     };
     return { base64, mimeType: mimeMap[ext] || 'application/octet-stream' };
   }

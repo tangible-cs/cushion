@@ -4,37 +4,130 @@ import {
   Decoration,
   DecorationSet,
   EditorView,
-  WidgetType,
 } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
+import type { SyntaxNode } from '@lezer/common';
 import { EditorState, Range } from '@codemirror/state';
-import { cursorOnLine, cursorInRange } from './reveal-on-cursor';
+import { cursorInRange } from './reveal-on-cursor';
+import { resolveWikiLink } from '../wiki-link-resolver';
+import { fileTreeField } from './wiki-link-plugin';
+import { embedResolverField } from './embed-resolver';
 import { ImageWidget } from './widgets/image-widget';
+import { EmbedWidget } from './widgets/embed-widget';
 import { CheckboxWidget } from './widgets/checkbox-widget';
 import { HrWidget } from './widgets/hr-widget';
 import { MathWidget } from './widgets/math-widget';
 import { TableWidget } from './widgets/table-widget';
 
 /**
- * Bullet widget for list items.
- * Renders a styled bullet or number for list items.
+ * Counts list nesting depth by walking up the syntax tree.
+ * Depth 0 = top-level list, 1 = first nesting, etc.
  */
-class BulletWidget extends WidgetType {
-  constructor(readonly symbol: string, readonly isOrdered: boolean = false) {
-    super();
+function getListNestingDepth(syntaxNode: { parent: any; type: { name: string } }): number {
+  let depth = 0;
+  let current = syntaxNode.parent;
+  while (current) {
+    if (current.type.name === 'BulletList' || current.type.name === 'OrderedList') {
+      depth++;
+    }
+    current = current.parent;
   }
-  
-  eq(other: BulletWidget) {
-    return this.symbol === other.symbol && this.isOrdered === other.isOrdered;
+  return Math.max(0, depth - 1);
+}
+
+
+/** Converts a number to lowercase alpha: 1→a, 2→b, ..., 26→z, 27→aa */
+function numberToAlpha(n: number): string {
+  let result = '';
+  while (n > 0) {
+    n--;
+    result = String.fromCharCode(97 + (n % 26)) + result;
+    n = Math.floor(n / 26);
   }
-  
-  toDOM() {
-    const span = document.createElement('span');
-    span.className = 'cm-list-bullet';
-    // Use a proper bullet character for unordered lists
-    span.textContent = this.isOrdered ? this.symbol : '•';
-    return span;
+  return result;
+}
+
+/** Converts a number to lowercase roman numerals: 1→i, 2→ii, 3→iii, 4→iv */
+function numberToRoman(n: number): string {
+  const values: [number, string][] = [
+    [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'],
+    [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'],
+    [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
+  ];
+  let result = '';
+  for (const [value, numeral] of values) {
+    while (n >= value) {
+      result += numeral;
+      n -= value;
+    }
   }
+  return result;
+}
+
+function hasListBreak(state: EditorState, from: number, to: number): boolean {
+  if (from >= to) return false;
+  const between = state.doc.sliceString(from, to);
+  return /\n\s*\n/.test(between);
+}
+
+function hideSubNodeMarks(
+  node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } },
+  names: string | string[],
+  decorations: Range<Decoration>[],
+): void {
+  const isArray = Array.isArray(names);
+  const cursor = node.node.cursor();
+  cursor.iterate((child) => {
+    const isMatch = isArray ? names.includes(child.type.name) : child.type.name === names;
+    if (isMatch) {
+      decorations.push(
+        Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, child.to),
+      );
+    }
+  });
+}
+
+function getChildRanges(node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } }) {
+  const ranges: { name: string; from: number; to: number }[] = [];
+  const cursor = node.node.cursor();
+  cursor.iterate((child) => {
+    ranges.push({ name: child.type.name, from: child.from, to: child.to });
+  });
+  return ranges;
+}
+
+function findLinkUrl(state: EditorState, node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } }): string | null {
+  const ranges = getChildRanges(node);
+  const urlNode = ranges.find((range) => range.name === 'URL');
+  if (!urlNode) return null;
+  return state.doc.sliceString(urlNode.from, urlNode.to);
+}
+
+const wikiEmbedRegex = /!\[\[([^\[\]|#\n]+)(#[^\[\]|#\n]*)?(\|[^\[\]\n]*)?\]\]/g;
+
+function isInsideCode(state: EditorState, pos: number): boolean {
+  let node: SyntaxNode | null = syntaxTree(state).resolve(pos, -1);
+  while (node) {
+    const name = node.type.name;
+    if (name === 'InlineCode' || name === 'CodeText' || name === 'CodeBlock' || name === 'FencedCode') {
+      return true;
+    }
+    node = node.parent;
+  }
+  return false;
+}
+
+function isEmbedBlock(state: EditorState, from: number, to: number): boolean {
+  const line = state.doc.lineAt(from);
+  const before = line.text.slice(0, Math.max(0, from - line.from));
+  const after = line.text.slice(Math.max(0, to - line.from));
+  return before.trim().length === 0 && after.trim().length === 0;
+}
+
+
+function getBulletSymbol(depth: number): string {
+  const bullets = ['•', '◦', '▪'];
+  return bullets[Math.min(depth, 2)];
 }
 
 /**
@@ -44,7 +137,6 @@ class BulletWidget extends WidgetType {
 function buildDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
-
   tree.iterate({
     enter(node) {
       const type = node.type.name;
@@ -77,12 +169,14 @@ function buildDecorations(state: EditorState): DecorationSet {
           }).range(state.doc.lineAt(from).from),
         );
 
-        // Only hide the # markers when cursor is off the line
-        if (!cursorOnLine(state, from)) {
+        // Only hide the # markers when cursor is outside the heading range
+        if (!cursorInRange(state, from, to)) {
           const child = node.node.getChild('HeaderMark');
           if (child) {
             const hideEnd = Math.min(child.to + 1, to);
-            decorations.push(Decoration.replace({}).range(child.from, hideEnd));
+            decorations.push(
+              Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, hideEnd),
+            );
           }
         }
         return true;
@@ -90,13 +184,10 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Bold (StrongEmphasis) ---
       if (type === 'StrongEmphasis') {
-        if (!cursorOnLine(state, from)) {
-          // Hide ** or __
-          decorations.push(Decoration.replace({}).range(from, from + 2));
-          decorations.push(Decoration.replace({}).range(to - 2, to));
-          // Style the content
+        if (!cursorInRange(state, from, to)) {
+          hideSubNodeMarks(node, 'EmphasisMark', decorations);
           decorations.push(
-            Decoration.mark({ class: 'cm-strong-text' }).range(from + 2, to - 2),
+            Decoration.mark({ class: 'cm-strong-text' }).range(from, to),
           );
         }
         return false;
@@ -104,13 +195,10 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Italic (Emphasis) ---
       if (type === 'Emphasis') {
-        if (!cursorOnLine(state, from)) {
-          // Hide * or _
-          decorations.push(Decoration.replace({}).range(from, from + 1));
-          decorations.push(Decoration.replace({}).range(to - 1, to));
-          // Style the content
+        if (!cursorInRange(state, from, to)) {
+          hideSubNodeMarks(node, 'EmphasisMark', decorations);
           decorations.push(
-            Decoration.mark({ class: 'cm-emphasis-text' }).range(from + 1, to - 1),
+            Decoration.mark({ class: 'cm-emphasis-text' }).range(from, to),
           );
         }
         return false;
@@ -118,13 +206,10 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Strikethrough ---
       if (type === 'Strikethrough') {
-        if (!cursorOnLine(state, from)) {
-          // Hide ~~
-          decorations.push(Decoration.replace({}).range(from, from + 2));
-          decorations.push(Decoration.replace({}).range(to - 2, to));
-          // Style the content
+        if (!cursorInRange(state, from, to)) {
+          hideSubNodeMarks(node, 'StrikethroughMark', decorations);
           decorations.push(
-            Decoration.mark({ class: 'cm-strikethrough-text' }).range(from + 2, to - 2),
+            Decoration.mark({ class: 'cm-strikethrough-text' }).range(from, to),
           );
         }
         return false;
@@ -132,13 +217,10 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Inline Code ---
       if (type === 'InlineCode') {
-        if (!cursorOnLine(state, from)) {
-          // Hide backticks
-          decorations.push(Decoration.replace({}).range(from, from + 1));
-          decorations.push(Decoration.replace({}).range(to - 1, to));
-          // Style the content
+        if (!cursorInRange(state, from, to)) {
+          hideSubNodeMarks(node, 'CodeMark', decorations);
           decorations.push(
-            Decoration.mark({ class: 'cm-inline-code' }).range(from + 1, to - 1),
+            Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
           );
         }
         return false;
@@ -146,31 +228,47 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Links [text](url) ---
       if (type === 'Link') {
-        if (!cursorOnLine(state, from)) {
-          const text = state.doc.sliceString(from, to);
-          const match = text.match(/^\[(.+?)\]\((.+?)\)$/);
-          if (match) {
-            const linkText = match[1];
-            const linkUrl = match[2];
-            const textStart = from + 1;
-            const textEnd = from + 1 + linkText.length;
-            
-            // Hide opening [
-            decorations.push(Decoration.replace({}).range(from, from + 1));
-            
-            // Style the link text
-            decorations.push(
-              Decoration.mark({
-                class: 'cm-link-text',
-                attributes: {
-                  title: linkUrl,
-                  'data-href': linkUrl,
-                },
-              }).range(textStart, textEnd),
-            );
-            
-            // Hide ](url)
-            decorations.push(Decoration.replace({}).range(textEnd, to));
+        if (!cursorInRange(state, from, to)) {
+          const linkUrl = findLinkUrl(state, node);
+          const attributes: Record<string, string> | undefined = linkUrl
+            ? {
+                title: linkUrl,
+                'data-href': linkUrl,
+              }
+            : undefined;
+
+          decorations.push(
+            Decoration.mark({
+              class: 'cm-link',
+              attributes,
+            }).range(from, to),
+          );
+
+          const childRanges = getChildRanges(node);
+          for (const child of childRanges) {
+            if (child.name === 'LinkMark' || child.name === 'URL') {
+              decorations.push(
+                Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, child.to),
+              );
+            } else if (child.name === 'LinkTitle') {
+              let hideFrom = child.from;
+              let hideTo = child.to;
+              if (hideFrom > 0) {
+                const before = state.doc.sliceString(hideFrom - 1, hideFrom);
+                if (before === '"' || before === "'") {
+                  hideFrom -= 1;
+                }
+              }
+              if (hideTo < state.doc.length) {
+                const after = state.doc.sliceString(hideTo, hideTo + 1);
+                if (after === '"' || after === "'") {
+                  hideTo += 1;
+                }
+              }
+              decorations.push(
+                Decoration.mark({ class: 'cm-syntax-hidden' }).range(hideFrom, hideTo),
+              );
+            }
           }
         }
         return false;
@@ -178,7 +276,7 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Images ![alt](url) ---
       if (type === 'Image') {
-        if (!cursorOnLine(state, from)) {
+        if (!cursorInRange(state, from, to)) {
           const text = state.doc.sliceString(from, to);
           const match = text.match(/^!\[([^\]]*)\]\((.+?)\)$/);
           if (match) {
@@ -203,11 +301,14 @@ function buildDecorations(state: EditorState): DecorationSet {
             Decoration.line({ class: 'cm-blockquote' }).range(line.from),
           );
 
-          // Only hide the > marker when cursor is off the line
-          if (!cursorOnLine(state, line.from)) {
-            const qMatch = line.text.match(/^(>\s?)+/);
-            if (qMatch) {
-              decorations.push(Decoration.replace({}).range(line.from, line.from + qMatch[0].length));
+          const qMatch = line.text.match(/^(>\s?)+/);
+          if (qMatch) {
+            const markerEnd = line.from + qMatch[0].length;
+            // Only hide the > marker when cursor is outside the marker range
+            if (!cursorInRange(state, line.from, markerEnd)) {
+              decorations.push(
+                Decoration.mark({ class: 'cm-syntax-hidden' }).range(line.from, markerEnd),
+              );
             }
           }
         }
@@ -216,7 +317,7 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- Horizontal rule ---
       if (type === 'HorizontalRule') {
-        if (!cursorOnLine(state, from)) {
+        if (!cursorInRange(state, from, to)) {
           decorations.push(
             Decoration.replace({ widget: new HrWidget() }).range(from, to),
           );
@@ -224,19 +325,44 @@ function buildDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
+      // --- Escape (\\) ---
+      if (type === 'Escape') {
+        if (!cursorInRange(state, from, to)) {
+          hideSubNodeMarks(node, 'EscapeMark', decorations);
+        }
+        return false;
+      }
+
       // --- Task list items (checkboxes) ---
       if (type === 'TaskMarker') {
-        if (!cursorOnLine(state, from)) {
-          const markerText = state.doc.sliceString(from, to);
-          const checked = markerText.includes('x') || markerText.includes('X');
-          const line = state.doc.lineAt(from);
-          const listMatch = line.text.match(/^(\s*[-*+]\s)/);
-          const listPrefixEnd = listMatch ? line.from + listMatch[0].length : from;
+        const markerText = state.doc.sliceString(from, to);
+        const isChecked = markerText.includes('x') || markerText.includes('X');
+        const line = state.doc.lineAt(from);
+        const taskNode = node.node.parent;
+        const listItem = taskNode?.parent;
+        const listRoot = listItem?.parent;
+        const listType = listRoot?.type?.name;
+        const isBulletList = listType === 'BulletList';
+
+        if (isChecked) {
+          decorations.push(
+            Decoration.line({ class: 'cm-task-checked' }).range(line.from),
+          );
+        }
+
+        const listMatch = line.text.match(/^(\s*)([-*+]|\d+[.)])\s/);
+        const listPrefixStart = listMatch ? line.from + listMatch[1].length : from;
+        const listPrefixEnd = listMatch ? line.from + listMatch[0].length : from;
+        const cursorInMarker = listMatch ? cursorInRange(state, listPrefixStart, listPrefixEnd) : false;
+
+        if (!cursorInRange(state, from, to) && !cursorInMarker) {
+          const stateValue = isChecked ? 'checked' : 'open';
+          const replaceFrom = isBulletList ? listPrefixStart : from;
           
           decorations.push(
             Decoration.replace({
-              widget: new CheckboxWidget(checked, from),
-            }).range(listPrefixEnd, to),
+              widget: new CheckboxWidget(stateValue, from),
+            }).range(replaceFrom, to),
           );
         }
         return false;
@@ -244,22 +370,95 @@ function buildDecorations(state: EditorState): DecorationSet {
 
       // --- List markers (bullets and numbers) ---
       if (type === 'ListMark') {
-        if (!cursorOnLine(state, from)) {
-          const text = state.doc.sliceString(from, to);
-          const parent = node.node.parent;
-          
-          // Don't process if this is part of a task list
-          if (parent && parent.getChild('TaskMarker')) return false;
+        const text = state.doc.sliceString(from, to);
+        const parent = node.node.parent;
+        const line = state.doc.lineAt(from);
+        let offsetInLine = to - line.from;
+        while (offsetInLine < line.text.length) {
+          const ch = line.text[offsetInLine];
+          if (ch !== ' ' && ch !== '\t') break;
+          offsetInLine += 1;
+        }
+        const hideEnd = Math.min(line.from + offsetInLine, state.doc.length);
 
-          const isOrdered = /^\d+[.)]$/.test(text);
-          const hideEnd = Math.min(to + 1, state.doc.length);
-          
+        // Task list items: hide the list marker so the checkbox is first
+        if (parent && (parent.getChild('Task') || parent.getChild('TaskMarker'))) {
+          const listRoot = parent.parent;
+          const isBulletList = listRoot?.type?.name === 'BulletList';
+          if (isBulletList) {
+            if (!cursorInRange(state, from, hideEnd)) {
+              decorations.push(
+                Decoration.mark({ class: 'cm-syntax-hidden' }).range(from, hideEnd),
+              );
+            }
+            return false;
+          }
+        }
+
+        const isOrdered = /^\d+[.)]$/.test(text);
+        const depth = getListNestingDepth(node.node);
+        const styleDepth = depth % 3;
+        const depthClass = `cm-list-depth-${Math.min(styleDepth, 2)}`;
+
+        if (cursorInRange(state, from, hideEnd)) {
           decorations.push(
-            Decoration.replace({ 
-              widget: new BulletWidget(text, isOrdered) 
+            Decoration.mark({
+              class: `cm-list-marker ${depthClass}`,
             }).range(from, hideEnd),
           );
+          return false;
         }
+
+        // For ordered lists, compute the correct display number by
+        // counting preceding ListItem siblings in the OrderedList parent,
+        // then format based on nesting depth (1. → a. → i.)
+        let displayText = text;
+        if (isOrdered && parent && parent.type.name === 'ListItem') {
+          const listParent = parent.parent;
+          const suffix = text.endsWith(')') ? ')' : '.';
+          let startNum = 1;
+          let position = 0;
+          if (listParent && listParent.type.name === 'OrderedList') {
+            let segmentStart = parent;
+            let sibling = parent.prevSibling;
+            while (sibling) {
+              if (hasListBreak(state, sibling.to, segmentStart.from)) break;
+              if (sibling.type.name === 'ListItem') {
+                position++;
+                segmentStart = sibling;
+              }
+              sibling = sibling.prevSibling;
+            }
+
+            if (depth === 0) {
+              const firstMark = segmentStart.getChild('ListMark');
+              if (firstMark) {
+                const parsed = parseInt(state.doc.sliceString(firstMark.from, firstMark.to), 10);
+                if (!isNaN(parsed)) startNum = parsed;
+              }
+            }
+          }
+
+          const num = startNum + position;
+          if (styleDepth === 0) {
+            displayText = num + suffix;
+          } else if (styleDepth === 1) {
+            displayText = numberToAlpha(num) + suffix;
+          } else {
+            displayText = numberToRoman(num) + suffix;
+          }
+        } else {
+          displayText = getBulletSymbol(styleDepth);
+        }
+
+        decorations.push(
+          Decoration.mark({
+            class: `cm-list-marker-hidden ${depthClass}`,
+            attributes: {
+              'data-list-marker': displayText,
+            },
+          }).range(from, hideEnd),
+        );
         return false;
       }
 
@@ -367,6 +566,9 @@ function buildDecorations(state: EditorState): DecorationSet {
   // doesn't natively support math
   detectMathPatterns(state, decorations);
 
+  // --- Wiki Embeds ![[file]] ---
+  detectWikiEmbeds(state, decorations);
+
   // Sort decorations for proper application
   decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
   return Decoration.set(decorations, true);
@@ -380,7 +582,6 @@ function buildDecorations(state: EditorState): DecorationSet {
 function detectMultiLineMath(
   state: EditorState,
   text: string,
-  cursorLine: { number: number },
   decorations: Range<Decoration>[],
   ranges: { from: number; to: number }[],
 ): void {
@@ -409,9 +610,8 @@ function detectMultiLineMath(
 
     ranges.push({ from: open.from, to: close.to });
 
-    // Check if cursor is on any line within this block
-    const cursorInBlock =
-      cursorLine.number >= open.line && cursorLine.number <= close.line;
+    // Check if cursor is inside the block range
+    const cursorInBlock = cursorInRange(state, open.from, close.to);
 
     if (cursorInBlock) {
       // Show raw syntax with highlight on all lines
@@ -443,8 +643,6 @@ function detectMultiLineMath(
  */
 function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]): void {
   const text = state.doc.toString();
-  const cursor = state.selection.main.head;
-  const cursorLine = state.doc.lineAt(cursor);
 
   // Pattern for single-line block math ($$...$$)
   const blockMathRegex = /\$\$([^\$\n]+?)\$\$/g;
@@ -455,7 +653,7 @@ function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]
   const multiLineMathRanges: { from: number; to: number }[] = [];
 
   // Detect multi-line block math first: $$ on its own line ... $$ on its own line
-  detectMultiLineMath(state, text, cursorLine, decorations, multiLineMathRanges);
+  detectMultiLineMath(state, text, decorations, multiLineMathRanges);
 
   let match;
 
@@ -468,10 +666,9 @@ function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]
     // Skip if inside a multi-line math block
     if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
 
-    const matchLine = state.doc.lineAt(from);
-    const isCursorOnLine = matchLine.number === cursorLine.number;
+    const isCursorInside = cursorInRange(state, from, to);
 
-    if (!isCursorOnLine) {
+    if (!isCursorInside) {
       // Render single-line block math with KaTeX widget
       decorations.push(
         Decoration.replace({
@@ -506,10 +703,9 @@ function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]
     if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
 
     // Check if cursor is on the same line
-    const matchLine = state.doc.lineAt(from);
-    const isCursorOnLine = matchLine.number === cursorLine.number;
+    const isCursorInside = cursorInRange(state, from, to);
 
-    if (!isCursorOnLine) {
+    if (!isCursorInside) {
       // Inline math is always single-line, safe to use widget
       decorations.push(
         Decoration.replace({
@@ -525,31 +721,67 @@ function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]
   }
 }
 
+function detectWikiEmbeds(state: EditorState, decorations: Range<Decoration>[]): void {
+  const text = state.doc.toString();
+  const fileTree = state.field(fileTreeField, false) || [];
+  const resolver = state.field(embedResolverField, false);
+
+  wikiEmbedRegex.lastIndex = 0;
+  let match;
+
+  while ((match = wikiEmbedRegex.exec(text)) !== null) {
+    const from = match.index;
+    const to = wikiEmbedRegex.lastIndex;
+
+    if (cursorInRange(state, from, to)) continue;
+    if (isInsideCode(state, from)) continue;
+
+    const href = match[1].trim();
+    const contentId = match[2] ? match[2].slice(1).trim() : undefined;
+    const displayText = match[3] ? match[3].slice(1).trim() : undefined;
+
+    const resolved = resolveWikiLink(href, fileTree);
+    const resolvedPath = resolved.targets[0] || null;
+    const block = isEmbedBlock(state, from, to);
+
+    decorations.push(
+      Decoration.replace({
+        widget: new EmbedWidget({
+          href,
+          resolvedPath,
+          linkState: resolved.state,
+          displayText,
+          contentId,
+          block,
+          resolver,
+        }),
+      }).range(from, to),
+    );
+  }
+}
+
 export const hideMarkupPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
-    cursorLineNumber: number;
+    cursorPos: number;
     pendingUpdate: number | null = null;
 
     constructor(view: EditorView) {
       this.decorations = buildDecorations(view.state);
-      this.cursorLineNumber = view.state.doc.lineAt(view.state.selection.main.head).number;
+      this.cursorPos = view.state.selection.main.head;
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged) {
-        this.cursorLineNumber = update.state.doc.lineAt(update.state.selection.main.head).number;
+        this.cursorPos = update.state.selection.main.head;
         this.decorations = buildDecorations(update.state);
         return;
       }
 
       if (update.selectionSet) {
-        const newLine = update.state.doc.lineAt(update.state.selection.main.head).number;
-        if (newLine === this.cursorLineNumber) {
-          // Same line — no geometry changes needed, skip rebuild
-          return;
-        }
-        this.cursorLineNumber = newLine;
+        const newPos = update.state.selection.main.head;
+        if (newPos === this.cursorPos) return;
+        this.cursorPos = newPos;
 
         // Defer decoration rebuild to next frame so CodeMirror finishes
         // cursor positioning with stable geometry first

@@ -9,6 +9,7 @@ doc-ai/
 opencode/
 pdf.js/
 affine/
+purrmd/
 
 # AI tools
 .claude/
@@ -81,3 +82,6 @@ coverage/
 
 # Worktrees
 .git/worktrees/
+
+#md files
+*.md

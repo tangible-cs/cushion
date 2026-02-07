@@ -10,6 +10,7 @@ import type {
   WorkspaceState,
   WorkspaceMetadata,
   FileState,
+  FileTreeNode,
   TabState,
   WorkspacePreferences,
   Frontmatter,
@@ -54,6 +55,9 @@ interface WorkspaceActions {
   setError: (error: string | null) => void;
   setLoading: (isLoading: boolean) => void;
 
+  // File tree
+  setFileTree: (tree: FileTreeNode[]) => void;
+
   // Utilities
   reset: () => void;
 }
@@ -66,6 +70,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   openFiles: new Map(),
   tabs: [],
   currentFile: null,
+  fileTree: [],
   fileWatcher: {
     watchedPaths: [],
     ignoredPatterns: ['node_modules', '.git', 'dist', 'build', '.next'],
@@ -76,7 +81,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   preferences: {
     showHiddenFiles: false,
     fileTreeCollapsed: false,
-    sidebarWidth: 250,
+    sidebarWidth: 240,
     autoSave: true,
     autoSaveDelay: 1000,
   },
@@ -238,6 +243,16 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             return;
           }
 
+          const existingFile = openFiles.get(filePath);
+          if (existingFile) {
+            const existingTab = tabs.find((t) => t.filePath === filePath);
+            if (!existingTab) {
+              get().addTab(filePath, false);
+            }
+            set({ currentFile: filePath });
+            return;
+          }
+
           // Parse frontmatter for markdown files
           const frontmatter = extractFrontmatter(filePath, content);
 
@@ -348,7 +363,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const updatedFile: FileState = {
             ...file,
             savedContent: content,
-            isDirty: false,
+            isDirty: file.content !== content,
             lastSaved: Date.now(),
           };
 
@@ -501,6 +516,13 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
          */
         setLoading: (isLoading: boolean) => {
           set({ isLoading });
+        },
+
+        /**
+         * Set the full recursive file tree
+         */
+        setFileTree: (tree: FileTreeNode[]) => {
+          set({ fileTree: tree });
         },
 
         /**

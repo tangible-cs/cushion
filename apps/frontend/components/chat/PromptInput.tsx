@@ -1,15 +1,22 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import fuzzysort from 'fuzzysort';
-import { Brain, File as FileIcon, Image as ImageIcon } from 'lucide-react';
+import { ArrowUp, Brain, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
 import type { Agent } from '@opencode-ai/sdk/v2/client';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useChatStore,
+  getModelVariantOptions,
   type PromptAttachment,
   type PromptContextItem,
   type PromptInputPayload,
 } from '@/stores/chatStore';
 import { Icon } from './Icon';
+import { SessionContextUsage } from './SessionContextUsage';
+import { ModelSelector } from './ModelSelector';
+import { LocalAIButton } from './LocalAIButton';
+import { AgentSelector } from './AgentSelector';
+import { useToast } from './Toast';
+import { searchFiles } from '@/lib/wiki-link-resolver';
 
 // Utility functions for path handling (like OpenCode)
 function getDirectory(filePath: string): string {
@@ -22,11 +29,11 @@ function getFilename(filePath: string): string {
   return lastSlash > 0 ? filePath.slice(lastSlash + 1) : filePath;
 }
 
-function getFilenameTruncated(filePath: string, maxLength = 14): string {
-  const name = getFilename(filePath);
-  if (name.length <= maxLength) return name;
-  if (maxLength <= 3) return name.slice(0, maxLength);
-  return `${name.slice(0, maxLength - 3)}...`;
+function getCompactLabel(label: string, maxLength = 3): string {
+  const trimmed = label.trim();
+  if (maxLength <= 0) return '';
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength)}...`;
 }
 
 type PromptInputProps = {
@@ -40,6 +47,25 @@ type PromptInputProps = {
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'];
 const ZERO_WIDTH_SPACE = '\u200B';
+const COMPACT_LABEL_LENGTHS = [0, 12, 8, 3] as const;
+const COMPACT_LEVEL_MAX = COMPACT_LABEL_LENGTHS.length - 1;
+const COMPACT_STEP_RATIO = 0.16;
+const COMPACT_STEP_MIN = 56;
+const VARIANT_SIZE_CLASSES = [
+  'max-w-[160px] px-2.5',
+  'max-w-[16ch] px-2.5',
+  'max-w-[12ch] px-2',
+  'max-w-[7ch] px-2',
+] as const;
+
+function resolveCompactLevel(overflow: number, fullWidth: number): number {
+  if (overflow <= 0 || fullWidth <= 0) return 0;
+  const step = Math.max(COMPACT_STEP_MIN, Math.round(fullWidth * COMPACT_STEP_RATIO));
+  if (overflow <= step * 0.5) return 0;
+  if (overflow <= step * 1.2) return 1;
+  if (overflow <= step * 2) return 2;
+  return Math.min(3, COMPACT_LEVEL_MAX);
+}
 
 type TriggerType = 'command' | 'mention';
 
@@ -64,7 +90,13 @@ type MentionOption =
   | { type: 'agent'; name: string; display: string }
   | { type: 'file'; path: string; display: string; recent?: boolean };
 
-const COMMANDS: SuggestionItem[] = [
+const BUILTIN_COMMANDS: SuggestionItem[] = [
+  { id: 'undo', label: '/undo', value: '/undo', description: 'Undo last user message', type: 'command' },
+  { id: 'redo', label: '/redo', value: '/redo', description: 'Redo last undone message', type: 'command' },
+  { id: 'compact', label: '/compact', value: '/compact', description: 'Compact this session', type: 'command' },
+  { id: 'summarize', label: '/summarize', value: '/summarize', description: 'Compact this session', type: 'command' },
+  { id: 'share', label: '/share', value: '/share', description: 'Share this session', type: 'command' },
+  { id: 'unshare', label: '/unshare', value: '/unshare', description: 'Unshare this session', type: 'command' },
   { id: 'clear', label: '/clear', value: '/clear', description: 'Clear the input', type: 'command' },
   { id: 'reset', label: '/reset', value: '/reset', description: 'Clear input and context', type: 'command' },
 ];
@@ -249,6 +281,18 @@ const createTextFragment = (content: string): DocumentFragment => {
     }
   });
   return fragment;
+};
+
+const createPill = (part: { type: 'file' | 'agent'; content: string; path?: string; name?: string }): HTMLElement => {
+  const pill = document.createElement('span');
+  pill.textContent = part.content;
+  pill.setAttribute('data-type', part.type);
+  if (part.type === 'file' && part.path) pill.setAttribute('data-path', part.path);
+  if (part.type === 'agent' && part.name) pill.setAttribute('data-name', part.name);
+  pill.setAttribute('contenteditable', 'false');
+  pill.style.userSelect = 'text';
+  pill.style.cursor = 'default';
+  return pill;
 };
 
 const getNodeLength = (node: Node): number => {
@@ -462,6 +506,19 @@ const isNormalizedEditor = (editor: HTMLElement) =>
     return element.tagName === 'BR';
   });
 
+// Helper to generate unique ID
+const createId = () => Math.random().toString(36).substring(2, 9);
+
+// Helper to read file as data URL
+const readAsDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export function PromptInput({
   disabled,
   placeholder,
@@ -477,71 +534,72 @@ export function PromptInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const mirror = useRef({ input: false });
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  const leftControlsRef = useRef<HTMLDivElement | null>(null);
+  const rightControlsRef = useRef<HTMLDivElement | null>(null);
+  const fullLeftWidthRef = useRef(0);
   const contextItems = useChatStore((state) => state.contextItems);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const directory = useChatStore((state) => state.directory);
+  const abortSession = useChatStore((state) => state.abortSession);
+  const undoSession = useChatStore((state) => state.undoSession);
+  const redoSession = useChatStore((state) => state.redoSession);
+  const compactSession = useChatStore((state) => state.compactSession);
+  const shareSession = useChatStore((state) => state.shareSession);
+  const unshareSession = useChatStore((state) => state.unshareSession);
   const removeContextItem = useChatStore((state) => state.removeContextItem);
   const clearContextItems = useChatStore((state) => state.clearContextItems);
   const addContextItem = useChatStore((state) => state.addContextItem);
   const agents = useChatStore((state) => state.agents);
-  const selectedAgent = useChatStore((state) => state.selectedAgent);
   const setSelectedAgent = useChatStore((state) => state.setSelectedAgent);
+  const selectedAgent = useChatStore((state) => state.selectedAgent);
   const providers = useChatStore((state) => state.providers);
-  const providerDefaults = useChatStore((state) => state.providerDefaults);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
+  const selectedVariant = useChatStore((state) => state.selectedVariant);
+  const setSelectedVariant = useChatStore((state) => state.setSelectedVariant);
   const commands = useChatStore((state) => state.commands);
+  const { showToast } = useToast();
   const openFiles = useWorkspaceStore((state) => state.openFiles);
   const [trigger, setTrigger] = useState<TriggerState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [fileSearchResults, setFileSearchResults] = useState<string[]>([]);
-  const [isSearchingFiles, setIsSearchingFiles] = useState(false);
   const [history, setHistory] = useState({ normal: [] as string[], shell: [] as string[] });
   const [historyIndex, setHistoryIndex] = useState({ normal: -1, shell: -1 });
   const [draft, setDraft] = useState({ normal: '', shell: '' });
   const [composing, setComposing] = useState(false);
+  const [compactLevel, setCompactLevel] = useState(0);
+  const sessionStatus = useChatStore((state) => state.sessionStatus);
+  const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
+  const working = status?.type === 'busy' || status?.type === 'retry';
 
   useEffect(() => {
     setAttachments([]);
   }, [activeSessionId, directory]);
 
-  // Get client from chatStore for workspace search
-  const client = useChatStore((state) => state.client);
+  const workspaceMetadata = useWorkspaceStore((state) => state.metadata);
+  const fileTree = useWorkspaceStore((state) => state.fileTree);
 
-  // Search files in workspace via SDK
-  const searchWorkspaceFiles = useCallback(async (query: string): Promise<string[]> => {
-    const currentClient = useChatStore.getState().client;
-    const currentDirectory = useChatStore.getState().directory;
-    if (!currentClient || !currentDirectory || !query) return [];
-    try {
-      setIsSearchingFiles(true);
-      const response = await currentClient.find.files({ query, dirs: 'true' });
-      return (response.data ?? []).map((path: string) => path.replace(/\\/g, '/'));
-    } catch {
-      return [];
-    } finally {
-      setIsSearchingFiles(false);
-    }
-  }, []); // No deps - we get fresh state from getState()
+  const searchWorkspaceFiles = useCallback((query: string): string[] => {
+    if (!workspaceMetadata || !query || fileTree.length === 0) return [];
+    return searchFiles(query, fileTree, 20).map((p: string) => p.replace(/\\/g, '/'));
+  }, [workspaceMetadata, fileTree]);
 
-  // Trigger file search when @ mention query changes
   useEffect(() => {
-    if (trigger?.type === 'mention' && trigger.query.length > 0 && client && directory) {
+    if (trigger?.type === 'mention' && trigger.query.length > 0 && workspaceMetadata) {
       const debouncedSearch = setTimeout(() => {
-        void searchWorkspaceFiles(trigger.query).then(setFileSearchResults);
+        setFileSearchResults(searchWorkspaceFiles(trigger.query));
       }, 150);
       return () => clearTimeout(debouncedSearch);
     } else {
       setFileSearchResults([]);
     }
-  }, [trigger?.query, trigger?.type, client, directory, searchWorkspaceFiles]);
+  }, [trigger?.query, trigger?.type, workspaceMetadata, searchWorkspaceFiles]);
 
-  // Recent files from openFiles (for @ mention)
   const recentFiles = useMemo(() => {
     return Array.from(openFiles.keys()).map((key) => String(key).replace(/\\/g, '/'));
   }, [openFiles]);
 
-  // Agent suggestions (for @ mention)
   const agentSuggestions = useMemo(() => {
     return agents
       .filter((agent) => !agent.hidden && agent.mode !== 'primary')
@@ -556,7 +614,6 @@ export function PromptInput({
       }));
   }, [agents]);
 
-  // File suggestions with grouping (recent + search results)
   const fileSuggestions = useMemo(() => {
     const recentSuggestions = recentFiles
       .filter((path) => !fileSearchResults.includes(path))
@@ -586,24 +643,23 @@ export function PromptInput({
   }, [recentFiles, fileSearchResults]);
 
   const commandSuggestions = useMemo(() => {
-    const dynamic = commands.map((command) => {
-      const template = command.template?.trim() ?? '';
-      const value = template ? `/${command.name} ${template}` : `/${command.name}`;
-      return {
-        id: `cmd-${command.name}`,
-        label: `/${command.name}`,
-        value,
-        description: command.description,
-        type: 'command' as const,
-      };
-    });
-    return [...COMMANDS, ...dynamic];
+    const builtinIds = new Set(BUILTIN_COMMANDS.map((item) => item.id));
+    const dynamic = commands
+      .filter((command) => !builtinIds.has(command.name))
+      .map((command) => {
+        const template = command.template?.trim() ?? '';
+        const value = template ? `/${command.name} ${template}` : `/${command.name}`;
+        return {
+          id: `cmd-${command.name}`,
+          label: `/${command.name}`,
+          value,
+          description: command.description,
+          type: 'command' as const,
+        };
+      });
+    return [...BUILTIN_COMMANDS, ...dynamic];
   }, [commands]);
-
-  const selectedProviderId = selectedModel?.providerID ?? '';
-  const provider = providers.find((item) => item.id === selectedProviderId);
-  const modelOptions = provider ? Object.keys(provider.models ?? {}) : [];
-
+ 
   const suggestions = useMemo(() => {
     if (!trigger) return [];
     const query = trigger.query.toLowerCase();
@@ -611,18 +667,15 @@ export function PromptInput({
       return commandSuggestions.filter((item) => item.label.toLowerCase().includes(query));
     }
 
-    // Use fuzzysort for fuzzy matching (like OpenCode)
     const needle = query;
     const allSuggestions = [...agentSuggestions, ...fileSuggestions];
 
     if (!needle) {
-      // No query: return agents + recent files only (no search results when empty)
       return allSuggestions.filter((item) =>
         !('group' in item && item.group === 'search')
       );
     }
 
-    // Fuzzy sort with display/key matching
     const results = fuzzysort.go(needle, allSuggestions, {
       key: 'label',
       limit: 20,
@@ -633,10 +686,71 @@ export function PromptInput({
 
 
   const shellMode = promptText.startsWith('!');
+  const variantOptions = useMemo(() => getModelVariantOptions(providers, selectedModel), [providers, selectedModel]);
+  const variantLabel = useMemo(() => {
+    if (variantOptions.length === 0) return null;
+    if (!selectedVariant) return 'Default';
+    const current = variantOptions.find((option) => option.key === selectedVariant);
+    return current?.label ?? 'Default';
+  }, [variantOptions, selectedVariant]);
+  const compactVariantLabel = useMemo(() => {
+    if (!variantLabel || compactLevel === 0) return null;
+    const maxLength = COMPACT_LABEL_LENGTHS[Math.min(compactLevel, COMPACT_LEVEL_MAX)];
+    return getCompactLabel(variantLabel, maxLength);
+  }, [variantLabel, compactLevel]);
+
+  const updateFooterCompact = useCallback(() => {
+    if (shellMode) return;
+    const footer = footerRef.current;
+    const left = leftControlsRef.current;
+    const right = rightControlsRef.current;
+    if (!footer || !left || !right) return;
+    const footerWidth = footer.getBoundingClientRect().width;
+    const rightWidth = right.getBoundingClientRect().width;
+    const available = footerWidth - rightWidth - 12;
+    const measuredLeftWidth = left.scrollWidth;
+    if (fullLeftWidthRef.current === 0) {
+      fullLeftWidthRef.current = measuredLeftWidth;
+    }
+    const fullLeftWidth = fullLeftWidthRef.current || measuredLeftWidth;
+    const overflow = fullLeftWidth - available;
+    const nextLevel = resolveCompactLevel(overflow, fullLeftWidth);
+    setCompactLevel((prev) => (prev === nextLevel ? prev : nextLevel));
+  }, [shellMode]);
+
+  useEffect(() => {
+    if (shellMode || compactLevel > 0) return;
+    const left = leftControlsRef.current;
+    if (!left) return;
+    fullLeftWidthRef.current = left.scrollWidth;
+    updateFooterCompact();
+  }, [shellMode, compactLevel, selectedAgent, agents.length, selectedModel?.providerID, selectedModel?.modelID, variantLabel, updateFooterCompact]);
+
+  useEffect(() => {
+    updateFooterCompact();
+    const footer = footerRef.current;
+    const left = leftControlsRef.current;
+    const right = rightControlsRef.current;
+    if (!footer || !left || !right) return;
+    const observer = new ResizeObserver(updateFooterCompact);
+    observer.observe(footer);
+    observer.observe(left);
+    observer.observe(right);
+    return () => observer.disconnect();
+  }, [updateFooterCompact]);
+
+  const cycleVariant = useCallback(() => {
+    if (variantOptions.length === 0) return;
+    const keys = variantOptions.map((option) => option.key);
+    const currentIndex = selectedVariant ? keys.indexOf(selectedVariant) + 1 : 0;
+    const nextIndex = (currentIndex + 1) % (keys.length + 1);
+    const nextVariant = nextIndex === 0 ? null : keys[nextIndex - 1];
+    setSelectedVariant(nextVariant);
+  }, [variantOptions, selectedVariant, setSelectedVariant]);
   const isEmptyPrompt = promptText.replace(/\u200B/g, '').trim().length === 0;
   const showPlaceholder = Boolean(placeholder) && isEmptyPrompt && attachments.length === 0;
   const submitDisabled = Boolean(disabled)
-    || (promptText.trim().length === 0 && attachments.length === 0 && contextItems.length === 0);
+    || (!working && isEmptyPrompt && attachments.length === 0 && contextItems.length === 0);
 
   const renderEditor = (parts: PromptPart[]) => {
     const editor = editorRef.current;
@@ -687,6 +801,136 @@ export function PromptInput({
       return next;
     });
   };
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (!error) return fallback;
+    if (typeof error === 'string') return error;
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === 'object' && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') return message;
+    }
+    return fallback;
+  };
+
+  const runLocalCommand = useCallback((id: string) => {
+    if (id === 'clear') {
+      setPromptText('');
+      setTriggerState(null);
+      return true;
+    }
+    if (id === 'reset') {
+      setPromptText('');
+      setAttachments([]);
+      clearContextItems();
+      setTriggerState(null);
+      return true;
+    }
+    if (id === 'undo') {
+      setPromptText('');
+      setTriggerState(null);
+      void (async () => {
+        try {
+          await undoSession();
+        } catch (error) {
+          showToast({
+            variant: 'error',
+            description: getErrorMessage(error, 'Failed to undo.'),
+          });
+        }
+      })();
+      return true;
+    }
+    if (id === 'redo') {
+      setPromptText('');
+      setTriggerState(null);
+      void (async () => {
+        try {
+          await redoSession();
+        } catch (error) {
+          showToast({
+            variant: 'error',
+            description: getErrorMessage(error, 'Failed to redo.'),
+          });
+        }
+      })();
+      return true;
+    }
+    if (id === 'compact' || id === 'summarize') {
+      setPromptText('');
+      setTriggerState(null);
+      void (async () => {
+        try {
+          await compactSession();
+        } catch (error) {
+          showToast({
+            variant: 'error',
+            description: getErrorMessage(error, 'Failed to compact session.'),
+          });
+        }
+      })();
+      return true;
+    }
+    if (id === 'share') {
+      setPromptText('');
+      setTriggerState(null);
+      void (async () => {
+        try {
+          const url = await shareSession();
+          if (!url) {
+            showToast({
+              variant: 'error',
+              description: 'Share link unavailable.',
+            });
+            return;
+          }
+          await navigator.clipboard.writeText(url);
+          showToast({
+            variant: 'success',
+            description: 'Share link copied to clipboard.',
+          });
+        } catch (error) {
+          showToast({
+            variant: 'error',
+            description: getErrorMessage(error, 'Failed to share session.'),
+          });
+        }
+      })();
+      return true;
+    }
+    if (id === 'unshare') {
+      setPromptText('');
+      setTriggerState(null);
+      void (async () => {
+        try {
+          await unshareSession();
+          showToast({
+            variant: 'success',
+            description: 'Session unshared.',
+          });
+        } catch (error) {
+          showToast({
+            variant: 'error',
+            description: getErrorMessage(error, 'Failed to unshare session.'),
+          });
+        }
+      })();
+      return true;
+    }
+    return false;
+  }, [
+    clearContextItems,
+    compactSession,
+    getErrorMessage,
+    redoSession,
+    setAttachments,
+    setPromptText,
+    setTriggerState,
+    shareSession,
+    showToast,
+    undoSession,
+    unshareSession,
+  ]);
 
   const updateTrigger = (rawText: string, cursorPosition: number) => {
     if (rawText.startsWith('!')) {
@@ -813,19 +1057,14 @@ export function PromptInput({
   const handleSubmit = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     const trimmed = promptText.trim();
-    if (trimmed === '/clear') {
-      setPromptText('');
-      setTriggerState(null);
+    const localMatch = trimmed.match(/^\/(\S+)$/);
+    if (localMatch && runLocalCommand(localMatch[1])) return;
+    const isEmpty = trimmed.length === 0 && attachments.length === 0 && contextItems.length === 0;
+    if (working && isEmpty) {
+      abortSession().catch(() => undefined);
       return;
     }
-    if (trimmed === '/reset') {
-      setPromptText('');
-      setAttachments([]);
-      clearContextItems();
-      setTriggerState(null);
-      return;
-    }
-    if (!trimmed && attachments.length === 0 && contextItems.length === 0) return;
+    if (isEmpty) return;
     onSubmit?.({ text: promptText, attachments, mode: shellMode ? 'shell' : 'prompt' });
     if (trimmed.length > 0) {
       const key = shellMode ? 'shell' : 'normal';
@@ -839,21 +1078,21 @@ export function PromptInput({
         };
       });
     }
-    setHistoryIndex((prev) => ({
+    setHistoryIndex((prev) => (({
       ...prev,
       [shellMode ? 'shell' : 'normal']: -1,
-    }));
-    setDraft((prev) => ({
+    })));
+    setDraft((prev) => (({
       ...prev,
       [shellMode ? 'shell' : 'normal']: '',
-    }));
+    })));
     setAttachments([]);
   };
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
+  const handleFiles = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return;
     const next: PromptAttachment[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       if (!SUPPORTED_TYPES.includes(file.type)) continue;
       const url = await readAsDataUrl(file);
       next.push({
@@ -891,7 +1130,7 @@ export function PromptInput({
       setDragging(false);
       const dropped = event.dataTransfer?.files;
       if (dropped && dropped.length > 0) {
-        void handleFiles(dropped);
+        void handleFiles(Array.from(dropped));
       }
     };
 
@@ -934,18 +1173,7 @@ export function PromptInput({
   };
 
   const handleCommandSelect = (item: SuggestionItem) => {
-    if (item.id === 'clear') {
-      setPromptText('');
-      setTriggerState(null);
-      return;
-    }
-    if (item.id === 'reset') {
-      setPromptText('');
-      setAttachments([]);
-      clearContextItems();
-      setTriggerState(null);
-      return;
-    }
+    if (runLocalCommand(item.id)) return;
     applySuggestion(item);
   };
 
@@ -1032,6 +1260,12 @@ export function PromptInput({
       }
     }
 
+    if (event.key === 'Escape' && working) {
+      event.preventDefault();
+      abortSession().catch(() => undefined);
+      return;
+    }
+
     if (event.key === 'Enter' && event.shiftKey) {
       addPart({ type: 'text', content: '\n' });
       event.preventDefault();
@@ -1057,7 +1291,7 @@ export function PromptInput({
       if (currentIndex < 0) {
         setDraft((prev) => ({ ...prev, [key]: promptText }));
       }
-      setHistoryIndex((prev) => ({ ...prev, [key]: nextIndex }));
+      setHistoryIndex((prev) => (({ ...prev, [key]: nextIndex })));
       const nextValue = list[nextIndex] ?? '';
       setPromptText(nextValue);
       focusEditorAt(nextValue.length);
@@ -1072,12 +1306,12 @@ export function PromptInput({
       event.preventDefault();
       const nextIndex = currentIndex + 1;
       if (nextIndex >= list.length) {
-        setHistoryIndex((prev) => ({ ...prev, [key]: -1 }));
+        setHistoryIndex((prev) => (({ ...prev, [key]: -1 })));
         setPromptText(draft[key]);
         focusEditorAt(draft[key].length);
         return;
       }
-      setHistoryIndex((prev) => ({ ...prev, [key]: nextIndex }));
+      setHistoryIndex((prev) => (({ ...prev, [key]: nextIndex })));
       const nextValue = list[nextIndex] ?? '';
       setPromptText(nextValue);
       focusEditorAt(nextValue.length);
@@ -1089,127 +1323,65 @@ export function PromptInput({
   };
 
   return (
-    <div className={`relative flex h-full flex-col gap-3 p-3 ${className ?? ''}`.trim()}>
+    <div className={`relative flex flex-col gap-3 max-h-[320px] ${className ?? ''}`.trim()}>
       {trigger && (
         <div
-          className="absolute inset-x-0 -top-3 -translate-y-full origin-bottom-left z-20 max-h-80 min-h-10
-                 overflow-auto no-scrollbar rounded-md border border-border bg-background p-2 shadow-md"
+          className="absolute inset-x-0 -top-3 -translate-y-full origin-bottom-left z-20
+                 max-h-72 overflow-auto rounded-md border border-border bg-background shadow-md p-1 thin-scrollbar"
           onMouseDown={(event) => event.preventDefault()}
         >
           {(() => {
-            // Group by function (like OpenCode)
-            const groupBy = (item: SuggestionItem): string => {
-              if ('group' in item) {
-                if (item.group === 'agent') return 'agent';
-                if (item.group === 'recent') return 'recent';
-                if (item.group === 'search') return 'search';
-              }
-              return 'default';
-            };
+            const items = suggestions.slice(0, 20);
 
-            // Sort groups by rank (like OpenCode)
-            const sortGroupsBy = (groupA: string, groupB: string): number => {
-              const rank = (category: string) => {
-                if (category === 'agent') return 0;
-                if (category === 'recent') return 1;
-                return 2;
-              };
-              return rank(groupA) - rank(groupB);
-            };
+            return items.length > 0 ? (
+              items.map((item) => {
+                const isAgent = 'agent' in item && !!item.agent;
+                const hasPath = 'path' in item && !!item.path;
+                const agent = isAgent ? item.agent : undefined;
+                const description = 'description' in item ? item.description : undefined;
+                const filePath: string = hasPath && 'path' in item ? (item.path as string) : '';
+                const dir = hasPath ? getDirectory(filePath) : '';
 
-            const groups: Record<string, SuggestionItem[]> = {};
-            for (const item of suggestions) {
-              const group = groupBy(item);
-              if (!groups[group]) groups[group] = [];
-              groups[group].push(item);
-            }
-
-            const groupOrder = Object.keys(groups).sort(sortGroupsBy);
-
-            // Limit total suggestions to 20, max 10 per group (like OpenCode)
-            let totalShown = 0;
-            const MAX_SUGGESTIONS = 20;
-
-            return (
-              <>
-                {groupOrder.map((group) => {
-                  if (totalShown >= MAX_SUGGESTIONS) return null;
-                  const groupSuggestions = groups[group];
-                  const itemsToShow = groupSuggestions.slice(0, Math.min(MAX_SUGGESTIONS - totalShown, 10));
-                  if (itemsToShow.length === 0) return null;
-
-                  const groupLabel =
-                    group === 'agent' ? 'Agents' :
-                    group === 'recent' ? 'Recent Files' :
-                    group === 'search' ? 'Workspace' :
-                    '';
-
-                  return (
-                    <div key={group}>
-                      {groupLabel && (
-                        <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background">
-                          {groupLabel}
-                        </div>
-                      )}
-                      {itemsToShow.map((item, index) => {
-                        const isAgent = 'agent' in item && !!item.agent;
-                        const hasPath = 'path' in item && !!item.path;
-                        const agent = isAgent ? item.agent : undefined;
-                        const description = 'description' in item ? item.description : undefined;
-                        const filePath: string = hasPath && 'path' in item ? (item.path as string) : '';
-
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => (item.type === 'command' ? handleCommandSelect(item as SuggestionItem) : applySuggestion(item as SuggestionItem))}
-                            className={`flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted/30 ${
-                              totalShown + index === activeIndex ? 'bg-muted/30' : ''
-                            }`}
-                          >
-                            {isAgent ? (
-                              <>
-                                <Brain className="text-info-active shrink-0 size-4" />
-                                <span className="text-foreground whitespace-nowrap">
-                                  @{agent}
-                                </span>
-                              </>
-                            ) : hasPath ? (
-                              <>
-                                <FileIcon className="shrink-0 size-4" />
-                                <div className="flex items-center min-w-0">
-                                  <span className="text-muted-foreground whitespace-nowrap truncate min-w-0">
-                                    {getDirectory(filePath)}
-                                  </span>
-                                  {!filePath.endsWith('/') && (
-                                    <span className="text-foreground whitespace-nowrap">
-                                      {getFilename(filePath)}
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <span className="font-medium">{item.label}</span>
-                                {description && <span className="text-muted-foreground">{description}</span>}
-                              </>
-                            )}
-                          </button>
-                        );
-                      })}
-                      {totalShown += itemsToShow.length}
-                    </div>
-                  );
-                })}
-                {suggestions.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">No results found</div>
-                )}
-              </>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => (item.type === 'command' ? handleCommandSelect(item as SuggestionItem) : applySuggestion(item as SuggestionItem))}
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                  >
+                    {isAgent ? (
+                      <>
+                        <Brain className="shrink-0 size-3.5" style={{ color: 'var(--md-accent)' }} />
+                        <span className="truncate">{agent}</span>
+                      </>
+                    ) : hasPath ? (
+                      <div className="flex items-baseline min-w-0 truncate">
+                        {dir && (
+                          <span className="text-muted-foreground">{dir}/</span>
+                        )}
+                        <span className="text-foreground">
+                          {filePath.endsWith('/') ? filePath : getFilename(filePath)}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-foreground">{item.label}</span>
+                        {description && <span className="text-muted-foreground">{description}</span>}
+                      </>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-2 py-2 text-xs text-muted-foreground">No results found</div>
             );
           })()}
         </div>
       )}
       <form
+        data-slot="prompt-input-form"
         onSubmit={handleSubmit}
         className={`group/prompt-input relative flex flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm ${
           dragging ? 'border-dashed border-[var(--md-accent)]' : ''
@@ -1224,7 +1396,7 @@ export function PromptInput({
           </div>
         )}
         {contextItems.length > 0 && (
-          <div className="flex flex-nowrap items-start gap-2 p-2 overflow-x-auto no-scrollbar">
+          <div className="flex flex-nowrap items-center gap-1.5 px-3 pt-2.5 pb-0.5 overflow-x-auto thin-scrollbar">
             {contextItems.map((item) => {
               const selection = item.selection;
               const start = selection ? Math.min(selection.startLine, selection.endLine) : null;
@@ -1234,37 +1406,37 @@ export function PromptInput({
                   ? `:${start}`
                   : `:${start}-${end}`
                 : '';
+              const dir = getDirectory(item.path);
+              const filename = getFilename(item.path);
 
               return (
                 <div
                   key={item.id}
                   title={item.path}
-                  className="group shrink-0 flex flex-col rounded-md border border-border bg-muted/20 pl-2 pr-1 py-1 max-w-[220px] h-12 transition-colors hover:bg-muted/30"
+                  className="group shrink-0 flex items-center gap-1 rounded-md bg-muted/15 pl-2 pr-1 py-0.5 transition-colors hover:bg-muted/25"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <FileIcon className="shrink-0 size-3.5 text-muted-foreground" />
-                    <div className="flex items-center text-[11px] font-medium min-w-0">
-                      <span className="text-foreground whitespace-nowrap truncate">
-                        {getFilenameTruncated(item.path, 14)}
+                  <FileIcon className="shrink-0 size-3 text-muted-foreground/50" />
+                  <div className="flex items-baseline text-[12px] min-w-0">
+                    {dir && (
+                      <span className="text-muted-foreground/50 whitespace-nowrap truncate max-w-[80px] text-[11px]">
+                        {dir}/
                       </span>
-                      {selectionLabel && (
-                        <span className="text-muted-foreground whitespace-nowrap shrink-0">{selectionLabel}</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeContextItem(item.id)}
-                      className="ml-auto h-5 w-5 rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
-                      aria-label="Remove context"
-                    >
-                      <Icon name="close" size="small" />
-                    </button>
+                    )}
+                    <span className="text-foreground whitespace-nowrap font-medium">
+                      {filename}
+                    </span>
+                    {selectionLabel && (
+                      <span className="text-muted-foreground/60 whitespace-nowrap shrink-0 text-[11px]">{selectionLabel}</span>
+                    )}
                   </div>
-                  {item.comment && (
-                    <div className="ml-5 pr-1 text-[11px] text-foreground truncate">
-                      {item.comment}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeContextItem(item.id)}
+                    className="ml-0.5 size-4 flex items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+                    aria-label="Remove context"
+                  >
+                    <Icon name="close" size="small" />
+                  </button>
                 </div>
               );
             })}
@@ -1303,7 +1475,7 @@ export function PromptInput({
             })}
           </div>
         )}
-        <div className={`relative max-h-[240px] overflow-y-auto ${editorWrapperClassName ?? ''}`.trim()}>
+        <div className={`relative max-h-[240px] overflow-y-auto thin-scrollbar ${editorWrapperClassName ?? ''}`.trim()}>
           <div
             ref={editorRef}
             role="textbox"
@@ -1319,7 +1491,7 @@ export function PromptInput({
               const items = event.clipboardData?.files;
               if (items && items.length > 0) {
                 event.preventDefault();
-                void handleFiles(items);
+                void handleFiles(Array.from(items));
               }
             }}
             onCompositionStart={() => setComposing(true)}
@@ -1335,140 +1507,72 @@ export function PromptInput({
             </div>
           )}
         </div>
-        <div className="relative flex items-center justify-between px-3 py-2 pr-12">
-          <div className="flex items-center gap-1.5">
+        <div ref={footerRef} className="relative flex items-center justify-between px-3 py-2">
+          <div ref={leftControlsRef} className="flex min-w-0 flex-1 items-center justify-start gap-1 overflow-hidden">
             {shellMode ? (
               <div className="flex items-center gap-2 px-2 h-6 text-xs">
-                <Icon name="console" size="small" className="text-foreground" />
+                <Terminal className="size-4 text-foreground" />
                 <span className="text-foreground">Shell mode</span>
                 <span className="text-muted-foreground">Esc to exit</span>
               </div>
             ) : (
               <>
                 {agents.length > 0 && (
-                  <select
-                    value={selectedAgent ?? ''}
-                    onChange={(event) => setSelectedAgent(event.target.value || null)}
-                    className="h-6 rounded-md border border-transparent bg-transparent px-2 text-xs text-muted-foreground hover:bg-muted/40 focus:border-border focus:outline-none focus:ring-1 focus:ring-[var(--md-accent)]"
-                  >
-                    <option value="">Default agent</option>
-                    {agents.filter((agent) => !agent.hidden).map((agent) => (
-                      <option key={agent.name} value={agent.name}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
+                  <AgentSelector disabled={disabled} compactLevel={compactLevel} />
                 )}
-                {providers.length > 0 && (
-                  <select
-                    value={selectedProviderId}
-                    onChange={(event) => {
-                      const providerID = event.target.value;
-                      const nextProvider = providers.find((item) => item.id === providerID);
-                      const nextModels = nextProvider ? Object.keys(nextProvider.models ?? {}) : [];
-                      const preferred = providerDefaults[providerID];
-                      const modelID = preferred && nextModels.includes(preferred) ? preferred : nextModels[0] ?? '';
-                      setSelectedModel(modelID ? { providerID, modelID } : null);
-                    }}
-                    className="h-6 rounded-md border border-transparent bg-transparent px-2 text-xs text-muted-foreground hover:bg-muted/40 focus:border-border focus:outline-none focus:ring-1 focus:ring-[var(--md-accent)]"
+                <ModelSelector disabled={disabled} compactLevel={compactLevel} />
+                {variantOptions.length > 0 && variantLabel && (
+                  <button
+                    type="button"
+                    onClick={cycleVariant}
+                    disabled={disabled}
+                    title={variantLabel}
+                    className={`h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--border-subtle)] focus-visible:bg-[var(--border-subtle)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                      VARIANT_SIZE_CLASSES[Math.min(compactLevel, COMPACT_LEVEL_MAX)]
+                    }`.trim()}
+                    aria-label="Cycle thinking effort"
                   >
-                    <option value="">Default provider</option>
-                    {providers.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {modelOptions.length > 0 && (
-                  <select
-                    value={selectedModel?.modelID ?? ''}
-                    onChange={(event) => {
-                      const modelID = event.target.value;
-                      if (!selectedProviderId) return;
-                      setSelectedModel(modelID ? { providerID: selectedProviderId, modelID } : null);
-                    }}
-                    className="h-6 rounded-md border border-transparent bg-transparent px-2 text-xs text-muted-foreground hover:bg-muted/40 focus:border-border focus:outline-none focus:ring-1 focus:ring-[var(--md-accent)]"
-                  >
-                    {modelOptions.map((modelID) => {
-                      const label = provider?.models?.[modelID]?.name ?? modelID;
-                      return (
-                        <option key={modelID} value={modelID}>
-                          {label}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <span className="text-foreground truncate">
+                      {compactVariantLabel ?? variantLabel}
+                    </span>
+                  </button>
                 )}
               </>
             )}
           </div>
-          <div className="absolute right-3 bottom-3 flex items-center gap-2">
+          <div ref={rightControlsRef} className="flex items-center gap-1.5 shrink-0">
             <input
               ref={inputRef}
               type="file"
               accept={SUPPORTED_TYPES.join(',')}
-              multiple
               className="hidden"
-              onChange={(event) => {
-                void handleFiles(event.target.files);
-                if (event.currentTarget) event.currentTarget.value = '';
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0];
+                if (file) void handleFiles([file]);
+                e.currentTarget.value = '';
               }}
             />
-            {!shellMode && (
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={disabled}
-                className="h-6 w-6 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted/30 disabled:opacity-50"
-                aria-label="Attach file"
-              >
-                <ImageIcon className="size-4" />
-              </button>
-            )}
+            <LocalAIButton disabled={disabled} />
+            <SessionContextUsage />
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+              aria-label="Attach files"
+            >
+              <ImageIcon className="size-5" />
+            </button>
             <button
               type="submit"
               disabled={submitDisabled}
-              className="h-6 w-6 rounded-md bg-[var(--md-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Send"
+              className="size-7 flex items-center justify-center rounded-[10px] text-white bg-[var(--md-accent)] shadow-sm ring-1 ring-white/25 hover:brightness-95 active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              aria-label={working ? 'Stop' : 'Send'}
             >
-              <Icon name="arrow-up" size="small" className="text-white" />
+              {working ? <StopCircle className="size-4.5" /> : <ArrowUp className="size-4.5" />}
             </button>
           </div>
         </div>
       </form>
     </div>
   );
-}
-
-function createPill(part: InsertPart): HTMLSpanElement {
-  const pill = document.createElement('span');
-  pill.textContent = part.content;
-  pill.setAttribute('data-type', part.type);
-  if (part.type === 'file') pill.setAttribute('data-path', part.path);
-  if (part.type === 'agent') pill.setAttribute('data-name', part.name);
-  pill.setAttribute('contenteditable', 'false');
-  pill.style.userSelect = 'text';
-  pill.style.cursor = 'default';
-  pill.className =
-    'inline-flex items-center rounded bg-muted/50 px-1.5 py-0.5 text-xs text-foreground align-middle';
-  return pill;
-}
-
-function readAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.readAsDataURL(file);
-  });
-}
-
-function createId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  const rand = Math.random().toString(36).slice(2);
-  const time = Date.now().toString(36);
-  return `att-${time}-${rand}`;
 }

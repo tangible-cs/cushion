@@ -282,7 +282,7 @@ export function QuickSwitcher({
         {/* Results list */}
         <div
           ref={listRef}
-          className="overflow-y-auto"
+          className="overflow-y-auto thin-scrollbar"
           style={{ maxHeight: 'calc(60vh - 70px)' }}
         >
           {results.length === 0 ? (

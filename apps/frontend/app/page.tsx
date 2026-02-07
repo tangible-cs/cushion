@@ -13,6 +13,7 @@ import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { GraphView } from '@/components/graph/GraphView';
 import { QuickSwitcher } from '@/components/quick-switcher';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { ToastProvider } from '@/components/chat/Toast';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { buildLinkIndex, type LinkIndex } from '@/lib/link-index';
 import { flattenFileTree } from '@/lib/wiki-link-resolver';
@@ -24,11 +25,17 @@ export default function Home() {
   const connectChat = useChatStore((state) => state.connect);
   const disconnectChat = useChatStore((state) => state.disconnect);
   const addContextItem = useChatStore((state) => state.addContextItem);
+  const setActiveSession = useChatStore((state) => state.setActiveSession);
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [fileTree, setFileTree] = useState<FileTreeNode[]>([]);
+  const [fileTree, setFileTreeLocal] = useState<FileTreeNode[]>([]);
+  const setStoreFileTree = useWorkspaceStore((state) => state.setFileTree);
+  const setFileTree = useCallback((tree: FileTreeNode[]) => {
+    setFileTreeLocal(tree);
+    setStoreFileTree(tree);
+  }, [setStoreFileTree]);
   const [linkIndex, setLinkIndex] = useState<LinkIndex | null>(null);
   const [rightPanelMode, setRightPanelMode] = useState<'none' | 'backlinks' | 'chat'>('none');
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
@@ -113,9 +120,31 @@ export default function Home() {
       setFileTree([]);
       return;
     }
+    const buildTree = async (relativePath: string): Promise<FileTreeNode[]> => {
+      const { files } = await client.listFiles(relativePath);
+      const resolved = await Promise.all(
+        files.map(async (node) => {
+          if (node.type !== 'directory') {
+            return node;
+          }
+
+          const childPath = node.path || (relativePath === '.' ? node.name : `${relativePath}/${node.name}`);
+          try {
+            const children = await buildTree(childPath);
+            return { ...node, children };
+          } catch (error) {
+            console.warn('[Page] Failed to list directory:', childPath, error);
+            return { ...node, children: [] };
+          }
+        })
+      );
+
+      return resolved;
+    };
+
     try {
-      const { files } = await client.listFiles('.');
-      setFileTree(files);
+      const fullTree = await buildTree('.');
+      setFileTree(fullTree);
     } catch (err) {
       console.error('[Page] Failed to fetch file tree:', err);
     }
@@ -173,6 +202,12 @@ export default function Home() {
         e.preventDefault();
         setShowQuickSwitcher(true);
       }
+      // Ctrl+N / Cmd+N to create new chat session
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        setRightPanelMode('chat');
+        setActiveSession(null).catch(() => undefined);
+      }
       // Ctrl+` to toggle terminal
       if (e.ctrlKey && e.key === '`') {
         e.preventDefault();
@@ -199,7 +234,7 @@ export default function Home() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showGraph, showQuickSwitcher]);
+  }, [setActiveSession, showGraph, showQuickSwitcher]);
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? window.localStorage.getItem('cushion-right-panel') : null;
@@ -306,7 +341,8 @@ export default function Home() {
   }, [client, openFile, fetchFileTree]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex">
+    <ToastProvider>
+      <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex">
       {/* LEFT: File browser sidebar - uses negative margin to collapse */}
         <FileBrowser
           ref={fileBrowserRef}
@@ -452,6 +488,7 @@ export default function Home() {
         onCreateFile={handleCreateFile}
       />
     </div>
+    </ToastProvider>
   );
 }
 
