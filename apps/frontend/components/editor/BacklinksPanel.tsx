@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ArrowLeft, FileText, Link2 } from 'lucide-react';
+import { ArrowLeft, FileText, Link2, X } from 'lucide-react';
 import type { LinkInfo, LinkIndex } from '@/lib/link-index';
 import { getBacklinks } from '@/lib/link-index';
 
@@ -12,6 +12,8 @@ interface BacklinksPanelProps {
   linkIndex: LinkIndex | null;
   /** Callback when a backlink is clicked */
   onNavigate: (filePath: string) => void;
+  /** Optional close handler (for modal usage) */
+  onClose?: () => void;
 }
 
 /**
@@ -49,7 +51,7 @@ function highlightContext(context: string, href: string): React.ReactNode {
   );
 }
 
-export function BacklinksPanel({ currentFile, linkIndex, onNavigate }: BacklinksPanelProps) {
+export function BacklinksPanel({ currentFile, linkIndex, onNavigate, onClose }: BacklinksPanelProps) {
   // Get backlinks for current file
   const backlinks = useMemo(() => {
     if (!currentFile || !linkIndex) return [];
@@ -90,6 +92,16 @@ export function BacklinksPanel({ currentFile, linkIndex, onNavigate }: Backlinks
         <span className="ml-auto text-xs text-[var(--md-text-muted)] bg-[var(--md-bg-tertiary)] px-2 py-0.5 rounded-full">
           {backlinks.length}
         </span>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="ml-2 p-1.5 rounded-md text-[var(--md-text-muted)] hover:text-[var(--md-text)] hover:bg-[var(--md-bg-tertiary)] transition-colors"
+            title="Close backlinks"
+            aria-label="Close backlinks"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
       
       {/* Content */}

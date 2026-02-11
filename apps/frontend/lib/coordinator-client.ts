@@ -1,14 +1,16 @@
 /**
  * WebSocket client for communicating with the coordinator
  *
- * Implements LSP-style JSON-RPC protocol
+ * Implements LSP-style JSON-RPC protocol with auto-reconnect.
  */
 
 import type {
   DidOpenTextDocumentParams,
   DidChangeTextDocumentParams,
   FileTreeNode,
+  FileChange,
   Provider,
+  ConnectionState,
 } from '@cushion/types';
 
 interface JSONRPCRequest {
@@ -35,6 +37,9 @@ interface JSONRPCNotification {
   params: unknown;
 }
 
+const INITIAL_RECONNECT_DELAY = 1_000;
+const MAX_RECONNECT_DELAY = 30_000;
+
 export class CoordinatorClient {
   private ws: WebSocket | null = null;
   private pendingRequests = new Map<string | number, {
@@ -43,57 +48,49 @@ export class CoordinatorClient {
   }>();
   private requestId = 0;
   private terminalOutputCallbacks: Array<(output: string, isError?: boolean) => void> = [];
+  private filesChangedCallbacks: Array<(changes: FileChange[]) => void> = [];
+  private fileChangedOnDiskCallbacks: Array<(filePath: string, mtime: number) => void> = [];
+
+  // Reconnect state
+  private _intentionalDisconnect = false;
+  private _reconnectAttempts = 0;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private _state: ConnectionState = 'disconnected';
+  private _connectionStateCallbacks: Array<(state: ConnectionState) => void> = [];
+  private _reconnectedCallbacks: Array<() => void> = [];
 
   constructor(private url: string = 'ws://localhost:3001') {}
 
   /**
-   * Connect to coordinator
+   * Current connection state
    */
-  async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.url);
-
-      this.ws.onopen = () => {
-        resolve();
-      };
-
-      this.ws.onerror = (error) => {
-        reject(new Error('WebSocket connection failed'));
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          // Check if this is a terminal output notification
-          if (data.method === 'terminal/output' && data.params) {
-            const { output, error } = data.params as { output: string; error?: boolean };
-            this.terminalOutputCallbacks.forEach(callback => {
-              callback(output, error);
-            });
-          } else {
-            // Handle regular JSON-RPC responses
-            this.handleResponse(data as JSONRPCResponse);
-          }
-        } catch (error) {
-          console.error('[CoordinatorClient] Error parsing response:', error);
-        }
-      };
-
-      this.ws.onclose = () => {
-        // Connection closed
-      };
-    });
+  get connectionState(): ConnectionState {
+    return this._state;
   }
 
   /**
-   * Disconnect from coordinator
+   * Connect to coordinator (initial connection)
+   */
+  async connect(): Promise<void> {
+    this._intentionalDisconnect = false;
+    this._reconnectAttempts = 0;
+    this._cancelReconnect();
+    await this._connectWebSocket();
+    this._setState('connected');
+  }
+
+  /**
+   * Disconnect from coordinator (intentional — no auto-reconnect)
    */
   disconnect() {
+    this._intentionalDisconnect = true;
+    this._cancelReconnect();
+    this._rejectAllPending();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
+    this._setState('disconnected');
   }
 
   /**
@@ -102,6 +99,170 @@ export class CoordinatorClient {
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
+
+  // ---------------------------------------------------------------------------
+  // Connection state events
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Subscribe to connection state changes.
+   * Returns an unsubscribe function.
+   */
+  onConnectionStateChanged(callback: (state: ConnectionState) => void): () => void {
+    this._connectionStateCallbacks.push(callback);
+    return () => {
+      this._connectionStateCallbacks = this._connectionStateCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  /**
+   * Subscribe to successful reconnection events.
+   * Fired after the WebSocket reconnects (not on initial connect).
+   * Returns an unsubscribe function.
+   */
+  onReconnected(callback: () => void): () => void {
+    this._reconnectedCallbacks.push(callback);
+    return () => {
+      this._reconnectedCallbacks = this._reconnectedCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal: WebSocket lifecycle
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a new WebSocket and wire up handlers.
+   * Resolves when the socket opens, rejects on error before open.
+   */
+  private _connectWebSocket(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(this.url);
+      let opened = false;
+
+      ws.onopen = () => {
+        opened = true;
+        this.ws = ws;
+        resolve();
+      };
+
+      ws.onerror = () => {
+        if (!opened) {
+          reject(new Error('WebSocket connection failed'));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          // Route server→client notifications
+          if (data.method && !('id' in data)) {
+            this.handleNotification(data);
+            return;
+          }
+
+          // Handle regular JSON-RPC responses
+          this.handleResponse(data as JSONRPCResponse);
+        } catch (error) {
+          console.error('[CoordinatorClient] Error parsing response:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        // If the socket that closed isn't our current one, ignore
+        // (can happen during rapid reconnect cycles)
+        if (this.ws !== ws) return;
+
+        this.ws = null;
+        this._rejectAllPending();
+        this._setState('disconnected');
+
+        if (!this._intentionalDisconnect) {
+          this._startReconnect();
+        }
+      };
+    });
+  }
+
+  /**
+   * Start reconnection loop with exponential backoff.
+   */
+  private _startReconnect() {
+    this._cancelReconnect();
+    this._setState('reconnecting');
+
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY * Math.pow(2, this._reconnectAttempts),
+      MAX_RECONNECT_DELAY,
+    );
+
+    console.log(`[CoordinatorClient] Reconnecting in ${delay}ms (attempt ${this._reconnectAttempts + 1})...`);
+
+    this._reconnectTimer = setTimeout(async () => {
+      this._reconnectTimer = null;
+      this._reconnectAttempts++;
+
+      try {
+        await this._connectWebSocket();
+        // Success
+        this._reconnectAttempts = 0;
+        this._setState('connected');
+        this._emitReconnected();
+      } catch {
+        // Failed — try again (onclose won't fire for a connection that never opened)
+        if (!this._intentionalDisconnect) {
+          this._startReconnect();
+        }
+      }
+    }, delay);
+  }
+
+  /**
+   * Cancel any pending reconnect timer.
+   */
+  private _cancelReconnect() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+  }
+
+  /**
+   * Reject all pending requests with a "Connection lost" error.
+   */
+  private _rejectAllPending() {
+    const pending = Array.from(this.pendingRequests.values());
+    this.pendingRequests.clear();
+    for (const { reject } of pending) {
+      try { reject(new Error('Connection lost')); } catch { /* caller may not have .catch */ }
+    }
+  }
+
+  /**
+   * Update connection state and notify subscribers.
+   */
+  private _setState(state: ConnectionState) {
+    if (this._state === state) return;
+    this._state = state;
+    for (const cb of [...this._connectionStateCallbacks]) {
+      try { cb(state); } catch (err) { console.error('[CoordinatorClient] State callback error:', err); }
+    }
+  }
+
+  /**
+   * Notify reconnected subscribers.
+   */
+  private _emitReconnected() {
+    console.log('[CoordinatorClient] Reconnected successfully');
+    for (const cb of [...this._reconnectedCallbacks]) {
+      try { cb(); } catch (err) { console.error('[CoordinatorClient] Reconnected callback error:', err); }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // JSON-RPC transport
+  // ---------------------------------------------------------------------------
 
   /**
    * Send notification (no response expected)
@@ -175,6 +336,39 @@ export class CoordinatorClient {
   }
 
   /**
+   * Route incoming server→client notifications
+   */
+  private handleNotification(data: JSONRPCNotification) {
+    const safeForEach = <T extends unknown[]>(callbacks: Array<(...args: T) => void>, ...args: T) => {
+      for (const cb of callbacks) {
+        try { cb(...args); } catch (err) { console.error('[CoordinatorClient] Notification callback error:', err); }
+      }
+    };
+
+    switch (data.method) {
+      case 'terminal/output': {
+        const { output, error } = data.params as { output: string; error?: boolean };
+        safeForEach(this.terminalOutputCallbacks, output, error);
+        break;
+      }
+      case 'workspace/filesChanged': {
+        const { changes } = data.params as { changes: FileChange[] };
+        safeForEach(this.filesChangedCallbacks, changes);
+        break;
+      }
+      case 'workspace/fileChangedOnDisk': {
+        const { filePath, mtime } = data.params as { filePath: string; mtime: number };
+        safeForEach(this.fileChangedOnDiskCallbacks, filePath, mtime);
+        break;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // LSP notifications
+  // ---------------------------------------------------------------------------
+
+  /**
    * LSP: textDocument/didOpen
    */
   didOpen(params: DidOpenTextDocumentParams) {
@@ -188,114 +382,74 @@ export class CoordinatorClient {
     this.sendNotification('textDocument/didChange', params);
   }
 
-  /**
-   * Workspace: open a workspace by path
-   */
+  // ---------------------------------------------------------------------------
+  // Workspace RPCs
+  // ---------------------------------------------------------------------------
+
   async openWorkspace(projectPath: string): Promise<{ projectName: string; gitRoot: string | null }> {
     return this.sendRequest<{ projectName: string; gitRoot: string | null }>('workspace/open', { projectPath });
   }
 
-  /**
-   * Workspace: open a native folder picker and return selected path
-   */
   async selectWorkspaceFolder(): Promise<{ path: string | null }> {
     return this.sendRequest<{ path: string | null }>('workspace/select-folder', {});
   }
 
-  /**
-   * FS: list filesystem roots (before a workspace is open)
-   */
   async listFsRoots(): Promise<{ roots: Array<{ name: string; path: string }> }> {
     return this.sendRequest<{ roots: Array<{ name: string; path: string }> }>('fs/roots', {});
   }
 
-  /**
-   * FS: list sub-directories for an absolute path
-   */
   async listFsDirs(absPath: string): Promise<{ path: string; parent: string | null; dirs: Array<{ name: string; path: string }> }> {
     return this.sendRequest<{ path: string; parent: string | null; dirs: Array<{ name: string; path: string }> }>('fs/list-dirs', { path: absPath });
   }
 
-  /**
-   * Workspace: list files in a directory
-   */
   async listFiles(relativePath?: string): Promise<{ files: FileTreeNode[] }> {
     return this.sendRequest<{ files: FileTreeNode[] }>('workspace/files', { relativePath });
   }
 
-  /**
-   * Workspace: read a file
-   */
   async readFile(filePath: string): Promise<{ content: string; encoding: string; lineEnding: string }> {
     return this.sendRequest<{ content: string; encoding: string; lineEnding: string }>('workspace/file', { filePath });
   }
 
-  /**
-   * Workspace: save a file
-   */
   async saveFile(filePath: string, content: string, options?: { encoding?: string; lineEnding?: 'LF' | 'CRLF' }): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/save-file', { filePath, content, ...options });
   }
 
-  /**
-   * Workspace: rename a file or directory
-   */
   async renameFile(oldPath: string, newPath: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/rename', { oldPath, newPath });
   }
 
-  /**
-   * Workspace: delete a file or directory
-   */
   async deleteFile(path: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/delete', { path });
   }
 
-  /**
-   * Workspace: duplicate a file or directory
-   */
   async duplicateFile(path: string, newPath: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/duplicate', { path, newPath });
   }
 
-  /**
-   * Workspace: create a folder
-   */
   async createFolder(folderPath: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/create-folder', { path: folderPath });
   }
 
-  /**
-   * Workspace: read a file as base64 (for binary files like PDFs)
-   */
   async readFileBase64(filePath: string): Promise<{ base64: string; mimeType: string }> {
     return this.sendRequest<{ base64: string; mimeType: string }>('workspace/file-base64', { filePath });
   }
 
-  /**
-   * Workspace: save a file as base64 (for binary files like PDFs)
-   */
   async saveFileBase64(filePath: string, base64: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/save-file-base64', { filePath, base64 });
   }
 
-  /**
-   * Terminal: execute a system command
-   */
+  // ---------------------------------------------------------------------------
+  // Terminal RPCs
+  // ---------------------------------------------------------------------------
+
   async executeCommand(command: string, workingDirectory?: string): Promise<{ success: boolean; output: string; exitCode?: number }> {
     return this.sendRequest<{ success: boolean; output: string; exitCode?: number }>('terminal/command', { command, workingDirectory });
   }
 
-  /**
-   * Terminal: create a persistent terminal session
-   */
   async createTerminal(workingDirectory?: string, shell?: string): Promise<{ success: boolean; sessionId: string }> {
     return this.sendRequest<{ success: boolean; sessionId: string }>('terminal/create', { workingDirectory, shell });
   }
 
-  /**
-   * Terminal: send input to a terminal session
-   */
   async sendTerminalInput(input: string): Promise<{ success: boolean }> {
     try {
       return await this.sendRequest<{ success: boolean }>('terminal/input', { input });
@@ -307,112 +461,88 @@ export class CoordinatorClient {
     }
   }
 
-  /**
-   * Terminal: resize terminal
-   */
   async resizeTerminal(cols: number, rows: number): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('terminal/resize', { cols, rows });
   }
 
-  /**
-   * Terminal: destroy terminal session
-   */
   async destroyTerminal(): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('terminal/destroy', {});
   }
 
-  /**
-   * Register a terminal output notification handler
-   * Multiple handlers can be registered and all will be called
-   */
-  onTerminalOutput(callback: (output: string, isError?: boolean) => void) {
-    if (!this.ws) {
-      throw new Error('WebSocket not connected');
-    }
+  // ---------------------------------------------------------------------------
+  // Notification subscriptions
+  // ---------------------------------------------------------------------------
 
+  onTerminalOutput(callback: (output: string, isError?: boolean) => void) {
     this.terminalOutputCallbacks.push(callback);
   }
 
-  /**
-   * Provider: list all providers
-   */
+  onFilesChanged(callback: (changes: FileChange[]) => void): () => void {
+    this.filesChangedCallbacks.push(callback);
+    return () => {
+      this.filesChangedCallbacks = this.filesChangedCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  onFileChangedOnDisk(callback: (filePath: string, mtime: number) => void): () => void {
+    this.fileChangedOnDiskCallbacks.push(callback);
+    return () => {
+      this.fileChangedOnDiskCallbacks = this.fileChangedOnDiskCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Provider RPCs
+  // ---------------------------------------------------------------------------
+
   async listProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
     return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/list', {});
   }
 
-  /**
-   * Provider: get auth methods for all providers
-   */
   async listProviderAuthMethods(): Promise<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>> {
     return this.sendRequest<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>>('provider/auth/methods', {});
   }
 
-  /**
-   * Provider: refresh providers from models.dev
-   */
   async refreshProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
     return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/refresh', {});
   }
 
-  /**
-   * Provider: get popular provider IDs
-   */
   async getPopularProviders(): Promise<{ ids: string[] }> {
     return this.sendRequest<{ ids: string[] }>('provider/popular', {});
   }
 
-  /**
-   * Provider: set API key authentication
-   */
   async setProviderAuth(params: { providerID: string; apiKey: string }): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('provider/auth/set', params);
   }
 
-  /**
-   * Provider: remove authentication
-   */
   async removeProviderAuth(params: { providerID: string }): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('provider/auth/remove', params);
   }
 
-  /**
-   * Provider: authorize OAuth flow
-   */
   async authorizeOAuth(params: { providerID: string; method: number }): Promise<{ url: string; method: 'auto' | 'code'; instructions: string }> {
     return this.sendRequest<{ url: string; method: 'auto' | 'code'; instructions: string }>('provider/oauth/authorize', params);
   }
 
-  /**
-   * Provider: OAuth callback
-   */
   async oauthCallback(params: { providerID: string; method: number; code?: string }): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('provider/oauth/callback', params);
   }
 
-  /**
-   * Ollama: list installed models
-   */
+  // ---------------------------------------------------------------------------
+  // Ollama RPCs
+  // ---------------------------------------------------------------------------
+
   async listOllamaModels(): Promise<{ models: any[]; running: boolean }> {
     return this.sendRequest<{ models: any[]; running: boolean }>('provider/ollama/list', {});
   }
 
-  /**
-   * Ollama: pull a model from library
-   */
   async pullOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
     return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/pull', { model });
   }
 
-  /**
-    * Ollama: delete a model
-    */
   async deleteOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
     return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/delete', { model });
   }
 
-  /**
-    * Ollama: write discovered models to OpenCode config
-    */
   async writeOllamaConfig(params: { baseUrl?: string; models?: any[] }): Promise<{ success: boolean; message: string }> {
     return this.sendRequest<{ success: boolean; message: string }>('provider/ollama/write-config', params);
   }
@@ -439,4 +569,3 @@ export async function ensureCoordinatorConnection(): Promise<void> {
   }
   return connectionPromise;
 }
-

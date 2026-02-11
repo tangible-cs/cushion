@@ -1,4 +1,6 @@
 import { WidgetType, EditorView } from '@codemirror/view';
+import { getResolvedBindings } from '@/stores/shortcutsStore';
+import { matchShortcut } from '@/lib/shortcuts/utils';
 
 /**
  * SVG-based checkbox widget for task list items.
@@ -74,9 +76,9 @@ export class CheckboxWidget extends WidgetType {
     
     wrapper.addEventListener('mousedown', handleToggle);
     wrapper.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        handleToggle(e);
-      }
+      const bindings = getResolvedBindings('editor.checkbox.toggle');
+      if (!matchShortcut(e, bindings)) return;
+      handleToggle(e);
     });
 
     // Styling

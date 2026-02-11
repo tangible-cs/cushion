@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } fro
 import { FileText, FilePlus, Folder } from 'lucide-react';
 import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { FileTreeNode } from '@cushion/types';
+import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 
 interface QuickSwitcherProps {
   /** Whether the modal is open */
@@ -17,6 +18,14 @@ interface QuickSwitcherProps {
   /** Callback to create a new file */
   onCreateFile?: (fileName: string) => void;
 }
+
+const QUICK_SWITCHER_SHORTCUT_IDS = [
+  'quickSwitcher.navigateNext',
+  'quickSwitcher.navigatePrev',
+  'quickSwitcher.open',
+  'quickSwitcher.autocomplete',
+  'app.overlay.close',
+] as const;
 
 /** A search result item */
 interface SearchResult {
@@ -104,6 +113,7 @@ export function QuickSwitcher({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const quickSwitcherShortcuts = useShortcutBindings(QUICK_SWITCHER_SHORTCUT_IDS);
 
   // Focus input when modal opens
   useEffect(() => {
@@ -196,42 +206,49 @@ export function QuickSwitcher({
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex(i => (i + 1) % Math.max(1, results.length));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex(i => (i - 1 + results.length) % Math.max(1, results.length));
-          break;
-        case 'Enter':
-          e.preventDefault();
-          const selected = results[selectedIndex];
-          if (selected) {
-            if (selected.type === 'create' && onCreateFile) {
-              onCreateFile(selected.path);
-            } else {
-              onSelectFile(selected.path);
-            }
-            onClose();
+      if (e.defaultPrevented) return;
+
+      if (matchShortcut(e.nativeEvent, quickSwitcherShortcuts['quickSwitcher.navigateNext'])) {
+        e.preventDefault();
+        setSelectedIndex((i) => (i + 1) % Math.max(1, results.length));
+        return;
+      }
+
+      if (matchShortcut(e.nativeEvent, quickSwitcherShortcuts['quickSwitcher.navigatePrev'])) {
+        e.preventDefault();
+        setSelectedIndex((i) => (i - 1 + results.length) % Math.max(1, results.length));
+        return;
+      }
+
+      if (matchShortcut(e.nativeEvent, quickSwitcherShortcuts['quickSwitcher.open'])) {
+        e.preventDefault();
+        const selected = results[selectedIndex];
+        if (selected) {
+          if (selected.type === 'create' && onCreateFile) {
+            onCreateFile(selected.path);
+          } else {
+            onSelectFile(selected.path);
           }
-          break;
-        case 'Escape':
-          e.preventDefault();
           onClose();
-          break;
-        case 'Tab':
-          // Autocomplete with selected item
-          e.preventDefault();
-          const tabSelected = results[selectedIndex];
-          if (tabSelected && tabSelected.type === 'file') {
-            setQuery(tabSelected.displayName);
-          }
-          break;
+        }
+        return;
+      }
+
+      if (matchShortcut(e.nativeEvent, quickSwitcherShortcuts['quickSwitcher.autocomplete'])) {
+        e.preventDefault();
+        const tabSelected = results[selectedIndex];
+        if (tabSelected && tabSelected.type === 'file') {
+          setQuery(tabSelected.displayName);
+        }
+        return;
+      }
+
+      if (matchShortcut(e.nativeEvent, quickSwitcherShortcuts['app.overlay.close'])) {
+        e.preventDefault();
+        onClose();
       }
     },
-    [results, selectedIndex, onSelectFile, onCreateFile, onClose]
+    [results, selectedIndex, onSelectFile, onCreateFile, onClose, quickSwitcherShortcuts]
   );
 
   // Handle item click
@@ -246,6 +263,12 @@ export function QuickSwitcher({
     },
     [onSelectFile, onCreateFile, onClose]
   );
+
+  const nextLabel = formatShortcutList(quickSwitcherShortcuts['quickSwitcher.navigateNext']);
+  const prevLabel = formatShortcutList(quickSwitcherShortcuts['quickSwitcher.navigatePrev']);
+  const openLabel = formatShortcutList(quickSwitcherShortcuts['quickSwitcher.open']);
+  const autocompleteLabel = formatShortcutList(quickSwitcherShortcuts['quickSwitcher.autocomplete']);
+  const closeLabel = formatShortcutList(quickSwitcherShortcuts['app.overlay.close']);
 
   if (!isOpen) return null;
 
@@ -345,10 +368,16 @@ export function QuickSwitcher({
         
         {/* Footer with shortcuts */}
         <div className="px-4 py-2 border-t border-[var(--md-border)] flex gap-4 text-xs text-[var(--md-text-muted)]">
-          <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">↑↓</kbd> Navigate</span>
-          <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">Enter</kbd> Open</span>
-          <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">Tab</kbd> Autocomplete</span>
-          <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">Esc</kbd> Close</span>
+          {(prevLabel || nextLabel) && (
+            <span>
+              {prevLabel && <kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{prevLabel}</kbd>}
+              {nextLabel && <kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded ml-1">{nextLabel}</kbd>}
+              {' '}Navigate
+            </span>
+          )}
+          {openLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{openLabel}</kbd> Open</span>}
+          {autocompleteLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{autocompleteLabel}</kbd> Autocomplete</span>}
+          {closeLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{closeLabel}</kbd> Close</span>}
         </div>
       </div>
     </div>

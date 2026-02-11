@@ -9,12 +9,9 @@
  */
 
 import {
-  ViewPlugin,
-  ViewUpdate,
   Decoration,
   DecorationSet,
   EditorView,
-  WidgetType,
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { cursorInRange } from './reveal-on-cursor';
@@ -199,34 +196,26 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
 }
 
 // =============================================================================
-// Wiki-Link View Plugin
+// Wiki-Link StateField
+// =============================================================================
+// Uses a StateField instead of ViewPlugin to eliminate requestMeasure() calls.
+// Wiki-link decorations are all Decoration.mark (no replace widgets), so they're
+// safe in a StateField — mark decorations update atomically with transactions
+// and don't cause geometry changes that trigger measure loops.
 // =============================================================================
 
-export const wikiLinkPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-
-    constructor(view: EditorView) {
-      this.decorations = buildWikiLinkDecorations(view.state);
-    }
-
-    update(update: ViewUpdate) {
-      if (
-        update.docChanged ||
-        update.selectionSet ||
-        update.viewportChanged ||
-        update.transactions.some(tr => 
-          tr.effects.some(e => e.is(setFileTreeEffect))
-        )
-      ) {
-        this.decorations = buildWikiLinkDecorations(update.state);
-      }
-    }
+export const wikiLinkDecorationsField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildWikiLinkDecorations(state);
   },
-  {
-    decorations: (v) => v.decorations,
-  }
-);
+  update(value, tr) {
+    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect))) {
+      return buildWikiLinkDecorations(tr.state);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
 
 // =============================================================================
 // Wiki-Link Click Handler
@@ -296,7 +285,7 @@ export function wikiLinkExtension(options?: {
   const extensions = [
     fileTreeField,
     navigateCallbackField,
-    wikiLinkPlugin,
+    wikiLinkDecorationsField,
     wikiLinkClickHandler,
   ];
   

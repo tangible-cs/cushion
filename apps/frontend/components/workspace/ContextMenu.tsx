@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Pencil, Trash2, Files, X } from 'lucide-react';
+import { useOverlayClose } from '@/lib/shortcuts';
 
 export interface ContextMenuItem {
   id: string;
@@ -48,29 +49,12 @@ export function ContextMenu({ items, isOpen, onClose, position }: ContextMenuPro
     setAdjustedPosition({ x, y });
   }, [isOpen, position]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen, onClose]);
+  // Close on Escape shortcut and click-outside (US-A4)
+  useOverlayClose({
+    isOpen,
+    onClose,
+    insideRefs: [menuRef],
+  });
 
   if (!isOpen) return null;
 

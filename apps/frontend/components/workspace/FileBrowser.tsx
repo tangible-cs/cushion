@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
 import { ConfirmDialog } from './ConfirmDialog';
-import { FilePlus, FolderPlus, RefreshCw, ChevronsLeft, FolderOpen, Search, Sparkles, Settings, ChevronDown } from 'lucide-react';
+import { FilePlus, FolderPlus, RefreshCw, ChevronsLeft, FolderOpen, Search, Settings, ChevronDown } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,6 @@ interface FileBrowserProps {
   onSidebarToggle?: (collapsed: boolean) => void;
   isCollapsed?: boolean;
   onSearch?: () => void;
-  onIntelligence?: () => void;
   onSettings?: () => void;
   onAskAIFile?: (path: string) => void;
 }
@@ -30,7 +29,7 @@ export interface FileBrowserHandle {
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onIntelligence, onSettings, onAskAIFile }, ref) {
+  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings, onAskAIFile }, ref) {
   const { metadata, currentFile, preferences, updatePreferences } = useWorkspaceStore();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -229,11 +228,24 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         )}
         {/* Top bar — h-10 to align with tab bar */}
         <div className="flex-shrink-0 h-10 px-3 flex items-center gap-2">
-          {/* Logo placeholder */}
-          <div
-            className="w-6 h-6 rounded flex-shrink-0"
-            style={{ backgroundColor: avatarColor }}
-          />
+          {/* Logo button */}
+          <button
+            onClick={() => onOpenWorkspace?.()}
+            type="button"
+            className={cn(
+              "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
+              "text-muted-foreground hover:text-foreground",
+              "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+              "transition-colors duration-150"
+            )}
+            title="Switch workspace"
+            aria-label="Switch workspace"
+          >
+            <div
+              className="w-6 h-6 rounded"
+              style={{ backgroundColor: avatarColor }}
+            />
+          </button>
 
           <div className="flex-1" />
 
@@ -244,7 +256,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               onClick={collapseSidebar}
               role="button"
               className={cn(
-                "h-7 w-7 rounded flex items-center justify-center cursor-pointer",
+                "h-8 w-8 rounded flex items-center justify-center cursor-pointer",
                 "text-muted-foreground hover:text-foreground",
                 "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
                 "transition-colors duration-150"
@@ -261,7 +273,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               }}
               title="New file"
               className={cn(
-                "h-6 w-6 rounded flex items-center justify-center",
+                "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
                 "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
@@ -278,7 +290,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               }}
               title="New folder"
               className={cn(
-                "h-6 w-6 rounded flex items-center justify-center",
+                "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
                 "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
@@ -293,14 +305,14 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               onClick={() => loadDirectory('.')}
               title="Refresh explorer"
               className={cn(
-                "h-6 w-6 rounded flex items-center justify-center",
+                "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
                 "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
                 "transition-colors duration-150"
               )}
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={16} />
             </button>
           </div>
         </div>
@@ -319,20 +331,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           >
             <Search size={16} />
             <span>Search</span>
-          </button>
-
-          {/* Intelligence */}
-          <button
-            onClick={onIntelligence}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
-              "transition-colors duration-150"
-            )}
-          >
-            <Sparkles size={16} />
-            <span>Intelligence</span>
           </button>
 
           {/* Settings */}
@@ -477,30 +475,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               }}
             />
           ))}
-        </div>
-
-        {/* Bottom workspace button (logo placeholder) */}
-        <div className="flex-shrink-0 px-2 py-2 border-t border-black/[0.06] dark:border-white/[0.08]">
-          <button
-            onClick={() => onOpenWorkspace?.()}
-            className={cn(
-              "w-full flex items-center gap-2 rounded-md px-2 py-2",
-              "text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
-              "transition-colors duration-150"
-            )}
-            title="Switch workspace"
-            type="button"
-          >
-            <div
-              className="w-7 h-7 rounded-md flex-shrink-0"
-              style={{ backgroundColor: avatarColor }}
-            />
-            <div className="min-w-0 flex-1 text-left">
-              <div className="text-xs font-semibold leading-4">Workspace</div>
-              <div className="text-[11px] leading-4 truncate">{metadata.projectName}</div>
-            </div>
-          </button>
         </div>
 
       </aside>

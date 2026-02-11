@@ -4,12 +4,15 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, RefreshCw } from 'lucide-react';
 import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
-import { Icon } from './Icon';
+import { ProviderIcon } from './ProviderIcon';
+import { iconNames, type IconName } from './provider-icons/types';
 
 type Provider = {
   id: string;
   name: string;
 };
+
+const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 type SelectProviderDialogProps = {
   onClose: () => void;
@@ -128,6 +131,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
               </div>
               {groups.popular.map(provider => {
                 const isConnected = connected.has(provider.id);
+                const providerIcon = resolveProviderIcon(provider.id);
                 return (
                   <button
                     key={provider.id}
@@ -135,7 +139,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
                     onClick={() => onProviderSelect(provider.id, provider.name)}
                     className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
                   >
-                    <Icon name="providers" size="normal" className="text-muted-foreground" />
+                    <ProviderIcon id={providerIcon} className="size-5 text-muted-foreground shrink-0" />
                     <span className="flex-1 text-left">{provider.name}</span>
                     {provider.id === 'opencode' && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">Recommended</span>
@@ -155,6 +159,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
               </div>
               {groups.other.map(provider => {
                 const isConnected = connected.has(provider.id);
+                const providerIcon = resolveProviderIcon(provider.id);
                 return (
                   <button
                     key={provider.id}
@@ -162,7 +167,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
                     onClick={() => onProviderSelect(provider.id, provider.name)}
                     className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
                   >
-                    <Icon name="providers" size="normal" className="text-muted-foreground" />
+                    <ProviderIcon id={providerIcon} className="size-5 text-muted-foreground shrink-0" />
                     <span className="flex-1 text-left">{provider.name}</span>
                     {isConnected && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500">Connected</span>

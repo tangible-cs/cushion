@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatShortcutList, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
 
 interface ImageViewerProps {
   filePath: string;
   base64Data: string;
   mimeType: string;
 }
+
+const IMAGE_SHORTCUT_IDS = ['image.zoom.in', 'image.zoom.out', 'image.reset'] as const;
 
 export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps) {
   const [scale, setScale] = useState(1);
@@ -17,6 +20,7 @@ export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const imageShortcuts = useShortcutBindings(IMAGE_SHORTCUT_IDS);
 
   const fileName = filePath.split(/[/\\]/).pop() || filePath;
   const dataUri = `data:${mimeType};base64,${base64Data}`;
@@ -25,7 +29,14 @@ export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps
   const zoomOut = useCallback(() => setScale(s => Math.max(s / 1.25, 0.1)), []);
   const resetView = useCallback(() => { setScale(1); setPosition({ x: 0, y: 0 }); }, []);
 
-  // Ctrl+Scroll zoom
+  // Ctrl/Cmd + Scroll wheel zoom (non-customizable platform gesture).
+  // This is intentionally NOT part of the shortcut registry because:
+  //  - Wheel events are continuous gestures, not discrete key presses.
+  //  - Ctrl+Scroll-to-zoom is a universal platform convention (browsers, PDF
+  //    viewers, image editors) and users expect it to work without configuration.
+  //  - Keyboard alternatives (image.zoom.in / image.zoom.out) are registry-driven
+  //    and fully customizable in Settings.
+  // Policy: US-D2 — classified as non-customizable gesture.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -39,17 +50,14 @@ export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') resetView();
-      if ((e.ctrlKey || e.metaKey) && e.key === '=') { e.preventDefault(); zoomIn(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); zoomOut(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === '0') { e.preventDefault(); resetView(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [zoomIn, zoomOut, resetView]);
+  // Keyboard shortcuts (US-E1)
+  const imageHandlers = useMemo(() => ({
+    'image.zoom.in': () => { zoomIn(); },
+    'image.zoom.out': () => { zoomOut(); },
+    'image.reset': () => { resetView(); },
+  } as const), [zoomIn, zoomOut, resetView]);
+
+  useShortcutHandler({ handlers: imageHandlers });
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -74,10 +82,37 @@ export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-border/50 flex-shrink-0">
         <span className="text-sm text-muted-foreground truncate mr-auto">{fileName}</span>
-        <button onClick={zoomOut} className={toolBtn} title="Zoom out (Ctrl+-)"><ZoomOut size={16} /></button>
+        <button
+          onClick={zoomOut}
+          className={toolBtn}
+          title={(() => {
+            const label = formatShortcutList(imageShortcuts['image.zoom.out']);
+            return label ? `Zoom out (${label})` : 'Zoom out';
+          })()}
+        >
+          <ZoomOut size={16} />
+        </button>
         <span className="text-xs text-muted-foreground w-14 text-center">{Math.round(scale * 100)}%</span>
-        <button onClick={zoomIn} className={toolBtn} title="Zoom in (Ctrl+=)"><ZoomIn size={16} /></button>
-        <button onClick={resetView} className={toolBtn} title="Reset (Ctrl+0)"><RotateCcw size={16} /></button>
+        <button
+          onClick={zoomIn}
+          className={toolBtn}
+          title={(() => {
+            const label = formatShortcutList(imageShortcuts['image.zoom.in']);
+            return label ? `Zoom in (${label})` : 'Zoom in';
+          })()}
+        >
+          <ZoomIn size={16} />
+        </button>
+        <button
+          onClick={resetView}
+          className={toolBtn}
+          title={(() => {
+            const label = formatShortcutList(imageShortcuts['image.reset']);
+            return label ? `Reset (${label})` : 'Reset';
+          })()}
+        >
+          <RotateCcw size={16} />
+        </button>
       </div>
 
       {/* Image canvas */}

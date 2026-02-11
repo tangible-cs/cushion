@@ -348,3 +348,31 @@ export interface Credential {
   auth: AuthCredential;
 }
 
+// =============================================================================
+// File Watcher Notification Types
+// =============================================================================
+
+/** A single file-system change detected by the watcher */
+export interface FileChange {
+  type: 'created' | 'modified' | 'deleted';
+  path: string;
+}
+
+/** Notification: batch of file-system changes (server → client) */
+export interface FilesChangedNotification {
+  changes: FileChange[];
+}
+
+/** Notification: an open file was modified externally (server → client) */
+export interface FileChangedOnDiskNotification {
+  filePath: string;
+  mtime: number;
+}
+
+// =============================================================================
+// Connection State Types
+// =============================================================================
+
+/** WebSocket connection state for the coordinator client */
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+

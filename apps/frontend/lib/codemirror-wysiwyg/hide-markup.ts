@@ -7,7 +7,7 @@ import {
 } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { EditorState, Range } from '@codemirror/state';
+import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { cursorInRange } from './reveal-on-cursor';
 import { resolveWikiLink } from '../wiki-link-resolver';
 import { fileTreeField } from './wiki-link-plugin';
@@ -130,12 +130,27 @@ function getBulletSymbol(depth: number): string {
   return bullets[Math.min(depth, 2)];
 }
 
+// =============================================================================
+// State Effect for deferred widget updates
+// =============================================================================
+
+const cursorSettledEffect = StateEffect.define<null>();
+
+// =============================================================================
+// MARK DECORATIONS — Decoration.mark and Decoration.line only
+// =============================================================================
+// Safe in a StateField because these don't change line geometry:
+// - cm-syntax-hidden uses font-size: 0 (no height change)
+// - Line classes (cm-heading-*, cm-blockquote, etc.) are always applied
+// =============================================================================
+
 /**
- * Builds decorations for the WYSIWYG markdown display.
- * Hides syntax when cursor is not on the line, reveals when cursor is on line.
+ * Builds mark/line decorations for the WYSIWYG markdown display.
+ * Does NOT produce any Decoration.replace widgets.
  */
-function buildDecorations(state: EditorState): DecorationSet {
+function buildMarkDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
+  const text = state.doc.toString();
   const tree = syntaxTree(state);
   tree.iterate({
     enter(node) {
@@ -274,17 +289,8 @@ function buildDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Images ![alt](url) ---
+      // --- Images: skip (widget function handles) ---
       if (type === 'Image') {
-        if (!cursorInRange(state, from, to)) {
-          const text = state.doc.sliceString(from, to);
-          const match = text.match(/^!\[([^\]]*)\]\((.+?)\)$/);
-          if (match) {
-            decorations.push(
-              Decoration.replace({ widget: new ImageWidget(match[2], match[1]) }).range(from, to),
-            );
-          }
-        }
         return false;
       }
 
@@ -315,13 +321,8 @@ function buildDecorations(state: EditorState): DecorationSet {
         return true;
       }
 
-      // --- Horizontal rule ---
+      // --- Horizontal rule: skip (widget function handles) ---
       if (type === 'HorizontalRule') {
-        if (!cursorInRange(state, from, to)) {
-          decorations.push(
-            Decoration.replace({ widget: new HrWidget() }).range(from, to),
-          );
-        }
         return false;
       }
 
@@ -333,36 +334,14 @@ function buildDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Task list items (checkboxes) ---
+      // --- Task list items: line class only (widget function handles checkbox) ---
       if (type === 'TaskMarker') {
         const markerText = state.doc.sliceString(from, to);
         const isChecked = markerText.includes('x') || markerText.includes('X');
-        const line = state.doc.lineAt(from);
-        const taskNode = node.node.parent;
-        const listItem = taskNode?.parent;
-        const listRoot = listItem?.parent;
-        const listType = listRoot?.type?.name;
-        const isBulletList = listType === 'BulletList';
-
         if (isChecked) {
+          const line = state.doc.lineAt(from);
           decorations.push(
             Decoration.line({ class: 'cm-task-checked' }).range(line.from),
-          );
-        }
-
-        const listMatch = line.text.match(/^(\s*)([-*+]|\d+[.)])\s/);
-        const listPrefixStart = listMatch ? line.from + listMatch[1].length : from;
-        const listPrefixEnd = listMatch ? line.from + listMatch[0].length : from;
-        const cursorInMarker = listMatch ? cursorInRange(state, listPrefixStart, listPrefixEnd) : false;
-
-        if (!cursorInRange(state, from, to) && !cursorInMarker) {
-          const stateValue = isChecked ? 'checked' : 'open';
-          const replaceFrom = isBulletList ? listPrefixStart : from;
-          
-          decorations.push(
-            Decoration.replace({
-              widget: new CheckboxWidget(stateValue, from),
-            }).range(replaceFrom, to),
           );
         }
         return false;
@@ -462,14 +441,152 @@ function buildDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Tables (GFM) ---
+      // --- Tables (GFM): skip, widget function handles all table decorations ---
+      // We return true so the tree iterator recurses into table children
+      // for inline mark decorations (bold, italic, etc. inside cells)
+
+      // --- Code blocks (fenced) — Tangent-style stable geometry ---
+      // ALL structural line classes (cm-code-block, cm-code-block-start/end,
+      // cm-code-fence) are cursor-independent → geometry NEVER changes.
+      // Fence text visibility is controlled purely by color (transparent ↔ visible)
+      // via cm-code-fence / cm-code-fence-revealed → zero geometry changes,
+      // zero measure loops, and CM can always resolve click positions.
+      if (type === 'FencedCode') {
+        const startLine = state.doc.lineAt(from).number;
+        const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
+
+        // Extract language from the code fence
+        let language = '';
+        const codeInfo = node.node.getChild('CodeInfo');
+        if (codeInfo) {
+          language = state.doc.sliceString(codeInfo.from, codeInfo.to).trim();
+        }
+
+        const cursorInside = cursorInRange(state, from, to);
+
+        for (let i = startLine; i <= endLine; i++) {
+          const line = state.doc.line(i);
+          const isFirstLine = i === startLine;
+          const isLastLine = i === endLine;
+          const isFence = isFirstLine || isLastLine;
+
+          // Stable structural classes — never change based on cursor
+          const classes = ['cm-code-block'];
+          if (isFirstLine) classes.push('cm-code-block-start');
+          if (isLastLine) classes.push('cm-code-block-end');
+          if (isFence) {
+            classes.push('cm-code-fence');
+            // Color-only toggle: transparent by default, visible when revealed
+            if (cursorInside) classes.push('cm-code-fence-revealed');
+          }
+          if (language) classes.push(`cm-code-block-lang-${language}`);
+
+          decorations.push(
+            Decoration.line({
+              class: classes.join(' '),
+              attributes: language && isFirstLine ? { 'data-lang': language } : undefined,
+            }).range(line.from),
+          );
+        }
+
+        return true;
+      }
+
+      return true;
+    },
+  });
+
+  // Math: only mark decorations (cm-math-syntax when cursor IS inside)
+  detectMathMarks(state, decorations, text);
+
+  // Sort decorations for proper application
+  decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
+  return Decoration.set(decorations, true);
+}
+
+// =============================================================================
+// WIDGET DECORATIONS — Decoration.replace widgets + paired line decorations
+// =============================================================================
+// These go in a ViewPlugin that defers selection-driven rebuilds via
+// dispatch({ effects }) instead of requestMeasure(), avoiding measure loops.
+// =============================================================================
+
+/**
+ * Builds widget (Decoration.replace) decorations for the WYSIWYG display.
+ * Replaces entire multi-line structures (tables, math blocks) with single
+ * widgets — no hidden-line hacks needed.
+ */
+function buildWidgetDecorations(state: EditorState): DecorationSet {
+  const decorations: Range<Decoration>[] = [];
+  const text = state.doc.toString();
+  const tree = syntaxTree(state);
+  tree.iterate({
+    enter(node) {
+      const type = node.type.name;
+      const from = node.from;
+      const to = node.to;
+
+      // --- Images ![alt](url) ---
+      if (type === 'Image') {
+        if (!cursorInRange(state, from, to)) {
+          const text = state.doc.sliceString(from, to);
+          const match = text.match(/^!\[([^\]]*)\]\((.+?)\)$/);
+          if (match) {
+            decorations.push(
+              Decoration.replace({ widget: new ImageWidget(match[2], match[1]) }).range(from, to),
+            );
+          }
+        }
+        return false;
+      }
+
+      // --- Horizontal rule ---
+      if (type === 'HorizontalRule') {
+        if (!cursorInRange(state, from, to)) {
+          decorations.push(
+            Decoration.replace({ widget: new HrWidget() }).range(from, to),
+          );
+        }
+        return false;
+      }
+
+      // --- Task list items (checkboxes) ---
+      if (type === 'TaskMarker') {
+        const markerText = state.doc.sliceString(from, to);
+        const isChecked = markerText.includes('x') || markerText.includes('X');
+        const line = state.doc.lineAt(from);
+        const taskNode = node.node.parent;
+        const listItem = taskNode?.parent;
+        const listRoot = listItem?.parent;
+        const listType = listRoot?.type?.name;
+        const isBulletList = listType === 'BulletList';
+
+        const listMatch = line.text.match(/^(\s*)([-*+]|\d+[.)])\s/);
+        const listPrefixStart = listMatch ? line.from + listMatch[1].length : from;
+        const listPrefixEnd = listMatch ? line.from + listMatch[0].length : from;
+        const cursorInMarker = listMatch ? cursorInRange(state, listPrefixStart, listPrefixEnd) : false;
+
+        if (!cursorInRange(state, from, to) && !cursorInMarker) {
+          const stateValue = isChecked ? 'checked' : 'open';
+          const replaceFrom = isBulletList ? listPrefixStart : from;
+
+          decorations.push(
+            Decoration.replace({
+              widget: new CheckboxWidget(stateValue, from),
+            }).range(replaceFrom, to),
+          );
+        }
+        return false;
+      }
+
+      // --- Tables (GFM): ALL table decorations live here (geometry-changing) ---
       if (type === 'Table') {
         const cursorInside = cursorInRange(state, from, to);
         const startLine = state.doc.lineAt(from).number;
         const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
 
         if (cursorInside) {
-          // Cursor inside: show raw syntax with line classes for stable height
+          // Cursor inside: show raw syntax with line classes
           for (let i = startLine; i <= endLine; i++) {
             const line = state.doc.line(i);
             const classes = ['cm-table-row'];
@@ -481,250 +598,202 @@ function buildDecorations(state: EditorState): DecorationSet {
             );
           }
         } else {
-          // Cursor outside: replace first line with rendered table widget,
-          // hide remaining lines (same pattern as multi-line math)
+          // Cursor outside: replace entire table with rendered widget
           const rawText = state.doc.sliceString(from, to);
-          const firstLine = state.doc.line(startLine);
           decorations.push(
             Decoration.replace({
               widget: new TableWidget(rawText),
-            }).range(firstLine.from, firstLine.to),
+            }).range(from, to),
           );
-          for (let i = startLine + 1; i <= endLine; i++) {
-            const line = state.doc.line(i);
-            decorations.push(
-              Decoration.line({ class: 'cm-table-line-hidden' }).range(line.from),
-            );
-          }
         }
-        return true;
+        return false;
       }
 
-      // --- Code blocks (fenced) ---
+      // --- Code blocks: handled entirely by mark field (Tangent-style stable geometry) ---
       if (type === 'FencedCode') {
-        const cursorInside = cursorInRange(state, from, to);
-        const startLine = state.doc.lineAt(from).number;
-        const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
-
-        // Extract language from the code fence
-        let language = '';
-        const codeInfo = node.node.getChild('CodeInfo');
-        if (codeInfo) {
-          const langText = state.doc.sliceString(codeInfo.from, codeInfo.to);
-          language = langText.trim();
-        }
-
-        for (let i = startLine; i <= endLine; i++) {
-          const line = state.doc.line(i);
-          const isFirstLine = i === startLine;
-          const isLastLine = i === endLine;
-
-          // Hide fence lines when cursor is outside the code block
-          // Use CSS-only hiding (no Decoration.replace) to preserve cursor navigation
-          if (!cursorInside && (isFirstLine || isLastLine)) {
-            if (!(isFirstLine && isLastLine)) {
-              decorations.push(
-                Decoration.line({
-                  class: 'cm-code-fence-hidden',
-                }).range(line.from),
-              );
-            }
-            continue;
-          }
-
-          // Build classes for content lines (and fence lines when cursor is inside)
-          const classes = ['cm-code-block'];
-          if (isFirstLine) classes.push('cm-code-block-start');
-          if (isLastLine) classes.push('cm-code-block-end');
-          if (!cursorInside && i === startLine + 1) {
-            // First content line gets the language badge when fences are hidden
-            classes.push('cm-code-block-start');
-          }
-          if (!cursorInside && i === endLine - 1) {
-            classes.push('cm-code-block-end');
-          }
-          if (language) {
-            classes.push(`cm-code-block-lang-${language}`);
-          }
-
-          decorations.push(
-            Decoration.line({
-              class: classes.join(' '),
-              attributes: language ? { 'data-lang': language } : undefined,
-            }).range(line.from),
-          );
-        }
-        return true;
+        return false;
       }
 
       return true;
     },
   });
 
-  // --- Math/LaTeX detection ($...$ and $$...$$) ---
-  // This needs to be done outside the tree iteration since markdown syntax tree
-  // doesn't natively support math
-  detectMathPatterns(state, decorations);
+  // Math: widget decorations (MathWidget replaces full range when cursor is OUTSIDE)
+  detectMathWidgets(state, decorations, text);
 
   // --- Wiki Embeds ![[file]] ---
-  detectWikiEmbeds(state, decorations);
+  detectWikiEmbeds(state, decorations, text);
 
   // Sort decorations for proper application
   decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
   return Decoration.set(decorations, true);
 }
 
+// =============================================================================
+// Math Detection — Split into mark and widget functions
+// =============================================================================
+
 /**
- * Detects multi-line block math: $$ on its own line, content lines, $$ on its own line.
- * When cursor is outside the block, hides all lines and shows a rendered widget.
- * When cursor is inside, reveals the raw syntax.
+ * Collects multi-line math fence positions from the document.
+ * Shared logic used by both mark and widget math detection.
  */
-function detectMultiLineMath(
-  state: EditorState,
-  text: string,
-  decorations: Range<Decoration>[],
-  ranges: { from: number; to: number }[],
-): void {
-  // Find $$ that appear alone on a line (with optional whitespace)
+function collectMathFences(state: EditorState, text: string) {
   const fenceRegex = /^[ \t]*\$\$[ \t]*$/gm;
   const fences: { from: number; to: number; line: number }[] = [];
-
   let m;
   while ((m = fenceRegex.exec(text)) !== null) {
     const line = state.doc.lineAt(m.index);
+    if (isInsideCode(state, m.index)) continue;
     fences.push({ from: line.from, to: line.to, line: line.number });
   }
-
-  // Pair consecutive fences as open/close
-  for (let i = 0; i < fences.length - 1; i += 2) {
-    const open = fences[i];
-    const close = fences[i + 1];
-
-    // Extract LaTeX content between the fence lines
-    const contentFrom = open.to + 1; // start of line after opening $$
-    const contentTo = close.from - 1; // end of line before closing $$
-    if (contentFrom > contentTo) continue; // empty block
-
-    const latex = state.doc.sliceString(contentFrom, contentTo + 1).trim();
-    if (!latex) continue;
-
-    ranges.push({ from: open.from, to: close.to });
-
-    // Check if cursor is inside the block range
-    const cursorInBlock = cursorInRange(state, open.from, close.to);
-
-    if (cursorInBlock) {
-      // Show raw syntax with highlight on all lines
-      decorations.push(
-        Decoration.mark({ class: 'cm-math-syntax' }).range(open.from, close.to),
-      );
-    } else {
-      // Replace the opening $$ line content with the rendered widget
-      decorations.push(
-        Decoration.replace({
-          widget: new MathWidget(latex, true),
-        }).range(open.from, open.to),
-      );
-      // Hide content lines and closing $$ line
-      for (let lineNum = open.line + 1; lineNum <= close.line; lineNum++) {
-        const ln = state.doc.line(lineNum);
-        decorations.push(
-          Decoration.line({ class: 'cm-math-fence-hidden' }).range(ln.from),
-        );
-      }
-    }
-  }
+  return fences;
 }
 
 /**
- * Detects and decorates math patterns in the document.
- * Supports inline math ($...$), single-line block math ($$...$$),
- * and multi-line block math ($$ on separate lines).
+ * Pairs fences into math blocks and returns structured data.
  */
-function detectMathPatterns(state: EditorState, decorations: Range<Decoration>[]): void {
-  const text = state.doc.toString();
+function pairMathFences(state: EditorState, fences: { from: number; to: number; line: number }[]) {
+  const blocks: {
+    openFrom: number; openTo: number; openLine: number;
+    closeFrom: number; closeTo: number; closeLine: number;
+    latex: string; rangeFrom: number; rangeTo: number;
+  }[] = [];
 
-  // Pattern for single-line block math ($$...$$)
+  for (let i = 0; i < fences.length - 1; i += 2) {
+    const open = fences[i];
+    const close = fences[i + 1];
+    const contentFrom = open.to + 1;
+    const contentTo = close.from - 1;
+    if (contentFrom > contentTo) continue;
+    const latex = state.doc.sliceString(contentFrom, contentTo + 1).trim();
+    if (!latex) continue;
+    blocks.push({
+      openFrom: open.from, openTo: open.to, openLine: open.line,
+      closeFrom: close.from, closeTo: close.to, closeLine: close.line,
+      latex, rangeFrom: open.from, rangeTo: close.to,
+    });
+  }
+  return blocks;
+}
+
+/**
+ * Emits mark decorations (cm-math-syntax) for math when cursor IS inside.
+ */
+function detectMathMarks(state: EditorState, decorations: Range<Decoration>[], text: string): void {
+  const fences = collectMathFences(state, text);
+  const blocks = pairMathFences(state, fences);
+  const multiLineMathRanges = blocks.map(b => ({ from: b.rangeFrom, to: b.rangeTo }));
+
+  // Multi-line block math
+  for (const block of blocks) {
+    if (cursorInRange(state, block.rangeFrom, block.rangeTo)) {
+      decorations.push(
+        Decoration.mark({ class: 'cm-math-syntax' }).range(block.rangeFrom, block.rangeTo),
+      );
+    }
+  }
+
+  // Single-line block math ($$...$$)
   const blockMathRegex = /\$\$([^\$\n]+?)\$\$/g;
-  // Pattern for inline math ($...$) - single line only
-  const inlineMathRegex = /\$([^$\n]+?)\$/g;
-
-  // Track ranges covered by multi-line math to avoid conflicts
-  const multiLineMathRanges: { from: number; to: number }[] = [];
-
-  // Detect multi-line block math first: $$ on its own line ... $$ on its own line
-  detectMultiLineMath(state, text, decorations, multiLineMathRanges);
-
   let match;
-
-  // Detect single-line block math (avoid ranges already covered by multi-line)
   while ((match = blockMathRegex.exec(text)) !== null) {
     const from = match.index;
     const to = blockMathRegex.lastIndex;
-    const latex = match[1].trim();
-
-    // Skip if inside a multi-line math block
     if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-
-    const isCursorInside = cursorInRange(state, from, to);
-
-    if (!isCursorInside) {
-      // Render single-line block math with KaTeX widget
-      decorations.push(
-        Decoration.replace({
-          widget: new MathWidget(latex, true),
-        }).range(from, to),
-      );
-    } else {
-      // Cursor on line - show syntax
+    if (isInsideCode(state, from)) continue;
+    if (cursorInRange(state, from, to)) {
       decorations.push(
         Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
       );
     }
   }
 
-  // Reset regex for inline math
-  inlineMathRegex.lastIndex = 0;
+  // Inline math ($...$)
+  const inlineMathRegex = /\$([^$\n]+?)\$/g;
+  while ((match = inlineMathRegex.exec(text)) !== null) {
+    const from = match.index;
+    const to = inlineMathRegex.lastIndex;
+    const isPartOfBlockMath =
+      (from > 0 && text[from - 1] === '$') ||
+      (to < text.length && text[to] === '$');
+    if (isPartOfBlockMath) continue;
+    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
+    if (isInsideCode(state, from)) continue;
+    if (cursorInRange(state, from, to)) {
+      decorations.push(
+        Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
+      );
+    }
+  }
+}
 
-  // Detect inline math (but avoid block math patterns)
+/**
+ * Emits widget decorations (MathWidget replaces full range) for math
+ * when cursor is OUTSIDE.
+ */
+function detectMathWidgets(state: EditorState, decorations: Range<Decoration>[], text: string): void {
+  const fences = collectMathFences(state, text);
+  const blocks = pairMathFences(state, fences);
+  const multiLineMathRanges = blocks.map(b => ({ from: b.rangeFrom, to: b.rangeTo }));
+
+  // Multi-line block math
+  for (const block of blocks) {
+    if (!cursorInRange(state, block.rangeFrom, block.rangeTo)) {
+      decorations.push(
+        Decoration.replace({
+          widget: new MathWidget(block.latex, true),
+        }).range(block.openFrom, block.closeTo),
+      );
+    }
+  }
+
+  // Single-line block math ($$...$$)
+  const blockMathRegex = /\$\$([^\$\n]+?)\$\$/g;
+  let match;
+  while ((match = blockMathRegex.exec(text)) !== null) {
+    const from = match.index;
+    const to = blockMathRegex.lastIndex;
+    const latex = match[1].trim();
+    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
+    if (isInsideCode(state, from)) continue;
+    if (!cursorInRange(state, from, to)) {
+      decorations.push(
+        Decoration.replace({
+          widget: new MathWidget(latex, true),
+        }).range(from, to),
+      );
+    }
+  }
+
+  // Inline math ($...$)
+  const inlineMathRegex = /\$([^$\n]+?)\$/g;
   while ((match = inlineMathRegex.exec(text)) !== null) {
     const from = match.index;
     const to = inlineMathRegex.lastIndex;
     const latex = match[1].trim();
-
-    // Check if this is part of a block math pattern (look behind and ahead)
     const isPartOfBlockMath =
       (from > 0 && text[from - 1] === '$') ||
       (to < text.length && text[to] === '$');
-
     if (isPartOfBlockMath) continue;
-
-    // Skip if inside a multi-line math block
     if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-
-    // Check if cursor is on the same line
-    const isCursorInside = cursorInRange(state, from, to);
-
-    if (!isCursorInside) {
-      // Inline math is always single-line, safe to use widget
+    if (isInsideCode(state, from)) continue;
+    if (!cursorInRange(state, from, to)) {
       decorations.push(
         Decoration.replace({
           widget: new MathWidget(latex, false),
         }).range(from, to),
       );
-    } else {
-      // Show syntax when cursor is on line
-      decorations.push(
-        Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
-      );
     }
   }
 }
 
-function detectWikiEmbeds(state: EditorState, decorations: Range<Decoration>[]): void {
-  const text = state.doc.toString();
+// =============================================================================
+// Wiki Embeds detection (widget only)
+// =============================================================================
+
+function detectWikiEmbeds(state: EditorState, decorations: Range<Decoration>[], text: string): void {
   const fileTree = state.field(fileTreeField, false) || [];
-  const resolver = state.field(embedResolverField, false);
+  const resolver = state.field(embedResolverField, false) ?? null;
 
   wikiEmbedRegex.lastIndex = 0;
   let match;
@@ -760,38 +829,86 @@ function detectWikiEmbeds(state: EditorState, decorations: Range<Decoration>[]):
   }
 }
 
-export const hideMarkupPlugin = ViewPlugin.fromClass(
+// =============================================================================
+// StateField for mark/line decorations
+// =============================================================================
+// Updates atomically with each transaction — no requestMeasure needed.
+// Safe because mark decorations (cm-syntax-hidden, line classes) don't cause
+// geometry changes that trigger measure loops.
+// =============================================================================
+
+export const markDecorationsField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildMarkDecorations(state);
+  },
+  update(value, tr) {
+    // Detect incremental parser advancement: the tree object changes identity
+    // when the parser finishes a new chunk. Rebuilding here prevents stale
+    // decorations from accumulating and causing a massive one-time rebuild later.
+    const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
+    if (tr.docChanged || tr.selection || treeChanged) {
+      return buildMarkDecorations(tr.state);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+// =============================================================================
+// StateField for widget/replace decorations
+// =============================================================================
+// Multi-line Decoration.replace MUST come from a StateField (CM requirement).
+// Deferred updates: only rebuilds on docChanged (sync) or cursorSettledEffect
+// (deferred via rAF from the scheduler plugin below). This prevents measure
+// loops from geometry changes on every selection/tree change.
+// =============================================================================
+
+export const widgetDecorationsField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildWidgetDecorations(state);
+  },
+  update(value, tr) {
+    // Sync rebuild on doc changes
+    if (tr.docChanged) {
+      return buildWidgetDecorations(tr.state);
+    }
+    // Deferred rebuild when cursor has settled (rAF fired)
+    if (tr.effects.some(e => e.is(cursorSettledEffect))) {
+      return buildWidgetDecorations(tr.state);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+// =============================================================================
+// ViewPlugin: rAF scheduler for deferred widget rebuilds
+// =============================================================================
+// Watches for selection changes and tree advancement, then dispatches
+// cursorSettledEffect after a rAF delay. No decorations — purely a scheduler.
+// =============================================================================
+
+export const widgetUpdateScheduler = ViewPlugin.fromClass(
   class {
-    decorations: DecorationSet;
-    cursorPos: number;
     pendingUpdate: number | null = null;
 
-    constructor(view: EditorView) {
-      this.decorations = buildDecorations(view.state);
-      this.cursorPos = view.state.selection.main.head;
-    }
-
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.cursorPos = update.state.selection.main.head;
-        this.decorations = buildDecorations(update.state);
+      // On doc change the StateField already rebuilt synchronously — cancel any pending rAF
+      if (update.docChanged) {
+        if (this.pendingUpdate !== null) {
+          cancelAnimationFrame(this.pendingUpdate);
+          this.pendingUpdate = null;
+        }
         return;
       }
 
-      if (update.selectionSet) {
-        const newPos = update.state.selection.main.head;
-        if (newPos === this.cursorPos) return;
-        this.cursorPos = newPos;
-
-        // Defer decoration rebuild to next frame so CodeMirror finishes
-        // cursor positioning with stable geometry first
-        if (this.pendingUpdate !== null) {
-          cancelAnimationFrame(this.pendingUpdate);
-        }
+      // Defer widget rebuild on selection change or tree advancement
+      const treeChanged = syntaxTree(update.state) !== syntaxTree(update.startState);
+      if (update.selectionSet || treeChanged) {
+        if (this.pendingUpdate !== null) cancelAnimationFrame(this.pendingUpdate);
         this.pendingUpdate = requestAnimationFrame(() => {
           this.pendingUpdate = null;
-          this.decorations = buildDecorations(update.view.state);
-          update.view.requestMeasure();
+          update.view.dispatch({ effects: cursorSettledEffect.of(null) });
         });
       }
     }
@@ -801,9 +918,6 @@ export const hideMarkupPlugin = ViewPlugin.fromClass(
         cancelAnimationFrame(this.pendingUpdate);
       }
     }
-  },
-  {
-    decorations: (v) => v.decorations,
   },
 );
 

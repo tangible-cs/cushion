@@ -17,8 +17,20 @@ import { LocalAIButton } from './LocalAIButton';
 import { AgentSelector } from './AgentSelector';
 import { useToast } from './Toast';
 import { searchFiles } from '@/lib/wiki-link-resolver';
+import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 
 // Utility functions for path handling (like OpenCode)
+
+const CHAT_SHORTCUT_IDS = [
+  'chat.shell.exit',
+  'chat.suggestions.next',
+  'chat.suggestions.prev',
+  'chat.suggestions.confirm',
+  'chat.suggestions.close',
+  'chat.session.abort',
+  'chat.newline',
+  'chat.submit',
+] as const;
 function getDirectory(filePath: string): string {
   const lastSlash = filePath.lastIndexOf('/');
   return lastSlash > 0 ? filePath.slice(0, lastSlash) : '';
@@ -537,6 +549,7 @@ export function PromptInput({
   const footerRef = useRef<HTMLDivElement | null>(null);
   const leftControlsRef = useRef<HTMLDivElement | null>(null);
   const rightControlsRef = useRef<HTMLDivElement | null>(null);
+  const chatShortcuts = useShortcutBindings(CHAT_SHORTCUT_IDS);
   const fullLeftWidthRef = useRef(0);
   const contextItems = useChatStore((state) => state.contextItems);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
@@ -1190,6 +1203,7 @@ export function PromptInput({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
     const isImeComposing = event.nativeEvent.isComposing || composing;
+    const nativeEvent = event.nativeEvent;
     const editor = editorRef.current;
     if (!editor) return;
 
@@ -1211,7 +1225,7 @@ export function PromptInput({
       }
     }
 
-    if (shellMode && event.key === 'Escape') {
+    if (shellMode && matchShortcut(nativeEvent, chatShortcuts['chat.shell.exit'])) {
       event.preventDefault();
       const next = promptText.replace(/^!+/, '');
       setPromptText(next);
@@ -1232,17 +1246,17 @@ export function PromptInput({
     }
 
     if (suggestions.length > 0 && trigger) {
-      if (event.key === 'ArrowDown') {
+      if (matchShortcut(nativeEvent, chatShortcuts['chat.suggestions.next'])) {
         event.preventDefault();
         setActiveIndex((prev) => (prev + 1) % suggestions.length);
         return;
       }
-      if (event.key === 'ArrowUp') {
+      if (matchShortcut(nativeEvent, chatShortcuts['chat.suggestions.prev'])) {
         event.preventDefault();
         setActiveIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
         return;
       }
-      if (event.key === 'Enter' || event.key === 'Tab') {
+      if (matchShortcut(nativeEvent, chatShortcuts['chat.suggestions.confirm'])) {
         event.preventDefault();
         const item = suggestions[activeIndex];
         if (!item) return;
@@ -1253,26 +1267,26 @@ export function PromptInput({
         applySuggestion(item);
         return;
       }
-      if (event.key === 'Escape') {
+      if (matchShortcut(nativeEvent, chatShortcuts['chat.suggestions.close'])) {
         event.preventDefault();
         setTriggerState(null);
         return;
       }
     }
 
-    if (event.key === 'Escape' && working) {
+    if (working && matchShortcut(nativeEvent, chatShortcuts['chat.session.abort'])) {
       event.preventDefault();
       abortSession().catch(() => undefined);
       return;
     }
 
-    if (event.key === 'Enter' && event.shiftKey) {
+    if (matchShortcut(nativeEvent, chatShortcuts['chat.newline'])) {
       addPart({ type: 'text', content: '\n' });
       event.preventDefault();
       return;
     }
 
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (matchShortcut(nativeEvent, chatShortcuts['chat.submit'])) {
       if (isImeComposing) return;
       event.preventDefault();
       handleSubmit();
@@ -1513,7 +1527,12 @@ export function PromptInput({
               <div className="flex items-center gap-2 px-2 h-6 text-xs">
                 <Terminal className="size-4 text-foreground" />
                 <span className="text-foreground">Shell mode</span>
-                <span className="text-muted-foreground">Esc to exit</span>
+                <span className="text-muted-foreground">
+                  {(() => {
+                    const label = formatShortcutList(chatShortcuts['chat.shell.exit']);
+                    return label ? `${label} to exit` : 'Exit';
+                  })()}
+                </span>
               </div>
             ) : (
               <>

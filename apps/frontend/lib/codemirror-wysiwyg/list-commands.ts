@@ -1,6 +1,7 @@
 import { EditorView, KeyBinding } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
+import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
 
 /**
  * Matches a markdown list line prefix.
@@ -231,40 +232,39 @@ function listRemovePrefix(view: EditorView): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Exported keymap                                                   */
+/*  Exported keymap helpers                                           */
 /* ------------------------------------------------------------------ */
 
-export const listKeymap: KeyBinding[] = [
-  {
-    key: 'Tab',
-    run(view) {
-      if (isInSpecialBlock(view.state)) return false;
-      return listIndent(view);
-    },
-    shift(view) {
-      if (isInSpecialBlock(view.state)) return false;
-      return listOutdent(view);
-    },
-  },
-  {
-    key: 'Enter',
-    run(view) {
-      if (isInSpecialBlock(view.state)) return false;
-      return listEnter(view);
-    },
-  },
-  {
-    key: 'Backspace',
-    run(view) {
-      if (isInSpecialBlock(view.state)) return false;
-      return listRemovePrefix(view);
-    },
-  },
-  {
-    key: 'Delete',
-    run(view) {
-      if (isInSpecialBlock(view.state)) return false;
-      return listRemovePrefix(view);
-    },
-  },
-];
+type ListKeymapOptions = {
+  indent?: string[];
+  outdent?: string[];
+  continueList?: string[];
+  removePrefix?: string[];
+};
+
+function wrapListCommand(command: (view: EditorView) => boolean) {
+  return (view: EditorView) => {
+    if (isInSpecialBlock(view.state)) return false;
+    return command(view);
+  };
+}
+
+function buildBindings(keys: string[] | undefined, run: (view: EditorView) => boolean): KeyBinding[] {
+  if (!keys || keys.length === 0) return [];
+  const bindings: KeyBinding[] = [];
+  keys.forEach((binding) => {
+    const key = toCodeMirrorKey(binding);
+    if (!key) return;
+    bindings.push({ key, run });
+  });
+  return bindings;
+}
+
+export function createListKeymap(options: ListKeymapOptions): KeyBinding[] {
+  return [
+    ...buildBindings(options.indent, wrapListCommand(listIndent)),
+    ...buildBindings(options.outdent, wrapListCommand(listOutdent)),
+    ...buildBindings(options.continueList, wrapListCommand(listEnter)),
+    ...buildBindings(options.removePrefix, wrapListCommand(listRemovePrefix)),
+  ];
+}

@@ -9,6 +9,8 @@ import { EditorView, ViewPlugin, ViewUpdate, showTooltip, Tooltip } from '@codem
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { startCompletion } from '@codemirror/autocomplete';
 import type { Extension } from '@codemirror/state';
+import { getResolvedBindings } from '@/stores/shortcutsStore';
+import { matchShortcut, formatShortcutList } from '@/lib/shortcuts/utils';
 
 // --- Command definitions ---
 
@@ -304,13 +306,24 @@ function renderMenu(container: HTMLElement, editorState: EditorState, menu: Slas
     container.appendChild(list);
   }
 
-  // Footer
+  // Footer — dynamic hints from registry
+  const prevLabel = formatShortcutList(getResolvedBindings('editor.slashMenu.prev'));
+  const nextLabel = formatShortcutList(getResolvedBindings('editor.slashMenu.next'));
+  const confirmLabel = formatShortcutList(getResolvedBindings('editor.slashMenu.confirm'));
+  const closeLabel = formatShortcutList(getResolvedBindings('editor.slashMenu.close'));
+
   const footer = document.createElement('div');
   footer.className = 'cm-slash-menu-footer';
-  footer.innerHTML =
-    '<span><kbd>↑↓</kbd> Navigate</span>' +
-    '<span><kbd>Enter</kbd> Insert</span>' +
-    '<span><kbd>Esc</kbd> Close</span>';
+  let footerHtml = '';
+  if (prevLabel || nextLabel) {
+    const navKbds =
+      (prevLabel ? `<kbd>${prevLabel}</kbd>` : '') +
+      (nextLabel ? `<kbd>${nextLabel}</kbd>` : '');
+    footerHtml += `<span>${navKbds} Navigate</span>`;
+  }
+  if (confirmLabel) footerHtml += `<span><kbd>${confirmLabel}</kbd> Insert</span>`;
+  if (closeLabel) footerHtml += `<span><kbd>${closeLabel}</kbd> Close</span>`;
+  footer.innerHTML = footerHtml;
   container.appendChild(footer);
 }
 
@@ -428,34 +441,34 @@ const slashKeymap = EditorView.domEventHandlers({
 
     const filtered = filterCommands(menu.query);
 
-    switch (event.key) {
-      case 'ArrowDown': {
-        event.preventDefault();
-        const next = (menu.selectedIndex + 1) % Math.max(1, filtered.length);
-        view.dispatch({ effects: updateSlashSelection.of({ index: next }) });
-        return true;
-      }
-      case 'ArrowUp': {
-        event.preventDefault();
-        const prev = (menu.selectedIndex - 1 + filtered.length) % Math.max(1, filtered.length);
-        view.dispatch({ effects: updateSlashSelection.of({ index: prev }) });
-        return true;
-      }
-      case 'Enter': {
-        event.preventDefault();
-        executeCommand(view, menu.selectedIndex);
-        return true;
-      }
-      case 'Escape': {
-        event.preventDefault();
-        view.dispatch({ effects: closeSlashMenu.of(undefined) });
-        return true;
-      }
-      case 'Tab': {
-        event.preventDefault();
-        executeCommand(view, menu.selectedIndex);
-        return true;
-      }
+    const nextBindings = getResolvedBindings('editor.slashMenu.next');
+    if (matchShortcut(event, nextBindings)) {
+      event.preventDefault();
+      const next = (menu.selectedIndex + 1) % Math.max(1, filtered.length);
+      view.dispatch({ effects: updateSlashSelection.of({ index: next }) });
+      return true;
+    }
+
+    const prevBindings = getResolvedBindings('editor.slashMenu.prev');
+    if (matchShortcut(event, prevBindings)) {
+      event.preventDefault();
+      const prev = (menu.selectedIndex - 1 + filtered.length) % Math.max(1, filtered.length);
+      view.dispatch({ effects: updateSlashSelection.of({ index: prev }) });
+      return true;
+    }
+
+    const confirmBindings = getResolvedBindings('editor.slashMenu.confirm');
+    if (matchShortcut(event, confirmBindings)) {
+      event.preventDefault();
+      executeCommand(view, menu.selectedIndex);
+      return true;
+    }
+
+    const closeBindings = getResolvedBindings('editor.slashMenu.close');
+    if (matchShortcut(event, closeBindings)) {
+      event.preventDefault();
+      view.dispatch({ effects: closeSlashMenu.of(undefined) });
+      return true;
     }
 
     return false;

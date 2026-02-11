@@ -166,6 +166,10 @@ export class OpenAIOAuth {
   }
 
   private cleanupServer() {
+    if (this.oauthTimeout) {
+      clearTimeout(this.oauthTimeout);
+      this.oauthTimeout = null;
+    }
     if (this.httpServer) {
       this.httpServer.close();
       this.httpServer = null;
@@ -322,6 +326,7 @@ export class OpenAIOAuth {
   private oauthResolve: ((tokens: any) => void) | null = null;
   private oauthReject: ((error: Error) => void) | null = null;
   private hasProcessedCallback = false;
+  private oauthTimeout: ReturnType<typeof setTimeout> | null = null;
 
   async authorize(inputs: Record<string, string> = {}): Promise<{
     url: string;
@@ -336,6 +341,17 @@ export class OpenAIOAuth {
       accountId?: string;
     }>;
   }> {
+    // Reject any previous pending OAuth flow before starting a new one
+    if (this.oauthReject) {
+      this.oauthReject(new Error("OAuth flow superseded by new authorize() call"));
+      this.oauthResolve = null;
+      this.oauthReject = null;
+    }
+    if (this.oauthTimeout) {
+      clearTimeout(this.oauthTimeout);
+      this.oauthTimeout = null;
+    }
+
     const { redirectUri } = await this.startOAuthServer();
     const pkce = await this.generatePKCE();
     const state = this.generateState();
@@ -366,14 +382,15 @@ export class OpenAIOAuth {
       this.oauthResolve = resolve;
       this.oauthReject = reject;
 
-      // 5 minute timeout
-      setTimeout(() => {
+      // 5 minute timeout — always clean up server
+      this.oauthTimeout = setTimeout(() => {
         if (this.oauthReject) {
           this.oauthReject(new Error("OAuth callback timeout - authorization took too long"));
-          this.oauthResolve = null;
-          this.oauthReject = null;
-          this.cleanupServer();
         }
+        this.oauthResolve = null;
+        this.oauthReject = null;
+        this.oauthTimeout = null;
+        this.cleanupServer();
       }, 5 * 60 * 1000);
     });
 

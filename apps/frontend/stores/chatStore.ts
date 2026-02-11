@@ -32,6 +32,8 @@ import {
 
 type OpenCodeDirectory = string;
 
+type ModelVisibility = 'show' | 'hide';
+
 type ChatState = {
   baseUrl: string;
   directory: OpenCodeDirectory | null;
@@ -50,6 +52,7 @@ type ChatState = {
   commands: Command[];
   providers: Provider[];
   providerDefaults: Record<string, string>;
+  modelVisibility: Record<string, ModelVisibility>;
   selectedModel: SelectedModel | null;
   selectedModelByDirectory: Record<string, SelectedModel | null>;
   selectedVariant: string | null;
@@ -82,9 +85,12 @@ type ChatActions = {
   setSelectedAgent: (agent: string | null) => void;
   setActiveSession: (sessionID: string | null) => Promise<void>;
   setSelectedModel: (model: SelectedModel | null) => void;
+  isModelVisible: (model: SelectedModel) => boolean;
+  setModelVisibility: (model: SelectedModel, visible: boolean) => void;
   setSelectedVariant: (variant: string | null) => void;
   clearProviderAuthError: (providerID: string) => void;
   requestProviderAuth: (providerID: string) => Promise<string | null>;
+  refreshProviders: () => Promise<void>;
   respondToPermission: (input: { sessionID: string; permissionID: string; response: 'once' | 'always' | 'reject' }) => Promise<void>;
   replyToQuestion: (input: { requestID: string; answers: string[][] }) => Promise<void>;
   rejectQuestion: (input: { requestID: string }) => Promise<void>;
@@ -114,6 +120,7 @@ const initialState: ChatState = {
   commands: [],
   providers: [],
   providerDefaults: {},
+  modelVisibility: {},
   selectedModel: null,
   selectedModelByDirectory: {},
   selectedVariant: null,
@@ -613,6 +620,17 @@ export type SelectedModel = {
   modelID: string;
 };
 
+function getModelVisibilityKey(model: SelectedModel) {
+  return `${model.providerID}:${model.modelID}`;
+}
+
+function resolveModelVisibility(map: Record<string, ModelVisibility>, model: SelectedModel) {
+  const state = map[getModelVisibilityKey(model)];
+  if (state === 'hide') return false;
+  if (state === 'show') return true;
+  return true;
+}
+
 type ResultData<T> = { data: T };
 
 function unwrap<T>(result: T | ResultData<T>): T {
@@ -772,9 +790,19 @@ export const useChatStore = create<ChatState & ChatActions>()(
     setSelectedModel: (model: SelectedModel | null) => {
       set((state) => {
         const directory = state.directory;
+        const nextVisibility = model
+          ? {
+              ...state.modelVisibility,
+              [getModelVisibilityKey(model)]: 'show' as ModelVisibility,
+            }
+          : state.modelVisibility;
         if (!directory) {
           const resolvedVariant = resolveModelVariant(state.providers, model, state.selectedVariant);
-          return { selectedModel: model, selectedVariant: resolvedVariant };
+          return {
+            selectedModel: model,
+            selectedVariant: resolvedVariant,
+            modelVisibility: nextVisibility,
+          };
         }
         const resolvedVariant = resolveModelVariant(
           state.providers,
@@ -792,8 +820,24 @@ export const useChatStore = create<ChatState & ChatActions>()(
             ...state.selectedVariantByDirectory,
             [directory]: resolvedVariant,
           },
+          modelVisibility: nextVisibility,
         };
       });
+    },
+
+    isModelVisible: (model: SelectedModel) => {
+      return resolveModelVisibility(get().modelVisibility, model);
+    },
+
+    setModelVisibility: (model: SelectedModel, visible: boolean) => {
+      const key = getModelVisibilityKey(model);
+      const visibility: ModelVisibility = visible ? 'show' : 'hide';
+      set((state) => ({
+        modelVisibility: {
+          ...state.modelVisibility,
+          [key]: visibility,
+        },
+      }));
     },
 
     setSelectedVariant: (variant: string | null) => {
@@ -827,6 +871,38 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const data = response ? unwrap(response) : undefined;
       if (!data) return null;
       return data.url ?? null;
+    },
+
+    refreshProviders: async () => {
+      const directory = get().directory;
+      if (!directory) return;
+      const client = getDirectoryClient(directory, get().baseUrl);
+      await client.instance.dispose().catch(() => undefined);
+      const providerResult = await client.config.providers({ directory }).catch(() => undefined);
+      const providerData = providerResult ? unwrap(providerResult) : undefined;
+      if (!providerData) return;
+
+      const providers = providerData.providers ?? get().providers;
+      const providerDefaults = providerData.default ?? get().providerDefaults;
+      const storedModel = get().selectedModelByDirectory[directory] ?? get().selectedModel ?? null;
+      const storedVariant = get().selectedVariantByDirectory[directory] ?? get().selectedVariant;
+      const selectedModelResolved = resolveModel(providers, providerDefaults, storedModel);
+      const selectedVariantResolved = resolveModelVariant(providers, selectedModelResolved, storedVariant);
+
+      set((state) => ({
+        providers,
+        providerDefaults,
+        selectedModel: selectedModelResolved,
+        selectedModelByDirectory: {
+          ...state.selectedModelByDirectory,
+          [directory]: selectedModelResolved,
+        },
+        selectedVariant: selectedVariantResolved,
+        selectedVariantByDirectory: {
+          ...state.selectedVariantByDirectory,
+          [directory]: selectedVariantResolved,
+        },
+      }));
     },
 
     respondToPermission: async ({ sessionID, permissionID, response }) => {
@@ -1022,6 +1098,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         selectedAgentByDirectory: state.selectedAgentByDirectory,
         selectedModelByDirectory: state.selectedModelByDirectory,
         selectedVariantByDirectory: state.selectedVariantByDirectory,
+        modelVisibility: state.modelVisibility,
       }));
     },
 
@@ -1924,6 +2001,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           selectedAgentByDirectory: state.selectedAgentByDirectory,
           selectedModelByDirectory: state.selectedModelByDirectory,
           selectedVariantByDirectory: state.selectedVariantByDirectory,
+          modelVisibility: state.modelVisibility,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;

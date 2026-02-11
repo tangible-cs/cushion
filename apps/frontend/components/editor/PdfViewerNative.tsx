@@ -1,18 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   ZoomIn, ZoomOut, ChevronUp, ChevronDown,
   FileText, RotateCw, Download, Printer, Save,
   Search, X, Type, Pencil, Highlighter, Image as ImageIcon,
   MousePointer
 } from 'lucide-react';
+import { formatShortcutList, matchShortcut, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
 
 interface PdfViewerNativeProps {
   filePath: string;
   base64Data: string;
   onSave?: (data: Uint8Array) => void;
 }
+
+const PDF_SHORTCUT_IDS = [
+  'pdf.search.open',
+  'pdf.search.next',
+  'pdf.search.prev',
+  'pdf.search.close',
+  'pdf.save',
+  'pdf.zoom.in',
+  'pdf.zoom.out',
+] as const;
 
 // Annotation editor modes from pdf.js
 const AnnotationEditorType = {
@@ -67,6 +78,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const pdfShortcuts = useShortcutBindings(PDF_SHORTCUT_IDS);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Toolbar param state
@@ -362,42 +374,36 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     });
   }, [searchQuery]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setShowSearch(true);
-        setTimeout(() => searchInputRef.current?.focus(), 50);
+  // Keyboard shortcuts (US-E1)
+  const pdfHandlers = useMemo(() => ({
+    'pdf.search.open': () => {
+      setShowSearch(true);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    },
+    'pdf.search.close': () => {
+      if (showSearch) {
+        setShowSearch(false);
+        setSearchQuery('');
       }
-      if (e.key === 'Escape') {
-        if (showSearch) {
-          setShowSearch(false);
-          setSearchQuery('');
-        }
-        if (editorMode !== 'none') {
-          setEditorMode('none');
-        }
+      if (editorMode !== 'none') {
+        setEditorMode('none');
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (hasChanges) handleSave();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
-        e.preventDefault();
-        handleZoom(10);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
-        e.preventDefault();
-        handleZoom(-10);
-      }
-    };
+    },
+    'pdf.save': () => { if (hasChanges) handleSave(); },
+    'pdf.zoom.in': () => { handleZoom(10); },
+    'pdf.zoom.out': () => { handleZoom(-10); },
+  } as const), [showSearch, editorMode, hasChanges, handleSave, handleZoom]);
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showSearch, editorMode, hasChanges, handleSave, handleZoom]);
+  useShortcutHandler({ handlers: pdfHandlers });
 
-  // Ctrl+Scroll zoom
+  // Ctrl/Cmd + Scroll wheel zoom (non-customizable platform gesture).
+  // This is intentionally NOT part of the shortcut registry because:
+  //  - Wheel events are continuous gestures, not discrete key presses.
+  //  - Ctrl+Scroll-to-zoom is a universal platform convention (browsers, PDF
+  //    viewers, image editors) and users expect it to work without configuration.
+  //  - Keyboard alternatives (pdf.zoom.in / pdf.zoom.out) are registry-driven
+  //    and fully customizable in Settings.
+  // Policy: US-D2 — classified as non-customizable gesture.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -416,6 +422,13 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
   const fileName = filePath.split(/[/\\]/).pop() || 'Document';
   const zoomPresets = [50, 75, 100, 125, 150, 200, 300, 400];
+  const searchShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.open']);
+  const cancelShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.close']);
+  const saveShortcutLabel = formatShortcutList(pdfShortcuts['pdf.save']);
+  const zoomInShortcutLabel = formatShortcutList(pdfShortcuts['pdf.zoom.in']);
+  const zoomOutShortcutLabel = formatShortcutList(pdfShortcuts['pdf.zoom.out']);
+  const searchNextShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.next']);
+  const searchPrevShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.prev']);
 
   if (error) {
     return (
@@ -440,7 +453,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
             setShowSearch(s => !s);
             if (!showSearch) setTimeout(() => searchInputRef.current?.focus(), 50);
           }}
-          title="Search (Ctrl+F)"
+          title={searchShortcutLabel ? `Search (${searchShortcutLabel})` : 'Search'}
         >
           <Search size={18} />
         </button>
@@ -455,7 +468,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
               : 'hover:bg-[#484644] text-[#d4d4d4]'
           }`}
           onClick={() => setEditorMode('none')}
-          title="Selection tool (Esc)"
+          title={cancelShortcutLabel ? `Selection tool (${cancelShortcutLabel})` : 'Selection tool'}
         >
           <MousePointer size={18} />
         </button>
@@ -646,7 +659,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           <button
             className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
             onClick={() => handleZoom(-10)}
-            title="Zoom out (Ctrl+-)"
+            title={zoomOutShortcutLabel ? `Zoom out (${zoomOutShortcutLabel})` : 'Zoom out'}
           >
             <ZoomOut size={18} />
           </button>
@@ -654,7 +667,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           <button
             className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
             onClick={() => handleZoom(10)}
-            title="Zoom in (Ctrl++)"
+            title={zoomInShortcutLabel ? `Zoom in (${zoomInShortcutLabel})` : 'Zoom in'}
           >
             <ZoomIn size={18} />
           </button>
@@ -707,7 +720,10 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
             }`}
             onClick={handleSave}
             disabled={!hasChanges || saving}
-            title={hasChanges ? "Save with annotations (Ctrl+S)" : "No changes to save"}
+            title={hasChanges
+              ? (saveShortcutLabel ? `Save with annotations (${saveShortcutLabel})` : 'Save with annotations')
+              : 'No changes to save'
+            }
           >
             <Save size={18} />
           </button>
@@ -728,9 +744,17 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.defaultPrevented) return;
+              const nextBindings = pdfShortcuts['pdf.search.next'];
+              const prevBindings = pdfShortcuts['pdf.search.prev'];
+              if (matchShortcut(e.nativeEvent, prevBindings)) {
                 e.preventDefault();
-                handleSearch(e.shiftKey ? 'prev' : searchQuery ? 'next' : 'initial');
+                handleSearch('prev');
+                return;
+              }
+              if (matchShortcut(e.nativeEvent, nextBindings)) {
+                e.preventDefault();
+                handleSearch(searchQuery ? 'next' : 'initial');
               }
             }}
             placeholder="Search in document..."
@@ -739,14 +763,14 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           <button
             onClick={() => handleSearch('prev')}
             className="p-1 rounded hover:bg-[#484644] text-[#d4d4d4]"
-            title="Previous match (Shift+Enter)"
+            title={searchPrevShortcutLabel ? `Previous match (${searchPrevShortcutLabel})` : 'Previous match'}
           >
             <ChevronUp size={16} />
           </button>
           <button
             onClick={() => handleSearch('next')}
             className="p-1 rounded hover:bg-[#484644] text-[#d4d4d4]"
-            title="Next match (Enter)"
+            title={searchNextShortcutLabel ? `Next match (${searchNextShortcutLabel})` : 'Next match'}
           >
             <ChevronDown size={16} />
           </button>
@@ -784,7 +808,9 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           {editorMode === 'ink' && <><Pencil size={16} /> Draw on the page</>}
           {editorMode === 'highlight' && <><Highlighter size={16} /> Select text to highlight</>}
           {editorMode === 'stamp' && <><ImageIcon size={16} /> Click to add image</>}
-          <span className="text-[#888] ml-1 text-xs">(Esc to exit)</span>
+          {cancelShortcutLabel && (
+            <span className="text-[#888] ml-1 text-xs">({cancelShortcutLabel} to exit)</span>
+          )}
         </div>
       )}
     </div>

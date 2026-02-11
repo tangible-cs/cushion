@@ -1,12 +1,48 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { EditorState } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { basicSetup } from 'codemirror';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { Compartment, EditorState, Prec } from '@codemirror/state';
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  drawSelection,
+  dropCursor,
+  rectangularSelection,
+  crosshairCursor,
+  highlightActiveLine,
+  type KeyBinding,
+} from '@codemirror/view';
+import {
+  HighlightStyle,
+  syntaxHighlighting,
+  defaultHighlightStyle,
+  indentOnInput,
+  bracketMatching,
+  foldGutter,
+  foldKeymap,
+} from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { indentWithTab } from '@codemirror/commands';
+import {
+  indentLess,
+  indentMore,
+  history,
+  defaultKeymap,
+  historyKeymap,
+} from '@codemirror/commands';
+import {
+  highlightSelectionMatches,
+  searchKeymap,
+} from '@codemirror/search';
+import {
+  closeBrackets,
+  closeBracketsKeymap,
+  autocompletion,
+  completionKeymap,
+} from '@codemirror/autocomplete';
+import { lintKeymap } from '@codemirror/lint';
 import { javascript } from '@codemirror/lang-javascript';
 import { markdown } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
@@ -19,13 +55,18 @@ import type { Extension } from '@codemirror/state';
 import type { FileTreeNode } from '@cushion/types';
 import {
   wysiwygExtension,
+  focusModeExtension,
   updateWikiLinkFileTree,
   setWikiLinkNavigateCallback,
+  setFocusMode,
   type WikiLinkNavigateCallback,
   setEmbedResolver,
   type EmbedResolver,
 } from '@/lib/codemirror-wysiwyg';
 import { TaskListWithCanceled } from '@/lib/markdown-extensions';
+import { createListKeymap } from '@/lib/codemirror-wysiwyg/list-commands';
+import { useShortcutBindings } from '@/lib/shortcuts';
+import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
 
 interface CodeEditorProps {
   filePath: string;
@@ -40,6 +81,8 @@ interface CodeEditorProps {
   onWikiLinkNavigate?: WikiLinkNavigateCallback;
   /** Resolver for embed content (e.g., ![[file]]) */
   embedResolver?: EmbedResolver;
+  /** Whether focus mode is enabled */
+  focusModeEnabled?: boolean;
 }
 
 export type SelectionInfo = {
@@ -87,6 +130,19 @@ const markdownCodeLanguages = [
   }),
 ];
 
+const EDITOR_SHORTCUT_IDS = [
+  'editor.save',
+  'editor.indent',
+  'editor.outdent',
+] as const;
+
+const EDITOR_LIST_SHORTCUT_IDS = [
+  'editor.indent',
+  'editor.outdent',
+  'editor.list.continue',
+  'editor.list.removePrefix',
+] as const;
+
 function getLanguageExtension(filePath: string, language?: string): Extension | null {
   const ext = language || filePath.split('.').pop()?.toLowerCase() || '';
 
@@ -128,6 +184,7 @@ export function CodeEditor({
   fileTree,
   onWikiLinkNavigate,
   embedResolver,
+  focusModeEnabled = false,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -136,6 +193,51 @@ export function CodeEditor({
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
   const embedResolverRef = useRef(embedResolver);
   const onSelectionChangeRef = useRef(onSelectionChange);
+  const focusModeEnabledRef = useRef(focusModeEnabled);
+  const typewriterRafRef = useRef<number | null>(null);
+  const typewriterScrollRafRef = useRef<number | null>(null);
+  const typewriterScrollTargetRef = useRef<number | null>(null);
+  const isMouseDownRef = useRef(false);
+  const editorKeymapCompartmentRef = useRef(new Compartment());
+  const listKeymapCompartmentRef = useRef(new Compartment());
+
+  const editorShortcuts = useShortcutBindings(EDITOR_SHORTCUT_IDS);
+  const listShortcuts = useShortcutBindings(EDITOR_LIST_SHORTCUT_IDS);
+
+  const isMarkdownFile = useMemo(() => /\.(md|markdown)$/i.test(filePath), [filePath]);
+
+  const editorKeymap = useMemo<KeyBinding[]>(() => {
+    const bindings: KeyBinding[] = [];
+    const seenKeys = new Set<string>();
+
+    const addBindings = (keys: string[], run: (view: EditorView) => boolean) => {
+      keys.forEach((binding) => {
+        const key = toCodeMirrorKey(binding);
+        if (!key || seenKeys.has(key)) return;
+        seenKeys.add(key);
+        bindings.push({ key, run });
+      });
+    };
+
+    addBindings(editorShortcuts['editor.save'], () => {
+      onSaveRef.current?.();
+      return true;
+    });
+
+    addBindings(editorShortcuts['editor.indent'], indentMore);
+    addBindings(editorShortcuts['editor.outdent'], indentLess);
+
+    return bindings;
+  }, [editorShortcuts]);
+
+  const listKeymap = useMemo(() => {
+    return createListKeymap({
+      indent: listShortcuts['editor.indent'],
+      outdent: listShortcuts['editor.outdent'],
+      continueList: listShortcuts['editor.list.continue'],
+      removePrefix: listShortcuts['editor.list.removePrefix'],
+    });
+  }, [listShortcuts]);
 
   // Keep callback refs up to date without re-creating the editor
   onChangeRef.current = onChange;
@@ -143,10 +245,88 @@ export function CodeEditor({
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
   embedResolverRef.current = embedResolver;
   onSelectionChangeRef.current = onSelectionChange;
+  focusModeEnabledRef.current = focusModeEnabled;
+
+  const stopTypewriterScroll = useCallback(() => {
+    if (typewriterScrollRafRef.current !== null) {
+      cancelAnimationFrame(typewriterScrollRafRef.current);
+      typewriterScrollRafRef.current = null;
+    }
+    typewriterScrollTargetRef.current = null;
+  }, []);
+
+  const smoothScrollTo = useCallback((container: HTMLElement, target: number) => {
+    if (typewriterScrollTargetRef.current !== null
+      && Math.abs(target - typewriterScrollTargetRef.current) < 1) {
+      return;
+    }
+    typewriterScrollTargetRef.current = target;
+    if (typewriterScrollRafRef.current !== null) {
+      cancelAnimationFrame(typewriterScrollRafRef.current);
+      typewriterScrollRafRef.current = null;
+    }
+    const startTop = container.scrollTop;
+    const distance = target - startTop;
+    if (Math.abs(distance) < 1) {
+      typewriterScrollTargetRef.current = null;
+      return;
+    }
+    const duration = Math.min(420, Math.max(200, Math.abs(distance) * 0.7));
+    const start = performance.now();
+    const easeInOutSine = (t: number) => (
+      -(Math.cos(Math.PI * t) - 1) / 2
+    );
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / duration);
+      container.scrollTop = startTop + distance * easeInOutSine(t);
+      if (t < 1) {
+        typewriterScrollRafRef.current = requestAnimationFrame(step);
+      } else {
+        typewriterScrollRafRef.current = null;
+        typewriterScrollTargetRef.current = null;
+      }
+    };
+    typewriterScrollRafRef.current = requestAnimationFrame(step);
+  }, []);
+
+  const centerCursorInView = useCallback((view: EditorView) => {
+    if (!focusModeEnabledRef.current) return;
+    if (!view.hasFocus) return;
+    const scrollContainer = view.dom.closest('[data-editor-scroll-container]') as HTMLElement | null;
+    const container = scrollContainer ?? view.scrollDOM;
+    if (!container) return;
+    const coords = view.coordsAtPos(view.state.selection.main.head);
+    if (!coords) return;
+    const containerRect = container.getBoundingClientRect();
+    const cursorCenter = (coords.top + coords.bottom) / 2;
+    const containerCenter = containerRect.top + containerRect.height / 2;
+    const delta = cursorCenter - containerCenter;
+    if (Math.abs(delta) < 2) return;
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    const nextScrollTop = Math.min(maxScroll, Math.max(0, container.scrollTop + delta));
+    if (Math.abs(nextScrollTop - container.scrollTop) < 1) return;
+    smoothScrollTo(container, nextScrollTop);
+  }, [smoothScrollTo]);
+
+  const scheduleTypewriterCentering = useCallback((view: EditorView) => {
+    if (!focusModeEnabledRef.current) return;
+    if (isMouseDownRef.current) return;
+    if (!view.state.selection.main.empty) return;
+    if (typewriterRafRef.current !== null) {
+      cancelAnimationFrame(typewriterRafRef.current);
+    }
+    typewriterRafRef.current = requestAnimationFrame(() => {
+      typewriterRafRef.current = null;
+      centerCursorInView(view);
+    });
+  }, [centerCursorInView]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const container = containerRef.current;
+    container.style.setProperty('--md-code-gutter-width', '0px');
     const langExt = getLanguageExtension(filePath, language);
 
     // Theme that adapts via CSS variables (supports light/dark)
@@ -210,8 +390,75 @@ export function CodeEditor({
       { tag: tags.invalid, color: 'var(--md-text-faint, #5c6370)' },
     ]);
 
+    // --- Explicit setup (replaces opaque `basicSetup` bundle) ---
+    // This gives us full control over which keymaps are active so every
+    // binding either lives in the shortcut registry or is explicitly
+    // documented as a CM-internal default.
+    //
+    // Registry-controlled shortcuts (customizable via Settings):
+    //   editor.save, editor.indent, editor.outdent,
+    //   editor.list.*, editor.slashMenu.*, editor.checkbox.toggle
+    //
+    // CM-internal shortcuts (not in registry, intentionally kept):
+    //   Undo/Redo           Mod-Z / Mod-Y / Mod-Shift-Z
+    //   Search               Mod-F / F3 / Shift-F3
+    //   Select next occur.   Mod-D
+    //   Select line          Alt-L (Ctrl-L on Mac)
+    //   Toggle comment       Mod-/
+    //   Block comment        Shift-Alt-A
+    //   Delete line          Shift-Mod-K
+    //   Move line up/down    Alt-Up / Alt-Down
+    //   Copy line up/down    Shift-Alt-Up / Shift-Alt-Down
+    //   Fold/unfold          Ctrl-Shift-[ / Ctrl-Shift-]
+    //   Start completion     Ctrl-Space
+    //   Bracket matching     Shift-Mod-\
+    //   Cursor navigation    Arrow keys, Home/End, Page Up/Down, etc.
+    //   Simplify selection   Escape (collapses multi-cursors)
+    //   Close completion     Escape (closes autocomplete popup)
+    //
+    // Excluded (conflict with registry app-level shortcuts):
+    //   Mod-G / Shift-Mod-G  (searchKeymap findNext/findPrevious)
+    //     → conflicts with app.graph.toggle (Mod+G)
+    //     → use F3/Shift-F3 for find next/prev instead
+
+    // Filter searchKeymap to remove Mod-g / Shift-Mod-g bindings that
+    // conflict with the app-level graph toggle shortcut (Mod+G).
+    // Find next/prev remain available via F3 / Shift-F3.
+    const filteredSearchKeymap = searchKeymap.filter((binding) => {
+      const key = binding.key?.toLowerCase() ?? '';
+      return key !== 'mod-g' && key !== 'shift-mod-g';
+    });
+
     const extensions: Extension[] = [
-      basicSetup,
+      // -- Features (non-keymap) --
+      lineNumbers(),
+      highlightActiveLineGutter(),
+      highlightSpecialChars(),
+      history(),
+      foldGutter(),
+      drawSelection(),
+      dropCursor(),
+      EditorState.allowMultipleSelections.of(true),
+      indentOnInput(),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      bracketMatching(),
+      closeBrackets(),
+      autocompletion(),
+      rectangularSelection(),
+      crosshairCursor(),
+      highlightActiveLine(),
+      highlightSelectionMatches(),
+      // -- Keymaps (CM-internal, explicitly listed) --
+      keymap.of([
+        ...closeBracketsKeymap,
+        ...defaultKeymap,
+        ...filteredSearchKeymap,
+        ...historyKeymap,
+        ...foldKeymap,
+        ...completionKeymap,
+        ...lintKeymap,
+      ]),
+      focusModeExtension(),
       adaptiveTheme,
       syntaxHighlighting(adaptiveHighlight),
       EditorView.updateListener.of((update) => {
@@ -240,20 +487,47 @@ export function CodeEditor({
           });
         }
       }),
-      keymap.of([
-        indentWithTab,
-        {
-          key: 'Mod-s',
-          run: () => {
-            onSaveRef.current?.();
-            return true;
-          },
+      EditorView.domEventHandlers({
+        mousedown: () => {
+          isMouseDownRef.current = true;
+          stopTypewriterScroll();
+          if (typewriterRafRef.current !== null) {
+            cancelAnimationFrame(typewriterRafRef.current);
+            typewriterRafRef.current = null;
+          }
+          return false;
         },
-      ]),
+        mouseup: (_event, view) => {
+          isMouseDownRef.current = false;
+          if (focusModeEnabledRef.current) {
+            scheduleTypewriterCentering(view);
+          }
+          return false;
+        },
+        wheel: () => {
+          stopTypewriterScroll();
+          return false;
+        },
+      }),
+      EditorView.updateListener.of((update) => {
+        if (!focusModeEnabledRef.current) return;
+        if (!update.selectionSet && !update.docChanged) return;
+        scheduleTypewriterCentering(update.view);
+      }),
+      listKeymapCompartmentRef.current.of(
+        isMarkdownFile ? Prec.high(keymap.of(listKeymap)) : []
+      ),
+      editorKeymapCompartmentRef.current.of(
+        Prec.high(keymap.of(editorKeymap))
+      ),
       EditorView.theme({
         '&': { width: '100%' },
         /* Let the editor grow with content, parent handles scrolling */
-        '.cm-scroller': { overflow: 'visible' },
+        '.cm-scroller': {
+          overflow: 'visible',
+          marginLeft: 'calc(-1 * var(--md-code-gutter-width, 0px))',
+          width: 'calc(100% + var(--md-code-gutter-width, 0px))',
+        },
         /* Content area — match markdown layout padding for all file types */
         '.cm-content': {
           maxWidth: 'var(--md-content-max-width, 900px)',
@@ -278,12 +552,51 @@ export function CodeEditor({
       extensions,
     });
 
+    let gutterObserver: ResizeObserver | null = null;
+    let destroyed = false;
+
     const view = new EditorView({
       state,
-      parent: containerRef.current,
+      parent: container,
     });
 
     viewRef.current = view;
+    setFocusMode(view, focusModeEnabledRef.current);
+    if (focusModeEnabledRef.current) {
+      scheduleTypewriterCentering(view);
+    }
+
+    const handleWindowMouseUp = () => {
+      isMouseDownRef.current = false;
+    };
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    if (!isMarkdownFile) {
+      const gutterEl = view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+      const updateGutterWidth = () => {
+        if (destroyed || !gutterEl) return;
+        const width = gutterEl.getBoundingClientRect().width;
+        if (!Number.isFinite(width)) return;
+        let shift = width;
+        const parent = container.parentElement;
+        if (parent) {
+          const parentRect = parent.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const availableLeft = Math.max(0, containerRect.left - parentRect.left);
+          shift = Math.min(width, availableLeft);
+        }
+        container.style.setProperty('--md-code-gutter-width', `${Math.ceil(shift)}px`);
+      };
+
+      if (gutterEl) {
+        requestAnimationFrame(updateGutterWidth);
+        if (typeof ResizeObserver !== 'undefined') {
+          gutterObserver = new ResizeObserver(updateGutterWidth);
+          gutterObserver.observe(gutterEl);
+          gutterObserver.observe(container);
+        }
+      }
+    }
 
     // Set initial file tree for wiki-links
     if (fileTree && fileTree.length > 0) {
@@ -305,12 +618,40 @@ export function CodeEditor({
     });
 
     return () => {
+      destroyed = true;
+      gutterObserver?.disconnect();
+      if (typewriterRafRef.current !== null) {
+        cancelAnimationFrame(typewriterRafRef.current);
+        typewriterRafRef.current = null;
+      }
+      stopTypewriterScroll();
+      window.removeEventListener('mouseup', handleWindowMouseUp);
       view.destroy();
       viewRef.current = null;
     };
     // Re-create editor when filePath or language changes; content is initial only per file
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, language]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: editorKeymapCompartmentRef.current.reconfigure(
+        Prec.high(keymap.of(editorKeymap))
+      ),
+    });
+  }, [editorKeymap]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: listKeymapCompartmentRef.current.reconfigure(
+        isMarkdownFile ? Prec.high(keymap.of(listKeymap)) : []
+      ),
+    });
+  }, [listKeymap, isMarkdownFile]);
 
   // Update file tree when it changes (for wiki-link resolution)
   useEffect(() => {
@@ -320,16 +661,26 @@ export function CodeEditor({
     }
   }, [fileTree]);
 
-  const isMarkdown = /\.(md|markdown)$/i.test(filePath);
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    setFocusMode(view, focusModeEnabled);
+    if (focusModeEnabled) {
+      scheduleTypewriterCentering(view);
+    } else {
+      stopTypewriterScroll();
+    }
+  }, [focusModeEnabled, scheduleTypewriterCentering, stopTypewriterScroll]);
+
   return (
     <div
       ref={containerRef}
       style={{
         width: '100%',
-        ...(!isMarkdown ? {
+        ...(!isMarkdownFile ? {
           maxWidth: 'var(--md-content-max-width, 900px)',
           margin: '0 auto',
-          padding: '0 1.25em 1em',
+          padding: '0 0 1em',
           boxSizing: 'border-box' as const,
         } : {}),
       }}

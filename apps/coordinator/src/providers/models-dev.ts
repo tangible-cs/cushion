@@ -54,6 +54,7 @@ export class ModelsDevCache {
   private cache: ModelsDevResponse = {};
   private lastFetch: number = 0;
   private cacheDuration = 60 * 60 * 1000; // 1 hour in milliseconds
+  private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.loadCache();
@@ -117,9 +118,16 @@ export class ModelsDevCache {
 
   private startAutoRefresh(): void {
     // Refresh every hour (matching OpenCode)
-    setInterval(() => {
+    this.refreshInterval = setInterval(() => {
       this.refresh();
     }, this.cacheDuration);
+  }
+
+  stopAutoRefresh(): void {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
   }
 
   isCacheStale(): boolean {

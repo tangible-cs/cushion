@@ -7,7 +7,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import writeFileAtomic from 'write-file-atomic';
-import type { FileTreeNode } from '@cushion/types';
+import { watch, type FSWatcher } from 'chokidar';
+import type { FileTreeNode, FileChange } from '@cushion/types';
 
 /**
  * Workspace context (lightweight, local to coordinator)
@@ -16,11 +17,42 @@ interface WorkspaceContext {
   projectPath: string;
 }
 
+/** Patterns ignored by both file listing and the file watcher */
+const IGNORED_PATTERNS = [
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.next',
+  'coverage',
+  '.nyc_output',
+  '.cushion-trash',
+];
+
 /**
  * Workspace Manager class
  */
 export class WorkspaceManager {
   private currentWorkspace: WorkspaceContext | null = null;
+  private watcher: FSWatcher | null = null;
+  private pendingChanges: FileChange[] = [];
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private onFilesChanged: ((changes: FileChange[]) => void) | null = null;
+  private onFileChangedOnDisk: ((filePath: string, mtime: number) => void) | null = null;
+
+  /**
+   * Register a callback for batched file-system changes (tree updates).
+   */
+  setOnFilesChanged(cb: (changes: FileChange[]) => void) {
+    this.onFilesChanged = cb;
+  }
+
+  /**
+   * Register a callback for when an individual open file is modified externally.
+   */
+  setOnFileChangedOnDisk(cb: (filePath: string, mtime: number) => void) {
+    this.onFileChangedOnDisk = cb;
+  }
 
   /**
    * Open a workspace
@@ -39,6 +71,9 @@ export class WorkspaceManager {
       throw new Error(`Invalid path: ${projectPath}`);
     }
 
+    // Clean up previous workspace watcher if any
+    await this.stopWatcher();
+
     // Extract project name from path
     const projectName = path.basename(projectPath);
 
@@ -49,6 +84,9 @@ export class WorkspaceManager {
     this.currentWorkspace = {
       projectPath,
     };
+
+    // Start file watcher
+    this.startWatcher(projectPath);
 
     return {
       projectName,
@@ -66,7 +104,8 @@ export class WorkspaceManager {
   /**
    * Close workspace
    */
-  closeWorkspace(): void {
+  async closeWorkspace(): Promise<void> {
+    await this.stopWatcher();
     this.currentWorkspace = null;
   }
 
@@ -79,15 +118,6 @@ export class WorkspaceManager {
     }
 
     const fullPath = this.resolveFilePath(relativePath);
-    const ignoredPatterns = [
-      'node_modules',
-      '.git',
-      'dist',
-      'build',
-      '.next',
-      'coverage',
-      '.nyc_output',
-    ];
 
     try {
       const entries = await fs.readdir(fullPath, { withFileTypes: true });
@@ -95,7 +125,7 @@ export class WorkspaceManager {
 
       for (const entry of entries) {
         // Skip ignored patterns
-        if (ignoredPatterns.includes(entry.name)) {
+        if (IGNORED_PATTERNS.includes(entry.name)) {
           continue;
         }
 
@@ -201,15 +231,15 @@ export class WorkspaceManager {
 
     const { encoding = 'utf-8', lineEnding = 'LF' } = options || {};
 
-    try {
-      // Normalize line endings if needed
-      let finalContent = content;
-      if (lineEnding === 'CRLF' && !content.includes('\r\n')) {
-        finalContent = content.replace(/\n/g, '\r\n');
-      } else if (lineEnding === 'LF' && content.includes('\r\n')) {
-        finalContent = content.replace(/\r\n/g, '\n');
-      }
+    // Normalize line endings if needed
+    let finalContent = content;
+    if (lineEnding === 'CRLF' && !content.includes('\r\n')) {
+      finalContent = content.replace(/\n/g, '\r\n');
+    } else if (lineEnding === 'LF' && content.includes('\r\n')) {
+      finalContent = content.replace(/\r\n/g, '\n');
+    }
 
+    try {
       // Write atomically
       await writeFileAtomic(fullPath, finalContent, { encoding });
     } catch (error: any) {
@@ -218,7 +248,7 @@ export class WorkspaceManager {
         const dir = path.dirname(fullPath);
         await fs.mkdir(dir, { recursive: true });
         // Retry write
-        await writeFileAtomic(fullPath, content, { encoding });
+        await writeFileAtomic(fullPath, finalContent, { encoding });
       } else if (error.code === 'EACCES') {
         throw new Error(`Permission denied: ${relativePath}`);
       } else if (error.code === 'ENOSPC') {
@@ -421,6 +451,109 @@ export class WorkspaceManager {
     await fs.writeFile(fullPath, buffer);
   }
 
+  // ===========================================================================
+  // File watcher (chokidar)
+  // ===========================================================================
+
+  /**
+   * Start watching the workspace for file-system changes.
+   */
+  private startWatcher(projectPath: string) {
+    // Build ignored glob patterns from IGNORED_PATTERNS
+    const ignored = IGNORED_PATTERNS.map((p) => `**/${p}/**`);
+
+    this.watcher = watch(projectPath, {
+      ignored,
+      ignoreInitial: true,
+      // Small polling interval helps reliability on Windows/network drives
+      awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+    });
+
+    const enqueue = (type: FileChange['type'], absPath: string) => {
+      if (!this.watcher) return; // Watcher closing — discard late events
+      const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
+      this.pendingChanges.push({ type, path: relative });
+      this.scheduleFlush();
+    };
+
+    this.watcher
+      .on('add', (p) => enqueue('created', p))
+      .on('addDir', (p) => enqueue('created', p))
+      .on('change', (p) => this.handleExternalChange(projectPath, p))
+      .on('unlink', (p) => enqueue('deleted', p))
+      .on('unlinkDir', (p) => enqueue('deleted', p))
+      .on('error', (err) => console.error('[Watcher] Error:', err));
+
+    console.log('[Watcher] Started watching:', projectPath);
+  }
+
+  /**
+   * Handle an external file modification.
+   * Enqueues a 'modified' change for the tree AND fires onFileChangedOnDisk
+   * so the server can notify the client about open-file conflicts.
+   */
+  private async handleExternalChange(projectPath: string, absPath: string) {
+    if (!this.watcher) return; // Watcher closing — discard late events
+    const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
+
+    // Enqueue for tree-level batch notification
+    this.pendingChanges.push({ type: 'modified', path: relative });
+    this.scheduleFlush();
+
+    // Fire individual open-file notification
+    if (this.onFileChangedOnDisk) {
+      try {
+        const stat = await fs.stat(absPath);
+        this.onFileChangedOnDisk(relative, stat.mtimeMs);
+      } catch {
+        // File may have been deleted between change and stat
+      }
+    }
+  }
+
+  /**
+   * Schedule a debounced flush of pending changes (300 ms).
+   */
+  private scheduleFlush() {
+    if (this.debounceTimer) return;
+    this.debounceTimer = setTimeout(() => {
+      this.flushChanges();
+    }, 300);
+  }
+
+  /**
+   * Flush accumulated changes to the callback.
+   */
+  private flushChanges() {
+    this.debounceTimer = null;
+    if (this.pendingChanges.length === 0) return;
+
+    const changes = this.pendingChanges;
+    this.pendingChanges = [];
+
+    if (this.onFilesChanged) {
+      this.onFilesChanged(changes);
+    }
+  }
+
+  /**
+   * Stop the file watcher and flush any pending changes.
+   */
+  async stopWatcher(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.flushChanges();
+
+    if (this.watcher) {
+      const w = this.watcher;
+      this.watcher = null; // Null out synchronously so late events are discarded
+      await w.close();
+      console.log('[Watcher] Stopped');
+    }
+  }
+
   /**
    * Resolve relative path to absolute path
    */
@@ -440,8 +573,14 @@ export class WorkspaceManager {
       throw new Error('No workspace open');
     }
 
-    const normalized = path.normalize(fullPath);
-    const workspacePath = path.normalize(this.currentWorkspace.projectPath);
+    let normalized = path.normalize(fullPath);
+    let workspacePath = path.normalize(this.currentWorkspace.projectPath);
+
+    // Windows paths are case-insensitive
+    if (process.platform === 'win32') {
+      normalized = normalized.toLowerCase();
+      workspacePath = workspacePath.toLowerCase();
+    }
 
     if (!normalized.startsWith(workspacePath)) {
       throw new Error('Path outside workspace');

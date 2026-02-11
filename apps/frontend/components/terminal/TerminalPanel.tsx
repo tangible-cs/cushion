@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Square, RotateCcw, Trash2 } from 'lucide-react';
 import { Terminal } from './Terminal';
 import { useTerminal } from '@/hooks/useTerminal';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { formatShortcutList, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
 
 interface TerminalPanelProps {
   isVisible: boolean;
   onClose: () => void;
 }
+
+const TERMINAL_SHORTCUT_IDS = ['app.terminal.toggle', 'terminal.clear'] as const;
 
 export const TerminalPanel: React.FC<TerminalPanelProps> = ({
   isVisible,
@@ -20,6 +23,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const [terminalHeight, setTerminalHeight] = useState(400);
+  const terminalShortcuts = useShortcutBindings(TERMINAL_SHORTCUT_IDS);
 
   const {
     state: terminalState,
@@ -33,24 +37,16 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
     },
   });
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+` to toggle terminal
-      if (e.ctrlKey && e.key === '`') {
-        e.preventDefault();
-        onClose();
-      }
-    };
+  // Handle keyboard shortcuts (US-E1)
+  const terminalHandlers = useMemo(() => ({
+    'app.terminal.toggle': () => { onClose(); },
+    'terminal.clear': () => { clear(); },
+  } as const), [onClose, clear]);
 
-    if (isVisible) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isVisible, onClose]);
+  useShortcutHandler({
+    handlers: terminalHandlers,
+    enabled: isVisible,
+  });
 
   // Handle resize
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -135,7 +131,10 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
           <button
             onClick={clear}
             className="px-2 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded transition-colors flex items-center gap-1"
-            title="Clear Terminal (Ctrl+K)"
+            title={(() => {
+              const label = formatShortcutList(terminalShortcuts['terminal.clear']);
+              return label ? `Clear Terminal (${label})` : 'Clear Terminal';
+            })()}
           >
             <Trash2 size={12} />
             Clear

@@ -9,7 +9,7 @@ import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
 import { ImageViewer } from './ImageViewer';
 import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
-import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Share2, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
@@ -27,6 +27,14 @@ interface EditorPanelProps {
   onExpandSidebar?: () => void;
   /** Open the chat sidebar */
   onOpenChat?: () => void;
+  /** Whether focus mode is enabled */
+  focusModeEnabled?: boolean;
+  /** Toggle focus mode */
+  onToggleFocusMode?: () => void;
+  /** Whether the right sidebar is open */
+  rightPanelOpen?: boolean;
+  /** Toggle the right sidebar */
+  onToggleRightPanel?: () => void;
 }
 
 export function EditorPanel({
@@ -36,6 +44,10 @@ export function EditorPanel({
   sidebarCollapsed,
   onExpandSidebar,
   onOpenChat,
+  focusModeEnabled,
+  onToggleFocusMode,
+  rightPanelOpen,
+  onToggleRightPanel,
 }: EditorPanelProps) {
   const currentFile = useWorkspaceStore((s) => s.currentFile);
   const tabs = useWorkspaceStore((s) => s.tabs);
@@ -414,85 +426,121 @@ export function EditorPanel({
   return (
     <div className="flex flex-col w-full h-full bg-sidebar-bg">
       {/* Top bar: sidebar toggle, nav arrows, tabs */}
-      <div className="flex items-center bg-sidebar-bg min-h-[40px] flex-shrink-0">
-        {/* Sidebar toggle button (Affine-style) */}
-        {sidebarCollapsed && (
-          <button
-            onClick={onExpandSidebar}
-            className={cn(
-              "h-10 w-10 flex-shrink-0 flex items-center justify-center",
-              "text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
-              "transition-colors duration-150"
-            )}
-            title="Open sidebar"
-          >
-            <PanelLeft size={18} />
-          </button>
-        )}
-
-        {/* Back / Forward navigation */}
-        <div className="flex items-center flex-shrink-0">
-          <button
-            onClick={goBack}
-            disabled={!canGoBack}
-            className={cn(
-              "h-10 w-8 flex items-center justify-center transition-colors duration-150",
-              canGoBack
-                ? "text-muted-foreground hover:text-foreground"
-                : "text-muted-foreground/30 cursor-default"
-            )}
-            title="Go back"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            onClick={goForward}
-            disabled={!canGoForward}
-            className={cn(
-              "h-10 w-8 flex items-center justify-center transition-colors duration-150",
-              canGoForward
-                ? "text-muted-foreground hover:text-foreground"
-                : "text-muted-foreground/30 cursor-default"
-            )}
-            title="Go forward"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        {tabs.length > 0 && (
-          <EditorTabs
-            tabs={tabs}
-            currentFile={currentFile}
-            onSelectTab={handleSelectTab}
-            onCloseTab={handleCloseTab}
-          />
-        )}
-
-        {/* Share */}
-        <button
-          className={cn(
-            "ml-auto mr-2 h-7 w-7 flex-shrink-0 flex items-center justify-center rounded",
-            "text-muted-foreground hover:text-foreground",
-            "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
-            "transition-colors duration-150"
+      {!focusModeEnabled && (
+        <div className="flex items-center bg-sidebar-bg min-h-[40px] flex-shrink-0">
+          {/* Sidebar toggle button (Affine-style) */}
+          {sidebarCollapsed && (
+            <button
+              onClick={onExpandSidebar}
+              className={cn(
+                "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
+                "text-muted-foreground hover:text-foreground",
+                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "transition-colors duration-150"
+              )}
+              title="Open sidebar"
+            >
+              <PanelLeft size={16} />
+            </button>
           )}
-          title="Share"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 3.5H4.5C3.67157 3.5 3 4.17157 3 5V12C3 12.8284 3.67157 13.5 4.5 13.5H11.5C12.3284 13.5 13 12.8284 13 12V5C13 4.17157 12.3284 3.5 11.5 3.5H10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            <path d="M8 1.5V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            <path d="M5.5 4L8 1.5L10.5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
+
+          {/* Back / Forward navigation */}
+          <div className="flex items-center flex-shrink-0">
+            <button
+              onClick={goBack}
+              disabled={!canGoBack}
+              className={cn(
+                "h-8 w-8 rounded flex items-center justify-center transition-colors duration-150",
+                canGoBack
+                  ? "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground/30 cursor-default"
+              )}
+              title="Go back"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={goForward}
+              disabled={!canGoForward}
+              className={cn(
+                "h-8 w-8 rounded flex items-center justify-center transition-colors duration-150",
+                canGoForward
+                  ? "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground/30 cursor-default"
+              )}
+              title="Go forward"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          {tabs.length > 0 && (
+            <EditorTabs
+              tabs={tabs}
+              currentFile={currentFile}
+              onSelectTab={handleSelectTab}
+              onCloseTab={handleCloseTab}
+            />
+          )}
+
+          <div className="ml-auto mr-2 flex items-center gap-1">
+            {onToggleFocusMode && (
+              <button
+                onClick={onToggleFocusMode}
+                className={cn(
+                  "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
+                  focusModeEnabled ? "text-foreground" : "text-muted-foreground",
+                  "hover:text-foreground",
+                  focusModeEnabled
+                    ? "bg-black/[0.06] dark:bg-white/[0.08]"
+                    : "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                  "transition-colors duration-150"
+                )}
+                title={focusModeEnabled ? "Exit focus mode" : "Enter focus mode"}
+                aria-pressed={!!focusModeEnabled}
+              >
+                <Target size={16} />
+              </button>
+            )}
+            {/* Share */}
+            <button
+              className={cn(
+                "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
+                "text-muted-foreground hover:text-foreground",
+                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "transition-colors duration-150"
+              )}
+              title="Share"
+            >
+              <Share2 size={16} />
+            </button>
+            {onToggleRightPanel && (
+              <button
+                onClick={onToggleRightPanel}
+                className={cn(
+                  "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
+                  rightPanelOpen ? "text-foreground" : "text-muted-foreground",
+                  "hover:text-foreground",
+                  "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                  "transition-colors duration-150"
+                )}
+                title={rightPanelOpen ? "Close right sidebar" : "Open right sidebar"}
+                aria-label={rightPanelOpen ? "Close right sidebar" : "Open right sidebar"}
+                aria-pressed={!!rightPanelOpen}
+              >
+                <PanelRight size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Editor content with rounded top corners */}
       <div
         className="flex-1 min-h-0 overflow-auto rounded-tl-lg thin-scrollbar"
         ref={editorContainerRef}
+        data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
         {isPdf && pdfData ? (
@@ -532,7 +580,7 @@ export function EditorPanel({
               onExit={handleHeaderExit}
               showExtension={!/\.(md|markdown)$/i.test(currentFile)}
             />
-            {selection && selection.text.trim().length > 0 && (
+            {!focusModeEnabled && selection && selection.text.trim().length > 0 && (
               <div
                 className="flex items-center justify-end px-5 pb-2"
                 style={{
@@ -557,6 +605,7 @@ export function EditorPanel({
               onChange={handleChange}
               onSave={handleSave}
               onSelectionChange={handleSelectionChange}
+              focusModeEnabled={focusModeEnabled}
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}
               embedResolver={handleEmbedResolve}

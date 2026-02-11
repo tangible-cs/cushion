@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
@@ -11,9 +11,8 @@ import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
 import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
-import type { Provider } from '@cushion/types';
+import { POPULAR_PROVIDERS } from '@/lib/model-constants';
 
-const POPULAR_PROVIDERS = ['ollama', 'opencode', 'anthropic', 'openai', 'google', 'meta', 'vercel', 'openrouter', 'github-copilot'];
 const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 type ModelSelectorProps = {
@@ -46,11 +45,25 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const providers = useChatStore((state) => state.providers);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
+  const modelVisibility = useChatStore((state) => state.modelVisibility);
+  const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSelectProviderDialog, setShowSelectProviderDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState<{ id: string; name: string } | null>(null);
   const [showManageDialog, setShowManageDialog] = useState(false);
   const resolvedLevel = resolveCompactLevel(compactLevel);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setSearchQuery('');
+  }, [isOpen]);
+
+  const isModelVisible = (model: SelectedModel) => {
+    const state = modelVisibility[`${model.providerID}:${model.modelID}`];
+    if (state === 'hide') return false;
+    if (state === 'show') return true;
+    return true;
+  };
 
   const selectedProviderId = selectedModel?.providerID ?? '';
   const provider = providers.find((item) => item.id === selectedProviderId);
@@ -67,14 +80,18 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
     }> = [];
 
     for (const prov of providers) {
-      const modelKeys = Object.keys(prov.models || {});
+      const entries = Object.entries(prov.models || {});
       const isPopular = POPULAR_PROVIDERS.includes(prov.id);
-      for (const modelKey of modelKeys) {
+      for (const [modelID, model] of entries) {
+        if (!isModelVisible({ providerID: prov.id, modelID })) continue;
+        const modelName = typeof model?.name === 'string' && model.name.trim().length > 0
+          ? model.name
+          : modelID;
         models.push({
           providerID: prov.id,
           providerName: prov.name,
-          modelID: modelKey,
-          modelName: modelKey,
+          modelID,
+          modelName,
           isPopular,
         });
       }
@@ -99,7 +116,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       }
       return a.modelName.localeCompare(b.modelName);
     });
-  }, [providers, searchQuery]);
+  }, [providers, searchQuery, modelVisibility]);
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, typeof allModels> = {};
@@ -114,14 +131,22 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
 
   const handleSelect = (providerID: string, modelID: string) => {
     setSelectedModel({ providerID, modelID });
+    setIsOpen(false);
   };
 
   const handleConnectProvider = () => {
+    setIsOpen(false);
     setShowSelectProviderDialog(true);
   };
 
   const handleManageModels = () => {
+    setIsOpen(false);
     setShowManageDialog(true);
+  };
+
+  const handleManageConnectProvider = () => {
+    setShowManageDialog(false);
+    setShowSelectProviderDialog(true);
   };
 
   const handleConnectSuccess = async () => {
@@ -136,7 +161,11 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
     }
   };
 
-  const displayText = provider && selectedModel ? modelId : 'Select model';
+  const selectedName = provider?.models?.[modelId]?.name;
+  const resolvedName = typeof selectedName === 'string' && selectedName.trim().length > 0
+    ? selectedName
+    : modelId;
+  const displayText = provider && selectedModel ? resolvedName : 'Select model';
   const maxLength = COMPACT_LABEL_LENGTHS[resolvedLevel];
   const compactLabel = resolvedLevel === 0 ? displayText : getCompactLabel(displayText, maxLength);
   const showLabel = resolvedLevel < 3;
@@ -144,7 +173,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
 
   return (
     <>
-      <Popover>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -260,7 +289,10 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
         />
       )}
       {showManageDialog && (
-        <ManageModelsDialog onClose={() => setShowManageDialog(false)} />
+        <ManageModelsDialog
+          onClose={() => setShowManageDialog(false)}
+          onConnectProvider={handleManageConnectProvider}
+        />
       )}
     </>
   );

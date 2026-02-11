@@ -1,7 +1,6 @@
-import { Prec, type Extension } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { hideMarkupPlugin, linkClickHandler } from './hide-markup';
-import { focusModeExtension, toggleFocusMode, setFocusMode, isFocusModeEnabled } from './focus-mode';
+import type { Extension } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { markDecorationsField, widgetDecorationsField, widgetUpdateScheduler, linkClickHandler } from './hide-markup';
 import { embedResolverField, setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 import {
   wikiLinkExtension,
@@ -12,11 +11,9 @@ import {
 import { combinedAutocomplete } from './combined-autocomplete';
 import { codeBlockHighlighter } from './code-block-highlight';
 import { slashCommandExtension } from './slash-command';
-import { listKeymap } from './list-commands';
-import type { FileTreeNode } from '@cushion/types';
 
 // Re-export focus mode utilities
-export { toggleFocusMode, setFocusMode, isFocusModeEnabled } from './focus-mode';
+export { focusModeExtension, setFocusMode, isFocusModeEnabled } from './focus-mode';
 
 // Re-export wiki-link utilities
 export {
@@ -298,16 +295,6 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
   '.cm-table-delimiter': {
     color: 'var(--md-text-faint, #666)',
   },
-  // Hidden lines (when widget is shown)
-  '.cm-table-line-hidden': {
-    height: '0',
-    overflow: 'hidden',
-    padding: '0',
-    border: 'none',
-    lineHeight: '0',
-    fontSize: '0',
-  },
-
   // Front matter
   '.cm-frontmatter': {
     fontFamily: 'var(--md-code-font-family, "Fira Code", Consolas, monospace)',
@@ -328,23 +315,17 @@ const editorAttributes = EditorView.editorAttributes.of({
  * Hides markdown syntax when the cursor is not on the same line,
  * and reveals it when the cursor moves to that line.
  * Applies a prose-optimized theme with Tangent-inspired styling.
- * 
- * @param options - Configuration options
- * @param options.focusMode - Whether to enable focus mode initially (default: false)
  */
-export function wysiwygExtension(options: { focusMode?: boolean } = {}): Extension {
-  const { focusMode = false } = options;
-
+export function wysiwygExtension(): Extension {
   return [
     editorAttributes,
     markdownProseTheme,
     wysiwygWidgetTheme,
     embedResolverField,
-    // List-aware Tab/Shift+Tab/Enter — must run before indentWithTab and default Enter
-    Prec.high(keymap.of(listKeymap)),
-    hideMarkupPlugin,
+    markDecorationsField,
+    widgetDecorationsField,
+    widgetUpdateScheduler,
     linkClickHandler,
-    focusModeExtension(focusMode),
     // Wiki-link support for [[link]] syntax
     wikiLinkExtension(),
     // Combined autocomplete for wiki-links [[ and code languages ```

@@ -22,6 +22,7 @@ import type {
   DidOpenTextDocumentParams,
   DidChangeTextDocumentParams,
   FileTreeNode,
+  FileChange,
   JSONRPCRequest,
   JSONRPCResponse,
   JSONRPCNotification,
@@ -53,15 +54,17 @@ export class CoordinatorServer {
   private terminalSessions = new Map<WebSocket, any>();
   private terminalProcesses = new Map<WebSocket, any>();
   private credentialStorage: CredentialStorage;
+  private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(private port: number = 3001) {
     this.workspaceManager = new WorkspaceManager();
     this.credentialStorage = new CredentialStorage();
     this.wss = new WebSocketServer({ port });
     this.setupHandlers();
+    this.setupWatcherCallbacks();
 
     // Cleanup expired OAuth states every 5 minutes
-    setInterval(() => {
+    this.oauthCleanupInterval = setInterval(() => {
       const oauth = getOAuthHandler();
       oauth.cleanupExpiredStates();
     }, 5 * 60 * 1000);
@@ -1101,7 +1104,46 @@ export class CoordinatorServer {
     ws.send(JSON.stringify(response));
   }
 
+  /**
+   * Broadcast a notification to ALL connected clients.
+   */
+  private broadcastNotification(method: string, params: unknown) {
+    const notification: JSONRPCNotification = {
+      jsonrpc: '2.0',
+      method,
+      params,
+    };
+    const json = JSON.stringify(notification);
+    for (const ws of this.clients.keys()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(json);
+      }
+    }
+  }
+
+  /**
+   * Wire WorkspaceManager file-watcher callbacks to WebSocket notifications.
+   */
+  private setupWatcherCallbacks() {
+    // Batched tree-level changes → workspace/filesChanged
+    this.workspaceManager.setOnFilesChanged((changes: FileChange[]) => {
+      console.log(`[Watcher] Broadcasting ${changes.length} file change(s)`);
+      this.broadcastNotification('workspace/filesChanged', { changes });
+    });
+
+    // Individual open-file modification → workspace/fileChangedOnDisk
+    this.workspaceManager.setOnFileChangedOnDisk((filePath: string, mtime: number) => {
+      this.broadcastNotification('workspace/fileChangedOnDisk', { filePath, mtime });
+    });
+  }
+
   close() {
+    if (this.oauthCleanupInterval) {
+      clearInterval(this.oauthCleanupInterval);
+      this.oauthCleanupInterval = null;
+    }
+    getModelsDevCache().stopAutoRefresh();
+    this.workspaceManager.stopWatcher();
     this.wss.close();
   }
 }

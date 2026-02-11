@@ -3,6 +3,7 @@
  *
  * This ensures only ONE WebSocket connection is created for the entire app,
  * preventing duplicate connections when multiple components mount.
+ * The client handles reconnection internally — callers keep the same reference.
  */
 
 import { CoordinatorClient } from './coordinator-client';
@@ -11,22 +12,27 @@ let sharedClient: CoordinatorClient | null = null;
 let connectionPromise: Promise<void> | null = null;
 
 /**
- * Get the shared CoordinatorClient instance
- * Creates it if it doesn't exist, otherwise returns the existing one
+ * Get the shared CoordinatorClient instance.
+ * Creates and connects it on first call; subsequent calls return the same instance.
+ * The instance handles reconnection internally so the reference stays valid.
  */
 export async function getSharedCoordinatorClient(): Promise<CoordinatorClient> {
-  // If we already have a connected client, return it
-  if (sharedClient && sharedClient['ws']?.readyState === WebSocket.OPEN) {
+  // Already have an instance — it reconnects internally, just return it
+  if (sharedClient) {
+    if (sharedClient.isConnected()) return sharedClient;
+
+    // If initial connection is still in progress, wait for it
+    if (connectionPromise) {
+      await connectionPromise;
+      return sharedClient!;
+    }
+
+    // Instance exists but is reconnecting (or disconnected and retrying).
+    // Return it — callers subscribe to onReconnected / onConnectionStateChanged.
     return sharedClient;
   }
 
-  // If connection is in progress, wait for it
-  if (connectionPromise) {
-    await connectionPromise;
-    return sharedClient!;
-  }
-
-  // Create new client and connect
+  // First-time: create and connect
   sharedClient = new CoordinatorClient();
 
   connectionPromise = sharedClient.connect().then(() => {
@@ -47,16 +53,17 @@ export async function getSharedCoordinatorClient(): Promise<CoordinatorClient> {
  * Check if the shared client exists and is connected
  */
 export function hasSharedClient(): boolean {
-  return sharedClient !== null && sharedClient['ws']?.readyState === WebSocket.OPEN;
+  return sharedClient !== null && sharedClient.isConnected();
 }
 
 /**
- * Disconnect and clear the shared client
- * Use this when intentionally disconnecting (e.g., logout)
+ * Disconnect and clear the shared client.
+ * This is an intentional disconnect — stops auto-reconnect.
  */
 export function disconnectSharedClient(): void {
   if (sharedClient) {
     console.log('[SharedClient] Disconnecting shared coordinator client');
+    sharedClient.disconnect();
     sharedClient = null;
     connectionPromise = null;
   }

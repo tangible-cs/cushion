@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, cloneElement, isValidElement, Children, type ReactElement, type ReactNode } from 'react';
 import * as React from 'react';
+import { useOverlayClose } from '@/lib/shortcuts';
 
 type PopoverContextValue = {
   isOpen: boolean;
@@ -41,32 +42,13 @@ export function Popover({ children, open: controlledOpen, onOpenChange, placemen
     onOpenChange?.(value);
   };
 
-  // Close on click outside and escape
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (triggerRef.current?.contains(target)) return;
-      if (contentRef.current?.contains(target)) return;
-      setIsOpen(false);
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('pointerdown', handlePointerDown, true);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('pointerdown', handlePointerDown, true);
-    };
-  }, [isOpen, setIsOpen]);
+  // Close on Escape shortcut and click-outside (US-A4)
+  useOverlayClose({
+    isOpen,
+    onClose: () => setIsOpen(false),
+    insideRefs: [triggerRef, contentRef],
+    capture: true,
+  });
 
   return (
     <PopoverContext.Provider value={{ isOpen, setIsOpen, triggerRef, contentRef }}>
