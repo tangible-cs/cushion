@@ -17,23 +17,14 @@ import type { WikiLinkNavigateCallback, EmbedResolver, EmbedResolverResult } fro
 
 interface EditorPanelProps {
   client: CoordinatorClient;
-  /** Called after a file is successfully renamed (so file browser can refresh) */
   onFileRenamed?: () => void;
-  /** File tree for wiki-link resolution */
   fileTree?: FileTreeNode[];
-  /** Whether the sidebar is collapsed */
   sidebarCollapsed?: boolean;
-  /** Called to expand the sidebar */
   onExpandSidebar?: () => void;
-  /** Open the chat sidebar */
   onOpenChat?: () => void;
-  /** Whether focus mode is enabled */
   focusModeEnabled?: boolean;
-  /** Toggle focus mode */
   onToggleFocusMode?: () => void;
-  /** Whether the right sidebar is open */
   rightPanelOpen?: boolean;
-  /** Toggle the right sidebar */
   onToggleRightPanel?: () => void;
 }
 
@@ -62,7 +53,6 @@ export function EditorPanel({
   const addContextItem = useChatStore((s) => s.addContextItem);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
 
-  // Tab navigation history (using ref to avoid stale closure issues)
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({
     entries: [],
     index: -1,
@@ -71,7 +61,6 @@ export function EditorPanel({
   const [, forceUpdate] = useState(0);
   const autosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Track tab switches in history
   useEffect(() => {
     const h = historyRef.current;
     if (!currentFile) return;
@@ -109,7 +98,6 @@ export function EditorPanel({
     forceUpdate(n => n + 1);
   }, [setCurrentFile]);
 
-  // Track which files we've already sent didOpen for
   const openedUrisRef = useRef<Set<string>>(new Set());
   const [pdfData, setPdfData] = useState<{ filePath: string; base64: string } | null>(null);
   const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
@@ -136,7 +124,6 @@ export function EditorPanel({
     };
   }, []);
 
-  // Load PDF binary data when a PDF file is selected
   useEffect(() => {
     if (!isPdf || !currentFile) {
       setPdfData(null);
@@ -151,7 +138,6 @@ export function EditorPanel({
     return () => { cancelled = true; };
   }, [isPdf, currentFile, client]);
 
-  // Load image binary data when an image file is selected
   useEffect(() => {
     if (!isImage || !currentFile) {
       setImageData(null);
@@ -166,7 +152,6 @@ export function EditorPanel({
     return () => { cancelled = true; };
   }, [isImage, currentFile, client]);
 
-  // Send didOpen if not already sent for this file
   if (fileState && currentFile && !openedUrisRef.current.has(currentFile)) {
     openedUrisRef.current.add(currentFile);
     try {
@@ -301,7 +286,6 @@ export function EditorPanel({
       openedUrisRef.current.delete(filePath);
       closeFile(filePath);
 
-      // Pick next file
       const remaining = useWorkspaceStore.getState().tabs;
       if (remaining.length > 0) {
         setCurrentFile(remaining[0].filePath);
@@ -312,23 +296,18 @@ export function EditorPanel({
     [closeFile, setCurrentFile]
   );
 
-  // Reference to the CodeEditor for focus management
   const editorContainerRef = useRef<HTMLDivElement>(null);
 
-  // Handle file rename from the header
   const handleRename = useCallback(async (newName: string): Promise<boolean> => {
     if (!currentFile) return false;
     
-    // Build the new path by replacing the filename
     const pathParts = currentFile.split(/[/\\]/);
     const oldName = pathParts[pathParts.length - 1];
     const oldBaseName = oldName.includes('.') ? oldName.slice(0, oldName.lastIndexOf('.')) : oldName;
     const extension = oldName.includes('.') ? oldName.slice(oldName.lastIndexOf('.')) : '';
     
-    // Don't rename if name hasn't changed
     if (newName === oldBaseName) return true;
     
-    // Build new filename (preserve extension)
     const newFileName = newName + extension;
     pathParts[pathParts.length - 1] = newFileName;
     const newPath = pathParts.join('/');
@@ -336,21 +315,17 @@ export function EditorPanel({
     try {
       const result = await client.renameFile(currentFile, newPath);
       if (result.success) {
-        // Update the store with the new path
         const store = useWorkspaceStore.getState();
         const fileState = store.openFiles.get(currentFile);
         
         if (fileState) {
-          // Close old file and open with new path
           store.closeFile(currentFile);
           store.openFile(newPath, fileState.content);
           store.setCurrentFile(newPath);
           
-          // Update the opened URIs tracking
           openedUrisRef.current.delete(currentFile);
         }
         
-        // Notify parent to refresh file browser (like Tangent's TreeChange event)
         onFileRenamed?.();
         
         return true;
@@ -362,9 +337,7 @@ export function EditorPanel({
     }
   }, [currentFile, client, onFileRenamed]);
 
-  // Handle exiting the header (focus the editor)
   const handleHeaderExit = useCallback(() => {
-    // Focus the editor container - CodeMirror will handle focusing itself
     editorContainerRef.current?.querySelector('.cm-content')?.dispatchEvent(
       new FocusEvent('focus', { bubbles: true })
     );
@@ -385,39 +358,25 @@ export function EditorPanel({
     onOpenChat?.();
   }, [addContextItem, currentFile, selection, onOpenChat]);
 
-  // Handle wiki-link navigation (click on [[link]])
   const handleWikiLinkNavigate: WikiLinkNavigateCallback = useCallback(
     async (href, resolvedPath, createIfMissing) => {
-      console.log('[EditorPanel] Wiki-link navigate called:', { href, resolvedPath, createIfMissing });
-      
       if (resolvedPath) {
-        // File exists - open it
-        console.log('[EditorPanel] Opening existing file:', resolvedPath);
         try {
           const { content } = await client.readFile(resolvedPath);
           openFile(resolvedPath, content);
-          console.log('[EditorPanel] File opened successfully');
         } catch (err) {
           console.error('[EditorPanel] Failed to open wiki-link target:', err);
         }
       } else if (createIfMissing) {
-        // File doesn't exist - create it (like Tangent does)
         const newPath = buildNewFilePath(href);
-        console.log('[EditorPanel] Creating new file:', newPath);
         try {
-          // Create empty file with just the title as H1
           const initialContent = `# ${href.split('/').pop() || href}\n\n`;
           await client.saveFile(newPath, initialContent);
-          console.log('[EditorPanel] File saved, now opening');
           openFile(newPath, initialContent);
-          // Refresh file browser to show new file
           onFileRenamed?.();
-          console.log('[EditorPanel] New file created and opened');
         } catch (err) {
           console.error('[EditorPanel] Failed to create wiki-link target:', err);
         }
-      } else {
-        console.log('[EditorPanel] No action taken (resolvedPath null and createIfMissing false)');
       }
     },
     [client, openFile, onFileRenamed]
@@ -549,14 +508,12 @@ export function EditorPanel({
             base64Data={pdfData.base64}
             onSave={async (data: Uint8Array) => {
               try {
-                // Convert Uint8Array to base64
                 let binary = '';
                 for (let i = 0; i < data.length; i++) {
                   binary += String.fromCharCode(data[i]);
                 }
                 const base64 = btoa(binary);
                 await client.saveFileBase64(currentFile!, base64);
-                // Update cached PDF data so re-renders use saved version
                 setPdfData({ filePath: currentFile!, base64 });
               } catch (err) {
                 console.error('[EditorPanel] PDF save failed:', err);

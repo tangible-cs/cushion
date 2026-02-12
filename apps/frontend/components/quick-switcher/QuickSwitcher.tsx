@@ -5,17 +5,13 @@ import { FileText, FilePlus, Folder } from 'lucide-react';
 import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { FileTreeNode } from '@cushion/types';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
+import { getBaseName, getDirectory } from '@/lib/path-utils';
 
 interface QuickSwitcherProps {
-  /** Whether the modal is open */
   isOpen: boolean;
-  /** Callback to close the modal */
   onClose: () => void;
-  /** File tree for searching */
   fileTree: FileTreeNode[];
-  /** Callback when a file is selected */
   onSelectFile: (filePath: string) => void;
-  /** Callback to create a new file */
   onCreateFile?: (fileName: string) => void;
 }
 
@@ -27,30 +23,12 @@ const QUICK_SWITCHER_SHORTCUT_IDS = [
   'app.overlay.close',
 ] as const;
 
-/** A search result item */
 interface SearchResult {
   type: 'file' | 'create';
   path: string;
   displayName: string;
   directory: string;
   matchIndices?: number[];
-}
-
-/**
- * Get the filename without extension.
- */
-function getDisplayName(filePath: string): string {
-  const name = filePath.split('/').pop() || filePath;
-  const lastDot = name.lastIndexOf('.');
-  return lastDot > 0 ? name.slice(0, lastDot) : name;
-}
-
-/**
- * Get the directory part of a path.
- */
-function getDirectory(filePath: string): string {
-  const lastSlash = filePath.lastIndexOf('/');
-  return lastSlash > 0 ? filePath.slice(0, lastSlash) : '';
 }
 
 /**
@@ -134,7 +112,7 @@ export function QuickSwitcher({
       const matches = searchFiles(query, fileTree, 15);
       
       for (const path of matches) {
-        const displayName = getDisplayName(path);
+        const displayName = getBaseName(path);
         const directory = getDirectory(path);
         const matchIndices = findMatchIndices(displayName, query);
         
@@ -178,7 +156,7 @@ export function QuickSwitcher({
         items.push({
           type: 'file',
           path,
-          displayName: getDisplayName(path),
+          displayName: getBaseName(path),
           directory: getDirectory(path),
         });
       }

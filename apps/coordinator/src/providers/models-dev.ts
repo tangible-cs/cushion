@@ -72,9 +72,7 @@ export class ModelsDevCache {
       this.cache = JSON.parse(content);
       const stats = await fs.stat(CACHE_FILE);
       this.lastFetch = stats.mtimeMs;
-      console.log('[ModelsDev] Cache loaded from disk');
-    } catch (error) {
-      console.log('[ModelsDev] Cache not found, will fetch fresh data');
+    } catch {
     }
   }
 
@@ -83,7 +81,6 @@ export class ModelsDevCache {
       await this.ensureCacheDir();
       await fs.writeFile(CACHE_FILE, JSON.stringify(this.cache, null, 2), 'utf-8');
       this.lastFetch = Date.now();
-      console.log('[ModelsDev] Cache saved to disk');
     } catch (error) {
       console.error('[ModelsDev] Failed to save cache:', error);
     }
@@ -91,8 +88,6 @@ export class ModelsDevCache {
 
   async refresh(): Promise<void> {
     try {
-      console.log('[ModelsDev] Fetching fresh data from models.dev...');
-
       const response = await fetch(MODELS_DEV_URL, {
         headers: {
           'User-Agent': 'Cushion/0.1.0',
@@ -108,8 +103,6 @@ export class ModelsDevCache {
 
       this.cache = data;
       await this.saveCache();
-
-      console.log(`[ModelsDev] Refreshed ${Object.keys(data).length} providers from models.dev`);
     } catch (error) {
       console.error('[ModelsDev] Failed to refresh cache:', error);
       // Don't throw - use cached data as fallback

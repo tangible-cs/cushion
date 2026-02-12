@@ -154,8 +154,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
     try {
       await ensureCoordinatorConnection();
       const client = getCoordinatorClient();
-      const result = await client.listProviders();
-      console.log('[ModelSelector] Connected providers:', result.connected);
+      await client.listProviders();
     } catch (error) {
       console.error('[ModelSelector] Failed to refresh providers:', error);
     }

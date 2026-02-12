@@ -9,10 +9,12 @@ export type { Config as OpencodeClientConfig };
 
 export function createOpencodeClient(config?: Config & { directory?: string }) {
   if (!config?.fetch) {
-    const customFetch: any = (req: any) => {
-      // @ts-ignore
-      req.timeout = false;
-      return fetch(req);
+    // @hey-api/client-fetch uses non-standard `timeout` property on Request
+    const customFetch: typeof fetch = (input, init) => {
+      if (input instanceof Request) {
+        (input as Request & { timeout?: boolean }).timeout = false;
+      }
+      return fetch(input, init);
     };
     config = {
       ...config,

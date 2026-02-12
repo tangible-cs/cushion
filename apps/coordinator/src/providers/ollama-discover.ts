@@ -1,9 +1,3 @@
-const log = {
-  info: (msg: string, meta?: Record<string, unknown>) => console.log('[ollama-discover]', msg, meta),
-  warn: (msg: string, meta?: Record<string, unknown>) => console.warn('[ollama-discover]', msg, meta),
-  error: (msg: string, meta?: Record<string, unknown>) => console.error('[ollama-discover]', msg, meta),
-};
-
 export interface OllamaModelInfo {
   name: string;
   modified_at: string;
@@ -31,12 +25,6 @@ export interface OllamaDiscoveryResult {
   models: DiscoveredModel[];
 }
 
-export interface DiscoveredModelSimple {
-  id: string;
-  name: string;
-  family: string;
-}
-
 export async function discoverModels(baseUrl: string = 'http://localhost:11434'): Promise<OllamaDiscoveryResult> {
   const apiUrl = baseUrl.replace(/\/$/, '');
 
@@ -46,17 +34,12 @@ export async function discoverModels(baseUrl: string = 'http://localhost:11434')
     });
 
     if (!response.ok) {
-      log.warn('Failed to fetch models from Ollama', {
-        status: response.status,
-        url: `${apiUrl}/api/tags`,
-      });
       return { running: false, models: [] };
     }
 
     const data = await response.json();
 
     if (!data || !Array.isArray(data.models)) {
-      log.warn('Invalid response from Ollama', { data });
       return { running: false, models: [] };
     }
 
@@ -70,14 +53,8 @@ export async function discoverModels(baseUrl: string = 'http://localhost:11434')
       size: model.size,
     }));
 
-    log.info('Discovered models from Ollama', {
-      count: discovered.length,
-      baseUrl,
-    });
-
     return { running: true, models: discovered };
-  } catch (error) {
-    log.error('Error discovering Ollama models', { error });
+  } catch {
     return { running: false, models: [] };
   }
 }

@@ -178,6 +178,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         });
 
         const container = containerRef.current!;
+        // TODO: pdf.js doesn't export PDFViewer constructor types - cast unavoidable
         const viewer = new (pdfjsViewer.PDFViewer as any)({
           container,
           viewer: viewerRef.current ?? undefined,
@@ -277,7 +278,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     try {
       viewer.annotationEditorMode = { mode: modeMap[editorMode] };
     } catch (err) {
-      console.warn('[PdfViewerNative] Failed to set editor mode:', err);
+      console.error('[PdfViewerNative] Failed to set editor mode:', err);
     }
   }, [editorMode]);
 

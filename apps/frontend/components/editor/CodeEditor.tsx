@@ -598,17 +598,11 @@ export function CodeEditor({
       }
     }
 
-    // Set initial file tree for wiki-links
     if (fileTree && fileTree.length > 0) {
-      console.log('[CodeEditor] Setting initial file tree:', fileTree.length, 'items');
       updateWikiLinkFileTree(view, fileTree);
     }
-    
-    // Always set up the navigation callback wrapper that uses the ref
-    // This ensures we always use the latest callback from props
-    console.log('[CodeEditor] Setting up wiki-link navigation callback');
+
     setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
-      console.log('[CodeEditor] Navigation callback invoked, ref exists:', !!onWikiLinkNavigateRef.current);
       onWikiLinkNavigateRef.current?.(href, resolvedPath, createIfMissing);
     });
 
@@ -656,7 +650,6 @@ export function CodeEditor({
   // Update file tree when it changes (for wiki-link resolution)
   useEffect(() => {
     if (viewRef.current && fileTree) {
-      console.log('[CodeEditor] Updating file tree:', fileTree.length, 'items');
       updateWikiLinkFileTree(viewRef.current, fileTree);
     }
   }, [fileTree]);

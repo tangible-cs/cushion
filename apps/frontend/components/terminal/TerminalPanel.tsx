@@ -32,9 +32,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
     stopProcess,
     restartProcess,
   } = useTerminal({
-    onStatusChange: (status) => {
-      console.log('[TerminalPanel] Terminal status changed:', status);
-    },
+    onStatusChange: () => {},
   });
 
   // Handle keyboard shortcuts (US-E1)

@@ -241,27 +241,16 @@ export const wikiLinkClickHandler = EditorView.domEventHandlers({
 
     if (!href) return false;
 
-    console.log('[WikiLink] Click detected:', { href, resolvedPathAttr, linkState });
-
-    // Get the navigation callback from state
     const navigate = view.state.field(navigateCallbackField, false);
 
-    console.log('[WikiLink] Navigate callback exists:', !!navigate);
-
     if (navigate) {
-      // For empty links, pass createIfMissing = true (like Tangent)
       const createIfMissing = linkState === 'empty';
-      // Empty string should be treated as null
       const resolvedPath = resolvedPathAttr && resolvedPathAttr.length > 0 ? resolvedPathAttr : null;
-
-      console.log('[WikiLink] Navigating:', { href, resolvedPath, createIfMissing });
 
       navigate(href, resolvedPath, createIfMissing);
       event.preventDefault();
       event.stopPropagation();
       return true;
-    } else {
-      console.warn('[WikiLink] No navigate callback set!');
     }
 
     return false;

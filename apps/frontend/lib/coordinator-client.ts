@@ -197,8 +197,6 @@ export class CoordinatorClient {
       MAX_RECONNECT_DELAY,
     );
 
-    console.log(`[CoordinatorClient] Reconnecting in ${delay}ms (attempt ${this._reconnectAttempts + 1})...`);
-
     this._reconnectTimer = setTimeout(async () => {
       this._reconnectTimer = null;
       this._reconnectAttempts++;
@@ -254,7 +252,6 @@ export class CoordinatorClient {
    * Notify reconnected subscribers.
    */
   private _emitReconnected() {
-    console.log('[CoordinatorClient] Reconnected successfully');
     for (const cb of [...this._reconnectedCallbacks]) {
       try { cb(); } catch (err) { console.error('[CoordinatorClient] Reconnected callback error:', err); }
     }

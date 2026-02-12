@@ -69,17 +69,15 @@ export function PopoverTrigger({ children, asChild = false }: PopoverTriggerProp
     setIsOpen(!isOpen);
   };
 
-  if (asChild) {
-    const child = Children.only(children) as ReactElement;
-    const childProps = child.props as any;
+  if (asChild && isValidElement(children)) {
+    const childProps = children.props as { onClick?: (e: React.MouseEvent) => void };
     const onClick = (e: React.MouseEvent) => {
       handleClick();
-      if (childProps.onClick) childProps.onClick(e);
+      childProps.onClick?.(e);
     };
-    return cloneElement(child, {
-      ref: (triggerRef as any),
-      onClick,
-    } as any);
+    // React's cloneElement types don't support adding ref to arbitrary elements
+    // This is a standard pattern (see Radix UI's asChild) - cast required
+    return cloneElement(children, { ref: triggerRef, onClick } as React.Attributes);
   }
 
   return (
@@ -87,7 +85,6 @@ export function PopoverTrigger({ children, asChild = false }: PopoverTriggerProp
       ref={triggerRef}
       type="button"
       onClick={handleClick}
-      className={(children as any)?.props?.className || ''}
     >
       {children}
     </button>

@@ -1,25 +1,47 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import fuzzysort from 'fuzzysort';
-import { ArrowUp, Brain, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
-import type { Agent } from '@opencode-ai/sdk/v2/client';
+import { ArrowUp, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useChatStore,
-  getModelVariantOptions,
   type PromptAttachment,
-  type PromptContextItem,
   type PromptInputPayload,
 } from '@/stores/chatStore';
+import { getModelVariantOptions } from '@/lib/chat-helpers';
+import {
+  type PromptPart,
+  type InsertPart,
+  type FilePart,
+  type AgentPart,
+  ZERO_WIDTH_SPACE,
+  buildPromptParts,
+  isPromptEqual,
+  createTextFragment,
+  createPill,
+  getCursorPosition,
+  setCursorPosition,
+  setRangeEdge,
+  parseFromDOM,
+  isNormalizedEditor,
+  createId,
+  readAsDataUrl,
+} from '@/lib/prompt-dom';
 import { Icon } from './Icon';
 import { SessionContextUsage } from './SessionContextUsage';
 import { ModelSelector } from './ModelSelector';
 import { LocalAIButton } from './LocalAIButton';
 import { AgentSelector } from './AgentSelector';
 import { useToast } from './Toast';
+import {
+  SuggestionList,
+  BUILTIN_COMMANDS,
+  type TriggerType,
+  type TriggerState,
+  type SuggestionItem,
+} from './SuggestionList';
 import { searchFiles } from '@/lib/wiki-link-resolver';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
-
-// Utility functions for path handling (like OpenCode)
+import { getDirectory, getFilename } from '@/lib/path-utils';
 
 const CHAT_SHORTCUT_IDS = [
   'chat.shell.exit',
@@ -31,15 +53,6 @@ const CHAT_SHORTCUT_IDS = [
   'chat.newline',
   'chat.submit',
 ] as const;
-function getDirectory(filePath: string): string {
-  const lastSlash = filePath.lastIndexOf('/');
-  return lastSlash > 0 ? filePath.slice(0, lastSlash) : '';
-}
-
-function getFilename(filePath: string): string {
-  const lastSlash = filePath.lastIndexOf('/');
-  return lastSlash > 0 ? filePath.slice(lastSlash + 1) : filePath;
-}
 
 function getCompactLabel(label: string, maxLength = 3): string {
   const trimmed = label.trim();
@@ -58,7 +71,6 @@ type PromptInputProps = {
 };
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'];
-const ZERO_WIDTH_SPACE = '\u200B';
 const COMPACT_LABEL_LENGTHS = [0, 12, 8, 3] as const;
 const COMPACT_LEVEL_MAX = COMPACT_LABEL_LENGTHS.length - 1;
 const COMPACT_STEP_RATIO = 0.16;
@@ -79,457 +91,6 @@ function resolveCompactLevel(overflow: number, fullWidth: number): number {
   return Math.min(3, COMPACT_LEVEL_MAX);
 }
 
-type TriggerType = 'command' | 'mention';
-
-type TriggerState = {
-  type: TriggerType;
-  query: string;
-  start: number;
-};
-
-type SuggestionItem = {
-  id: string;
-  label: string;
-  value: string;
-  description?: string;
-  type: TriggerType;
-  path?: string;
-  agent?: string;
-  group?: 'agent' | 'recent' | 'search' | 'default';
-};
-
-type MentionOption =
-  | { type: 'agent'; name: string; display: string }
-  | { type: 'file'; path: string; display: string; recent?: boolean };
-
-const BUILTIN_COMMANDS: SuggestionItem[] = [
-  { id: 'undo', label: '/undo', value: '/undo', description: 'Undo last user message', type: 'command' },
-  { id: 'redo', label: '/redo', value: '/redo', description: 'Redo last undone message', type: 'command' },
-  { id: 'compact', label: '/compact', value: '/compact', description: 'Compact this session', type: 'command' },
-  { id: 'summarize', label: '/summarize', value: '/summarize', description: 'Compact this session', type: 'command' },
-  { id: 'share', label: '/share', value: '/share', description: 'Share this session', type: 'command' },
-  { id: 'unshare', label: '/unshare', value: '/unshare', description: 'Unshare this session', type: 'command' },
-  { id: 'clear', label: '/clear', value: '/clear', description: 'Clear the input', type: 'command' },
-  { id: 'reset', label: '/reset', value: '/reset', description: 'Clear input and context', type: 'command' },
-];
-
-type TextPart = {
-  type: 'text';
-  content: string;
-  start: number;
-  end: number;
-};
-
-type FilePart = {
-  type: 'file';
-  content: string;
-  path: string;
-  start: number;
-  end: number;
-};
-
-type AgentPart = {
-  type: 'agent';
-  content: string;
-  name: string;
-  start: number;
-  end: number;
-};
-
-type PromptPart = TextPart | FilePart | AgentPart;
-
-type InsertPart =
-  | { type: 'text'; content: string }
-  | { type: 'file'; content: string; path: string }
-  | { type: 'agent'; content: string; name: string };
-
-type InlineToken = {
-  raw: string;
-  token: string;
-  start: number;
-  end: number;
-};
-
-const DEFAULT_PROMPT: PromptPart[] = [{ type: 'text', content: '', start: 0, end: 0 }];
-
-const parseInlineTokens = (text: string): InlineToken[] => {
-  const matches: InlineToken[] = [];
-  const regex = /@([^\s]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text))) {
-    const raw = match[0];
-    const token = match[1] ?? '';
-    if (!token) continue;
-    const start = match.index ?? 0;
-    matches.push({ raw, token, start, end: start + raw.length });
-  }
-  return matches;
-};
-
-const buildPromptParts = (text: string, contextItems: PromptContextItem[], agents: Agent[]): PromptPart[] => {
-  if (!text) return DEFAULT_PROMPT;
-
-  const tokens = parseInlineTokens(text);
-  if (tokens.length === 0) {
-    return [{ type: 'text', content: text, start: 0, end: text.length }];
-  }
-
-  const agentMap = new Map(
-    agents
-      .filter((agent) => !agent.hidden && agent.mode !== 'primary')
-      .map((agent) => [agent.name.toLowerCase(), agent.name])
-  );
-  const fileMap = new Map<string, PromptContextItem[]>();
-
-  for (const item of contextItems) {
-    const name = item.path.split(/[/\\]/).pop() || item.path;
-    const key = name.toLowerCase();
-    const list = fileMap.get(key);
-    if (list) {
-      list.push(item);
-    } else {
-      fileMap.set(key, [item]);
-    }
-    const normalizedPath = item.path.replace(/\\/g, '/').toLowerCase();
-    if (!fileMap.has(normalizedPath)) {
-      fileMap.set(normalizedPath, [item]);
-    }
-  }
-
-  const fileIndices = new Map<string, number>();
-  const resolved: Array<
-    | { type: 'agent'; name: string; raw: string; start: number; end: number }
-    | { type: 'file'; path: string; raw: string; start: number; end: number }
-  > = [];
-
-  for (const token of tokens) {
-    const key = token.token.toLowerCase();
-    const agentName = agentMap.get(key);
-    if (agentName) {
-      resolved.push({ type: 'agent', name: agentName, raw: token.raw, start: token.start, end: token.end });
-      continue;
-    }
-    const files = fileMap.get(key);
-    if (!files || files.length === 0) continue;
-    const index = fileIndices.get(key) ?? 0;
-    const item = files[index] ?? files[0];
-    fileIndices.set(key, index + 1);
-    resolved.push({ type: 'file', path: item.path, raw: token.raw, start: token.start, end: token.end });
-  }
-
-  if (resolved.length === 0) {
-    return [{ type: 'text', content: text, start: 0, end: text.length }];
-  }
-
-  const parts: PromptPart[] = [];
-  let cursor = 0;
-  let position = 0;
-
-  for (const item of resolved) {
-    if (item.start > cursor) {
-      const segment = text.slice(cursor, item.start);
-      if (segment) {
-        parts.push({ type: 'text', content: segment, start: position, end: position + segment.length });
-        position += segment.length;
-      }
-    }
-    const length = item.raw.length;
-    if (item.type === 'agent') {
-      parts.push({
-        type: 'agent',
-        name: item.name,
-        content: item.raw,
-        start: position,
-        end: position + length,
-      });
-    }
-    if (item.type === 'file') {
-      parts.push({
-        type: 'file',
-        path: item.path,
-        content: item.raw,
-        start: position,
-        end: position + length,
-      });
-    }
-    position += length;
-    cursor = item.end;
-  }
-
-  if (cursor < text.length) {
-    const tail = text.slice(cursor);
-    if (tail) {
-      parts.push({ type: 'text', content: tail, start: position, end: position + tail.length });
-    }
-  }
-
-  return parts.length > 0 ? parts : DEFAULT_PROMPT;
-};
-
-const isPromptEqual = (left: PromptPart[], right: PromptPart[]) => {
-  if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    const a = left[i];
-    const b = right[i];
-    if (a.type !== b.type) return false;
-    if (a.content !== b.content) return false;
-    if (a.type === 'file' && (b as FilePart).path !== a.path) return false;
-    if (a.type === 'agent' && (b as AgentPart).name !== a.name) return false;
-  }
-  return true;
-};
-
-const createTextFragment = (content: string): DocumentFragment => {
-  const fragment = document.createDocumentFragment();
-  const segments = content.split('\n');
-  segments.forEach((segment, index) => {
-    if (segment) {
-      fragment.appendChild(document.createTextNode(segment));
-    } else if (segments.length > 1) {
-      fragment.appendChild(document.createTextNode(ZERO_WIDTH_SPACE));
-    }
-    if (index < segments.length - 1) {
-      fragment.appendChild(document.createElement('br'));
-    }
-  });
-  return fragment;
-};
-
-const createPill = (part: { type: 'file' | 'agent'; content: string; path?: string; name?: string }): HTMLElement => {
-  const pill = document.createElement('span');
-  pill.textContent = part.content;
-  pill.setAttribute('data-type', part.type);
-  if (part.type === 'file' && part.path) pill.setAttribute('data-path', part.path);
-  if (part.type === 'agent' && part.name) pill.setAttribute('data-name', part.name);
-  pill.setAttribute('contenteditable', 'false');
-  pill.style.userSelect = 'text';
-  pill.style.cursor = 'default';
-  return pill;
-};
-
-const getNodeLength = (node: Node): number => {
-  if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'BR') return 1;
-  return (node.textContent ?? '').replace(/\u200B/g, '').length;
-};
-
-const getTextLength = (node: Node): number => {
-  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '').replace(/\u200B/g, '').length;
-  if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'BR') return 1;
-  let length = 0;
-  for (const child of Array.from(node.childNodes)) {
-    length += getTextLength(child);
-  }
-  return length;
-};
-
-const getCursorPosition = (parent: HTMLElement): number => {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return 0;
-  const range = selection.getRangeAt(0);
-  if (!parent.contains(range.startContainer)) return 0;
-  const preCaretRange = range.cloneRange();
-  preCaretRange.selectNodeContents(parent);
-  preCaretRange.setEnd(range.startContainer, range.startOffset);
-  return getTextLength(preCaretRange.cloneContents());
-};
-
-const setCursorPosition = (parent: HTMLElement, position: number) => {
-  let remaining = position;
-  let node = parent.firstChild;
-  while (node) {
-    const length = getNodeLength(node);
-    const isText = node.nodeType === Node.TEXT_NODE;
-    const isPill =
-      node.nodeType === Node.ELEMENT_NODE
-      && ((node as HTMLElement).dataset.type === 'file' || (node as HTMLElement).dataset.type === 'agent');
-    const isBreak = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'BR';
-
-    if (isText && remaining <= length) {
-      const range = document.createRange();
-      const selection = window.getSelection();
-      range.setStart(node, remaining);
-      range.collapse(true);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      return;
-    }
-
-    if ((isPill || isBreak) && remaining <= length) {
-      const range = document.createRange();
-      const selection = window.getSelection();
-      if (remaining === 0) {
-        range.setStartBefore(node);
-      }
-      if (remaining > 0 && isPill) {
-        range.setStartAfter(node);
-      }
-      if (remaining > 0 && isBreak) {
-        const next = node.nextSibling;
-        if (next && next.nodeType === Node.TEXT_NODE) {
-          range.setStart(next, 0);
-        }
-        if (!next || next.nodeType !== Node.TEXT_NODE) {
-          range.setStartAfter(node);
-        }
-      }
-      range.collapse(true);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      return;
-    }
-
-    remaining -= length;
-    node = node.nextSibling;
-  }
-
-  const fallbackRange = document.createRange();
-  const fallbackSelection = window.getSelection();
-  const last = parent.lastChild;
-  if (last && last.nodeType === Node.TEXT_NODE) {
-    const len = last.textContent ? last.textContent.length : 0;
-    fallbackRange.setStart(last, len);
-  }
-  if (!last || last.nodeType !== Node.TEXT_NODE) {
-    fallbackRange.selectNodeContents(parent);
-  }
-  fallbackRange.collapse(false);
-  fallbackSelection?.removeAllRanges();
-  fallbackSelection?.addRange(fallbackRange);
-};
-
-const setRangeEdge = (parent: HTMLElement, range: Range, edge: 'start' | 'end', offset: number) => {
-  let remaining = offset;
-  const nodes = Array.from(parent.childNodes);
-
-  for (const node of nodes) {
-    const length = getNodeLength(node);
-    const isText = node.nodeType === Node.TEXT_NODE;
-    const isPill =
-      node.nodeType === Node.ELEMENT_NODE
-      && ((node as HTMLElement).dataset.type === 'file' || (node as HTMLElement).dataset.type === 'agent');
-    const isBreak = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'BR';
-
-    if (isText && remaining <= length) {
-      if (edge === 'start') range.setStart(node, remaining);
-      if (edge === 'end') range.setEnd(node, remaining);
-      return;
-    }
-
-    if ((isPill || isBreak) && remaining <= length) {
-      if (edge === 'start' && remaining === 0) range.setStartBefore(node);
-      if (edge === 'start' && remaining > 0) range.setStartAfter(node);
-      if (edge === 'end' && remaining === 0) range.setEndBefore(node);
-      if (edge === 'end' && remaining > 0) range.setEndAfter(node);
-      return;
-    }
-
-    remaining -= length;
-  }
-};
-
-const parseFromDOM = (editor: HTMLElement): PromptPart[] => {
-  const parts: PromptPart[] = [];
-  let position = 0;
-  let buffer = '';
-
-  const flushText = () => {
-    const content = buffer.replace(/\r\n?/g, '\n').replace(/\u200B/g, '');
-    buffer = '';
-    if (!content) return;
-    parts.push({ type: 'text', content, start: position, end: position + content.length });
-    position += content.length;
-  };
-
-  const pushFile = (file: HTMLElement) => {
-    const content = file.textContent ?? '';
-    const path = file.dataset.path ?? content;
-    parts.push({ type: 'file', path, content, start: position, end: position + content.length });
-    position += content.length;
-  };
-
-  const pushAgent = (agent: HTMLElement) => {
-    const content = agent.textContent ?? '';
-    const name = agent.dataset.name ?? content.replace(/^@/, '');
-    parts.push({ type: 'agent', name, content, start: position, end: position + content.length });
-    position += content.length;
-  };
-
-  const visit = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      buffer += node.textContent ?? '';
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-    const element = node as HTMLElement;
-    if (element.dataset.type === 'file') {
-      flushText();
-      pushFile(element);
-      return;
-    }
-    if (element.dataset.type === 'agent') {
-      flushText();
-      pushAgent(element);
-      return;
-    }
-    if (element.tagName === 'BR') {
-      buffer += '\n';
-      return;
-    }
-
-    for (const child of Array.from(element.childNodes)) {
-      visit(child);
-    }
-  };
-
-  const children = Array.from(editor.childNodes);
-  children.forEach((child, index) => {
-    const isBlock = child.nodeType === Node.ELEMENT_NODE && ['DIV', 'P'].includes((child as HTMLElement).tagName);
-    visit(child);
-    if (isBlock && index < children.length - 1) {
-      buffer += '\n';
-    }
-  });
-
-  flushText();
-
-  return parts.length > 0 ? parts : DEFAULT_PROMPT;
-};
-
-const isNormalizedEditor = (editor: HTMLElement) =>
-  Array.from(editor.childNodes).every((node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      if (!text.includes(ZERO_WIDTH_SPACE)) return true;
-      if (text !== ZERO_WIDTH_SPACE) return false;
-
-      const prev = node.previousSibling;
-      const next = node.nextSibling;
-      const prevIsBr = prev?.nodeType === Node.ELEMENT_NODE && (prev as HTMLElement).tagName === 'BR';
-      const nextIsBr = next?.nodeType === Node.ELEMENT_NODE && (next as HTMLElement).tagName === 'BR';
-      if (!prevIsBr && !nextIsBr) return false;
-      if (nextIsBr && !prevIsBr && prev) return false;
-      return true;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return false;
-    const element = node as HTMLElement;
-    if (element.dataset.type === 'file') return true;
-    if (element.dataset.type === 'agent') return true;
-    return element.tagName === 'BR';
-  });
-
-// Helper to generate unique ID
-const createId = () => Math.random().toString(36).substring(2, 9);
-
-// Helper to read file as data URL
-const readAsDataUrl = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
 
 export function PromptInput({
   disabled,
@@ -1336,63 +897,21 @@ export function PromptInput({
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleSuggestionSelect = (item: SuggestionItem) => {
+    if (item.type === 'command') {
+      handleCommandSelect(item);
+    } else {
+      applySuggestion(item);
+    }
+  };
+
   return (
     <div className={`relative flex flex-col gap-3 max-h-[320px] ${className ?? ''}`.trim()}>
       {trigger && (
-        <div
-          className="absolute inset-x-0 -top-3 -translate-y-full origin-bottom-left z-20
-                 max-h-72 overflow-auto rounded-md border border-border bg-background shadow-md p-1 thin-scrollbar"
-          onMouseDown={(event) => event.preventDefault()}
-        >
-          {(() => {
-            const items = suggestions.slice(0, 20);
-
-            return items.length > 0 ? (
-              items.map((item) => {
-                const isAgent = 'agent' in item && !!item.agent;
-                const hasPath = 'path' in item && !!item.path;
-                const agent = isAgent ? item.agent : undefined;
-                const description = 'description' in item ? item.description : undefined;
-                const filePath: string = hasPath && 'path' in item ? (item.path as string) : '';
-                const dir = hasPath ? getDirectory(filePath) : '';
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => (item.type === 'command' ? handleCommandSelect(item as SuggestionItem) : applySuggestion(item as SuggestionItem))}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
-                  >
-                    {isAgent ? (
-                      <>
-                        <Brain className="shrink-0 size-3.5" style={{ color: 'var(--md-accent)' }} />
-                        <span className="truncate">{agent}</span>
-                      </>
-                    ) : hasPath ? (
-                      <div className="flex items-baseline min-w-0 truncate">
-                        {dir && (
-                          <span className="text-muted-foreground">{dir}/</span>
-                        )}
-                        <span className="text-foreground">
-                          {filePath.endsWith('/') ? filePath : getFilename(filePath)}
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-foreground">{item.label}</span>
-                        {description && <span className="text-muted-foreground">{description}</span>}
-                      </>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="px-2 py-2 text-xs text-muted-foreground">No results found</div>
-            );
-          })()}
-        </div>
+        <SuggestionList
+          suggestions={suggestions}
+          onSelect={handleSuggestionSelect}
+        />
       )}
       <form
         data-slot="prompt-input-form"

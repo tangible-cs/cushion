@@ -4,25 +4,13 @@ import { useMemo } from 'react';
 import { ArrowLeft, FileText, Link2, X } from 'lucide-react';
 import type { LinkInfo, LinkIndex } from '@/lib/link-index';
 import { getBacklinks } from '@/lib/link-index';
+import { getBaseName } from '@/lib/path-utils';
 
 interface BacklinksPanelProps {
-  /** Current file path */
   currentFile: string | null;
-  /** Link index containing all connections */
   linkIndex: LinkIndex | null;
-  /** Callback when a backlink is clicked */
   onNavigate: (filePath: string) => void;
-  /** Optional close handler (for modal usage) */
   onClose?: () => void;
-}
-
-/**
- * Get filename without extension for display.
- */
-function getDisplayName(filePath: string): string {
-  const name = filePath.split('/').pop() || filePath;
-  const lastDot = name.lastIndexOf('.');
-  return lastDot > 0 ? name.slice(0, lastDot) : name;
 }
 
 /**
@@ -71,7 +59,7 @@ export function BacklinksPanel({ currentFile, linkIndex, onNavigate, onClose }: 
     
     // Sort by file name
     return Array.from(groups.entries()).sort((a, b) => 
-      getDisplayName(a[0]).localeCompare(getDisplayName(b[0]))
+      getBaseName(a[0]).localeCompare(getBaseName(b[0]))
     );
   }, [backlinks]);
   
@@ -125,7 +113,7 @@ export function BacklinksPanel({ currentFile, linkIndex, onNavigate, onClose }: 
                 >
                   <FileText size={14} className="text-[var(--md-text-muted)] group-hover:text-[var(--md-accent)]" />
                   <span className="font-medium text-sm group-hover:text-[var(--md-accent)]">
-                    {getDisplayName(fromFile)}
+                    {getBaseName(fromFile)}
                   </span>
                   <span className="ml-auto text-xs text-[var(--md-text-faint)]">
                     {links.length} {links.length === 1 ? 'link' : 'links'}

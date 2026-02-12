@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
@@ -80,7 +79,6 @@ export async function writeOllamaToConfig(
   await fs.mkdir(configDir, { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(mergedConfig, null, 2), 'utf-8');
 
-  console.log('[ollama-config] Wrote Ollama config to OpenCode:', configPath);
 }
 
 export function getOpenCodeConfigPath(): string {

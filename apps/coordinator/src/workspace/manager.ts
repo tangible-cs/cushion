@@ -484,7 +484,6 @@ export class WorkspaceManager {
       .on('unlinkDir', (p) => enqueue('deleted', p))
       .on('error', (err) => console.error('[Watcher] Error:', err));
 
-    console.log('[Watcher] Started watching:', projectPath);
   }
 
   /**
@@ -550,7 +549,6 @@ export class WorkspaceManager {
       const w = this.watcher;
       this.watcher = null; // Null out synchronously so late events are discarded
       await w.close();
-      console.log('[Watcher] Stopped');
     }
   }
 

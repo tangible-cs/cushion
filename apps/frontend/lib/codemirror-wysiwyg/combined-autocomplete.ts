@@ -16,11 +16,9 @@ import { EditorView } from '@codemirror/view';
 import { Extension } from '@codemirror/state';
 import { fileTreeField } from './wiki-link-plugin';
 import { searchFiles, flattenFileTree } from '../wiki-link-resolver';
+import { getBaseName, getDirectory } from '../path-utils';
 import type { FileTreeNode } from '@cushion/types';
 
-/**
- * Supported languages for code block autocomplete.
- */
 const CODE_LANGUAGES = [
   'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx',
   'python', 'py',
@@ -44,23 +42,6 @@ const CODE_LANGUAGES = [
   'dart',
   'scala',
 ];
-
-/**
- * Get the filename without extension for display.
- */
-function getDisplayName(filePath: string): string {
-  const name = filePath.split('/').pop() || filePath;
-  const lastDot = name.lastIndexOf('.');
-  return lastDot > 0 ? name.slice(0, lastDot) : name;
-}
-
-/**
- * Get the directory part of a path (everything before the filename).
- */
-function getDirectory(filePath: string): string {
-  const lastSlash = filePath.lastIndexOf('/');
-  return lastSlash > 0 ? filePath.slice(0, lastSlash + 1) : '';
-}
 
 /**
  * Get the href value for a wiki-link (filename without .md extension).
@@ -134,14 +115,14 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
 
   // Build completion options
   const options: Completion[] = files.map(filePath => {
-    const displayName = getDisplayName(filePath);
+    const displayName = getBaseName(filePath);
     const directory = getDirectory(filePath);
     const href = getWikiLinkHref(filePath);
     const isMarkdown = filePath.toLowerCase().endsWith('.md');
 
     return {
       label: displayName,
-      detail: directory || undefined,
+      detail: directory ? `${directory}/` : undefined,
       apply: (view: EditorView, completion: Completion, fromPos: number, toPos: number) => {
         const doc = view.state.doc;
         const line = doc.lineAt(toPos);
@@ -165,7 +146,7 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
   });
 
   // Add "Create new note" option
-  if (query.length > 0 && !files.some(f => getDisplayName(f).toLowerCase() === query.toLowerCase())) {
+  if (query.length > 0 && !files.some(f => getBaseName(f).toLowerCase() === query.toLowerCase())) {
     options.push({
       label: query,
       detail: '+ Create new note',

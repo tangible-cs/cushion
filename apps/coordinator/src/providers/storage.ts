@@ -1,19 +1,13 @@
-/**
- * Credential Storage
- *
- * Stores provider API keys and OAuth tokens in a local config file
- */
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import type { Credential, ApiAuth, OAuthAuth } from '@cushion/types';
+import type { Credential } from '@cushion/types';
+import { OLLAMA_PROVIDER_ID, OLLAMA_DEFAULT_URL } from './ollama.js';
+
+export { OLLAMA_PROVIDER_ID };
 
 const CONFIG_DIR = path.join(os.homedir(), '.cushion');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-const OLLAMA_PROVIDER_ID = 'ollama';
-
-type AuthCredential = ApiAuth | OAuthAuth;
 
 interface Config {
   credentials: Record<string, Credential>;
@@ -44,8 +38,7 @@ export class CredentialStorage {
       await this.ensureConfigDir();
       const content = await fs.readFile(CONFIG_FILE, 'utf-8');
       this.config = JSON.parse(content);
-    } catch (error) {
-      console.log('[CredentialStorage] Config file not found, using defaults');
+    } catch {
       this.config = DEFAULT_CONFIG;
       await this.saveConfig();
     }
@@ -62,25 +55,14 @@ export class CredentialStorage {
   }
 
   async setCredential(providerID: string, apiKey: string): Promise<void> {
-    // Special handling for Ollama - store URL in ollamaConfig
-    if (providerID === OLLAMA_PROVIDER_ID) {
-      this.config.ollamaConfig = {
-        baseUrl: apiKey || 'http://localhost:11434',
-        connected: true,
-        lastConnected: Date.now(),
-      };
-    } else {
-      // Regular providers - store API key
-      this.config.credentials[providerID] = {
-        providerID,
-        auth: {
-          type: 'api',
-          key: apiKey,
-        },
-      };
-    }
+    this.config.credentials[providerID] = {
+      providerID,
+      auth: {
+        type: 'api',
+        key: apiKey,
+      },
+    };
     await this.saveConfig();
-    console.log(`[CredentialStorage] Credential stored for provider: ${providerID}`);
   }
 
   async setOAuthCredential(providerID: string, auth: {
@@ -97,68 +79,58 @@ export class CredentialStorage {
       },
     };
     await this.saveConfig();
-    console.log(`[CredentialStorage] OAuth credential stored for provider: ${providerID}`);
   }
 
   async getCredential(providerID: string): Promise<Credential | undefined> {
-    // Special handling for Ollama
-    if (providerID === OLLAMA_PROVIDER_ID && this.config.ollamaConfig?.connected) {
-      return {
-        providerID,
-        auth: {
-          type: 'api',
-          key: this.config.ollamaConfig.baseUrl || 'http://localhost:11434',
-        },
-      };
-    }
     return this.config.credentials[providerID];
   }
 
   async removeCredential(providerID: string): Promise<void> {
-    // Special handling for Ollama
-    if (providerID === OLLAMA_PROVIDER_ID) {
-      delete this.config.ollamaConfig;
-    } else {
-      delete this.config.credentials[providerID];
-    }
+    delete this.config.credentials[providerID];
     await this.saveConfig();
-    console.log(`[CredentialStorage] Credential removed for provider: ${providerID}`);
   }
 
   async getAllCredentials(): Promise<Credential[]> {
-    const credentials = Object.values(this.config.credentials);
-    
-    // Add Ollama if connected
-    if (this.config.ollamaConfig?.connected) {
-      credentials.push({
-        providerID: OLLAMA_PROVIDER_ID,
-        auth: {
-          type: 'api',
-          key: this.config.ollamaConfig.baseUrl || 'http://localhost:11434',
-        },
-      });
-    }
-    
-    return credentials;
+    return Object.values(this.config.credentials);
   }
 
   async getConnectedProviderIDs(): Promise<string[]> {
     const providerIDs = Object.keys(this.config.credentials);
-    
-    // Add Ollama if connected
-    if (this.config.ollamaConfig?.connected) {
+    if (this.isOllamaConnected()) {
       providerIDs.push(OLLAMA_PROVIDER_ID);
     }
-    
     return providerIDs;
   }
 
   hasCredential(providerID: string): boolean {
-    // Special handling for Ollama
     if (providerID === OLLAMA_PROVIDER_ID) {
-      return this.config.ollamaConfig?.connected === true;
+      return this.isOllamaConnected();
     }
     return providerID in this.config.credentials;
+  }
+
+  // --- Ollama-specific methods ---
+
+  async connectOllama(baseUrl?: string): Promise<void> {
+    this.config.ollamaConfig = {
+      baseUrl: baseUrl || OLLAMA_DEFAULT_URL,
+      connected: true,
+      lastConnected: Date.now(),
+    };
+    await this.saveConfig();
+  }
+
+  async disconnectOllama(): Promise<void> {
+    delete this.config.ollamaConfig;
+    await this.saveConfig();
+  }
+
+  isOllamaConnected(): boolean {
+    return this.config.ollamaConfig?.connected === true;
+  }
+
+  getOllamaBaseUrl(): string {
+    return this.config.ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
   }
 
   async getOllamaConfig(): Promise<{ baseUrl?: string; connected?: boolean } | undefined> {

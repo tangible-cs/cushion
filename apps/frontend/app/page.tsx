@@ -16,13 +16,10 @@ import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ToastProvider } from '@/components/chat/Toast';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
-import { buildLinkIndex, type LinkIndex } from '@/lib/link-index';
-import { flattenFileTree } from '@/lib/wiki-link-resolver';
+import { useLinkIndex } from '@/hooks/useLinkIndex';
+import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
-import type { FileState, FileTreeNode, ConnectionState } from '@cushion/types';
-
-const isMarkdownFile = (filePath: string) => filePath.toLowerCase().endsWith('.md');
 
 const APP_SHORTCUT_IDS = [
   'app.quickSwitcher.open',
@@ -56,23 +53,11 @@ export default function Home() {
   const addContextItem = useChatStore((state) => state.addContextItem);
   const setActiveSession = useChatStore((state) => state.setActiveSession);
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
-  const [fileTree, setFileTreeLocal] = useState<FileTreeNode[]>([]);
-  const setStoreFileTree = useWorkspaceStore((state) => state.setFileTree);
-  const setFileTree = useCallback((tree: FileTreeNode[]) => {
-    setFileTreeLocal(tree);
-    setStoreFileTree(tree);
-  }, [setStoreFileTree]);
-  const [linkIndex, setLinkIndex] = useState<LinkIndex | null>(null);
-  const fileContentsRef = useRef<Map<string, string>>(new Map());
-  const openFilesSnapshotRef = useRef<Map<string, FileState>>(new Map());
-  const indexBuildIdRef = useRef(0);
-  const rebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightPanelMode, setRightPanelMode] = useState<'none' | 'chat'>('none');
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const lastRightPanelModeRef = useRef<'chat'>('chat');
@@ -81,6 +66,22 @@ export default function Home() {
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
+
+  // File tree and connection state from useFileTree hook
+  const { fileTree, connectionState, fetchFileTree } = useFileTree({
+    client,
+    metadata,
+    onFilesChanged: () => fileBrowserRef.current?.refreshFileList(),
+  });
+
+  // Link index from useLinkIndex hook
+  const linkIndex = useLinkIndex({
+    client,
+    metadata,
+    fileTree,
+    openFiles,
+  });
+
   const appShortcuts = useShortcutBindings(APP_SHORTCUT_IDS);
   const closeTopmostAppOverlay = useCallback(() => {
     return closeTopmostOverlay([
@@ -92,7 +93,6 @@ export default function Home() {
     ]);
   }, [metadata, showBacklinks, showGraph, showQuickSwitcher, showSettings, showWorkspaceModal]);
 
-  // Connect to coordinator on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -114,7 +114,6 @@ export default function Home() {
     };
   }, [setClient]);
 
-  // Connect to OpenCode when workspace is available
   useEffect(() => {
     const directory = metadata?.projectPath;
     if (!directory) {
@@ -131,7 +130,6 @@ export default function Home() {
     };
   }, [metadata?.projectPath, connectChat, disconnectChat]);
 
-  // Auto-open most recent workspace if available
   useEffect(() => {
     if (!client || metadata || autoOpenAttempted.current) {
       return;
@@ -162,219 +160,6 @@ export default function Home() {
     }
   }, [metadata]);
 
-  // Fetch file tree when workspace opens (for wiki-link resolution)
-  const fetchFileTree = useCallback(async () => {
-    if (!client || !metadata) {
-      setFileTree([]);
-      return;
-    }
-    const buildTree = async (relativePath: string): Promise<FileTreeNode[]> => {
-      const { files } = await client.listFiles(relativePath);
-      const resolved = await Promise.all(
-        files.map(async (node) => {
-          if (node.type !== 'directory') {
-            return node;
-          }
-
-          const childPath = node.path || (relativePath === '.' ? node.name : `${relativePath}/${node.name}`);
-          try {
-            const children = await buildTree(childPath);
-            return { ...node, children };
-          } catch (error) {
-            console.warn('[Page] Failed to list directory:', childPath, error);
-            return { ...node, children: [] };
-          }
-        })
-      );
-
-      return resolved;
-    };
-
-    try {
-      const fullTree = await buildTree('.');
-      setFileTree(fullTree);
-    } catch (err) {
-      console.error('[Page] Failed to fetch file tree:', err);
-    }
-  }, [client, metadata]);
-
-  useEffect(() => {
-    fetchFileTree();
-  }, [fetchFileTree]);
-
-  // Track connection state + handle reconnection
-  useEffect(() => {
-    if (!client) return;
-
-    const unsubState = client.onConnectionStateChanged((state) => {
-      setConnectionState(state);
-    });
-
-    // Sync initial state
-    setConnectionState(client.connectionState);
-
-    const unsubReconnect = client.onReconnected(async () => {
-      const meta = useWorkspaceStore.getState().metadata;
-      if (!meta) return;
-
-      try {
-        await client.openWorkspace(meta.projectPath);
-        fileBrowserRef.current?.refreshFileList();
-        fetchFileTree();
-      } catch (err) {
-        console.error('[Page] Failed to restore workspace after reconnect:', err);
-      }
-    });
-
-    return () => {
-      unsubState();
-      unsubReconnect();
-    };
-  }, [client, fetchFileTree]);
-
-  // Subscribe to file-system watcher notifications from the coordinator
-  useEffect(() => {
-    if (!client || !metadata) return;
-
-    // Tree-level changes → refresh file browser + full tree
-    const unsubTree = client.onFilesChanged(() => {
-      fileBrowserRef.current?.refreshFileList();
-      fetchFileTree();
-    });
-
-    // Individual open-file changes → auto-reload clean files
-    const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
-      const state = useWorkspaceStore.getState();
-      const openFile = state.openFiles.get(filePath);
-      if (!openFile) return; // not open, nothing to do
-
-      if (!openFile.isDirty) {
-        // File is clean — silently reload content from disk
-        try {
-          const { content } = await client.readFile(filePath);
-          // Re-check after async gap: user may have started editing
-          const freshState = useWorkspaceStore.getState();
-          const freshFile = freshState.openFiles.get(filePath);
-          if (freshFile && !freshFile.isDirty) {
-            freshState.openFile(filePath, content);
-            freshState.markFileSaved(filePath, content);
-          }
-        } catch {
-          // File may have been deleted
-        }
-      } else {
-        // File has unsaved changes — warn (full conflict UI is a future step)
-        console.warn(`[Page] File "${filePath}" changed on disk but has unsaved edits`);
-      }
-    });
-
-    return () => {
-      unsubTree();
-      unsubFile();
-    };
-  }, [client, metadata, fetchFileTree]);
-
-  const rebuildIndexFromCache = useCallback(() => {
-    if (!metadata || fileTree.length === 0) {
-      setLinkIndex(null);
-      return;
-    }
-    const snapshot = new Map(fileContentsRef.current);
-    setLinkIndex(buildLinkIndex(snapshot, fileTree));
-  }, [fileTree, metadata]);
-
-  const scheduleRebuildIndex = useCallback((delay = 200) => {
-    if (rebuildTimerRef.current) {
-      clearTimeout(rebuildTimerRef.current);
-    }
-    rebuildTimerRef.current = setTimeout(() => {
-      rebuildTimerRef.current = null;
-      rebuildIndexFromCache();
-    }, delay);
-  }, [rebuildIndexFromCache]);
-
-  useEffect(() => {
-    return () => {
-      if (rebuildTimerRef.current) {
-        clearTimeout(rebuildTimerRef.current);
-      }
-    };
-  }, []);
-
-  // Build link index from all markdown files
-  const buildIndex = useCallback(async () => {
-    if (!client || !metadata || fileTree.length === 0) {
-      fileContentsRef.current = new Map();
-      setLinkIndex(null);
-      return;
-    }
-
-    const buildId = ++indexBuildIdRef.current;
-
-    try {
-      // Get all markdown files
-      const allFiles = flattenFileTree(fileTree);
-      const mdFiles = allFiles.filter(isMarkdownFile);
-      
-      // Read content of each markdown file
-      const fileContents = new Map<string, string>();
-      
-      await Promise.all(
-        mdFiles.map(async (filePath) => {
-          try {
-            const { content } = await client.readFile(filePath);
-            fileContents.set(filePath, content);
-          } catch (err) {
-            // Skip files that can't be read
-            console.warn(`[Page] Could not read ${filePath}:`, err);
-          }
-        })
-      );
-      
-      if (buildId !== indexBuildIdRef.current) return;
-
-      const openFilesSnapshot = useWorkspaceStore.getState().openFiles;
-      openFilesSnapshot.forEach((file, filePath) => {
-        if (isMarkdownFile(filePath)) {
-          fileContents.set(filePath, file.content);
-        }
-      });
-
-      fileContentsRef.current = fileContents;
-      setLinkIndex(buildLinkIndex(fileContents, fileTree));
-    } catch (err) {
-      console.error('[Page] Failed to build link index:', err);
-    }
-  }, [client, metadata, fileTree]);
-
-  // Rebuild index when file tree changes
-  useEffect(() => {
-    buildIndex();
-  }, [buildIndex]);
-
-  useEffect(() => {
-    if (!metadata || fileTree.length === 0) return;
-
-    const prevOpenFiles = openFilesSnapshotRef.current;
-    const nextOpenFiles = openFiles;
-
-    prevOpenFiles.forEach((file, filePath) => {
-      if (!nextOpenFiles.has(filePath) && isMarkdownFile(filePath)) {
-        fileContentsRef.current.set(filePath, file.savedContent);
-      }
-    });
-
-    nextOpenFiles.forEach((file, filePath) => {
-      if (isMarkdownFile(filePath)) {
-        fileContentsRef.current.set(filePath, file.content);
-      }
-    });
-
-    openFilesSnapshotRef.current = new Map(nextOpenFiles);
-    scheduleRebuildIndex();
-  }, [openFiles, fileTree, metadata, scheduleRebuildIndex]);
-
-  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -456,7 +241,6 @@ export default function Home() {
     window.localStorage.setItem('cushion-right-panel-width', String(rightPanelWidth));
   }, [rightPanelWidth]);
 
-  // File selection handler — reads file via coordinator and opens in editor
   const handleFileOpen = useCallback(
     (filePath: string, content: string) => {
       openFile(filePath, content);
@@ -513,14 +297,11 @@ export default function Home() {
     setRightPanelWidth(resolvedRightPanelWidth);
   }, [rightPanelWidth, resolvedRightPanelWidth]);
 
-  // Called when a file is renamed from the editor header (or a wiki-link creates a new file)
   const handleFileRenamed = useCallback(() => {
     fileBrowserRef.current?.refreshFileList();
-    // Also refresh the file tree for wiki-link resolution
     fetchFileTree();
   }, [fetchFileTree]);
 
-  // Navigate to a file from backlinks or graph
   const handleNavigateToFile = useCallback(async (filePath: string) => {
     if (!client) return;
     
@@ -532,22 +313,14 @@ export default function Home() {
     }
   }, [client, openFile]);
 
-  // Create a new file from quick switcher
   const handleCreateFile = useCallback(async (fileName: string) => {
     if (!client) return;
     
     try {
-      // Ensure .md extension
       const filePath = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
-      
-      // Create the file with empty content
       await client.saveFile(filePath, '');
-      
-      // Refresh file tree
       fileBrowserRef.current?.refreshFileList();
       fetchFileTree();
-      
-      // Open the new file
       openFile(filePath, '');
     } catch (err) {
       console.error('[Page] Failed to create file:', err);
@@ -738,9 +511,6 @@ export default function Home() {
   );
 }
 
-/**
- * Placeholder shown while EditorPanel is being built in parallel
- */
 function EditorPlaceholder() {
   return (
     <div className="h-full w-full flex items-center justify-center bg-background">

@@ -8,62 +8,34 @@
 import type { FileTreeNode } from '@cushion/types';
 import { findAllWikiLinks } from './wiki-link';
 import { flattenFileTree } from './wiki-link-resolver';
+import { getBaseName } from './path-utils';
 
-/** Information about a link from one file to another */
 export interface LinkInfo {
-  /** Path of the file containing the link */
   from: string;
-  /** Path of the target file (resolved) */
   to: string;
-  /** Original href text from the wiki-link */
   href: string;
-  /** Line number where the link appears (1-based) */
   line: number;
-  /** Context text around the link */
   context: string;
 }
 
-/** A node in the graph (represents a file) */
 export interface GraphNode {
-  /** File path (unique identifier) */
   id: string;
-  /** Display name (filename without extension) */
   label: string;
-  /** Whether this file exists in the workspace */
   exists: boolean;
-  /** Number of outgoing links */
   outgoingCount: number;
-  /** Number of incoming links (backlinks) */
   incomingCount: number;
 }
 
-/** An edge in the graph (represents a link between files) */
 export interface GraphEdge {
-  /** Source file path */
   source: string;
-  /** Target file path */
   target: string;
 }
 
-/** The complete link index */
 export interface LinkIndex {
-  /** Map of file path -> outgoing links */
   outgoing: Map<string, LinkInfo[]>;
-  /** Map of file path -> incoming links (backlinks) */
   incoming: Map<string, LinkInfo[]>;
-  /** All nodes for graph view */
   nodes: GraphNode[];
-  /** All edges for graph view */
   edges: GraphEdge[];
-}
-
-/**
- * Get filename without extension.
- */
-function getBaseName(filePath: string): string {
-  const name = filePath.split('/').pop() || filePath;
-  const lastDot = name.lastIndexOf('.');
-  return lastDot > 0 ? name.slice(0, lastDot) : name;
 }
 
 /**

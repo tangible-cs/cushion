@@ -9,40 +9,22 @@
  */
 
 import type { FileTreeNode, ResolvedWikiLink, WikiLinkState } from '@cushion/types';
+import { getBaseName } from './path-utils';
 
-/**
- * Flatten a file tree into a list of file paths.
- * 
- * @param nodes - File tree nodes
- * @param prefix - Path prefix for recursion
- * @returns Array of file paths
- */
 export function flattenFileTree(nodes: FileTreeNode[], prefix: string = ''): string[] {
   const paths: string[] = [];
-  
+
   for (const node of nodes) {
     const fullPath = prefix ? `${prefix}/${node.name}` : node.name;
-    
+
     if (node.type === 'file') {
       paths.push(fullPath);
     } else if (node.type === 'directory' && node.children) {
       paths.push(...flattenFileTree(node.children, fullPath));
     }
   }
-  
-  return paths;
-}
 
-/**
- * Get the filename without extension.
- * 
- * @param filePath - Full file path
- * @returns Filename without extension
- */
-function getBaseName(filePath: string): string {
-  const name = filePath.split('/').pop() || filePath;
-  const lastDot = name.lastIndexOf('.');
-  return lastDot > 0 ? name.slice(0, lastDot) : name;
+  return paths;
 }
 
 /**

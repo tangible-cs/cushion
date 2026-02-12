@@ -159,7 +159,6 @@ export class OpenAIOAuth {
       });
 
       this.httpServer.listen(this.OAUTH_PORT, () => {
-        console.log(`[OpenAIOAuth] OAuth server started on port ${this.OAUTH_PORT}`);
         resolve({ port: this.OAUTH_PORT, redirectUri: `http://localhost:${this.OAUTH_PORT}/auth/callback` });
       });
     });
@@ -173,7 +172,6 @@ export class OpenAIOAuth {
     if (this.httpServer) {
       this.httpServer.close();
       this.httpServer = null;
-      console.log('[OpenAIOAuth] OAuth server stopped');
     }
   }
 

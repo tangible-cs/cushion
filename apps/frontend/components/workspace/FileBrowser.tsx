@@ -60,7 +60,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
   const loadDirectory = useCallback(async (relativePath: string): Promise<FileTreeNode[]> => {
     if (!client) {
-      console.warn('[FileBrowser] Client not available');
       return [];
     }
 
@@ -87,7 +86,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
   // Animation functions
   const collapseSidebar = useCallback(() => {
-    console.log('[FileBrowser] Collapsing sidebar');
     setIsCollapsedInternal(true);
     if (onSidebarToggle) {
       onSidebarToggle(true);
@@ -95,7 +93,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   }, [onSidebarToggle]);
 
   const resetWidth = useCallback(() => {
-    console.log('[FileBrowser] Expanding sidebar');
     setIsCollapsedInternal(false);
     if (onSidebarToggle) {
       onSidebarToggle(false);
@@ -129,14 +126,12 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   // Expose refresh method via ref
   useImperativeHandle(ref, () => ({
     refreshFileList: async () => {
-      console.log('[FileBrowser] Refreshing file list');
       await loadDirectory('.');
     },
   }), [loadDirectory]);
 
   const handleFileClick = async (filePath: string) => {
     if (!client) {
-      console.warn('[FileBrowser] Client not available');
       return;
     }
 
@@ -403,7 +398,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 setCreatingFolderAtRoot(0);
               }}
               onAddFile={async (filePath) => {
-                console.log('[FileBrowser] Create file:', filePath);
                 if (!client) return;
 
                 try {
@@ -418,7 +412,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onAddFolder={async (folderPath) => {
-                console.log('[FileBrowser] Create folder:', folderPath);
                 if (!client) return;
 
                 try {
@@ -431,7 +424,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onRename={async (oldPath, newPath) => {
-                console.log('[FileBrowser] Rename:', oldPath, '->', newPath);
                 if (!client) return;
 
                 try {
@@ -445,12 +437,10 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onDelete={(path) => {
-                console.log('[FileBrowser] Delete:', path);
                 setDeleteTargetPath(path);
                 setDeleteDialogOpen(true);
               }}
               onDuplicate={async (path) => {
-                console.log('[FileBrowser] Duplicate:', path);
                 if (!client) return;
 
                 try {
@@ -469,7 +459,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onMoveTo={(path) => {
-                console.log('[FileBrowser] Move to:', path);
                 setMoveSourcePath(path);
                 setMoveDialogOpen(true);
               }}

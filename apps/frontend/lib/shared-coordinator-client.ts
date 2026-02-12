@@ -36,7 +36,6 @@ export async function getSharedCoordinatorClient(): Promise<CoordinatorClient> {
   sharedClient = new CoordinatorClient();
 
   connectionPromise = sharedClient.connect().then(() => {
-    console.log('[SharedClient] Shared coordinator client connected');
     connectionPromise = null;
   }).catch((error) => {
     console.error('[SharedClient] Failed to connect:', error);
@@ -62,7 +61,6 @@ export function hasSharedClient(): boolean {
  */
 export function disconnectSharedClient(): void {
   if (sharedClient) {
-    console.log('[SharedClient] Disconnecting shared coordinator client');
     sharedClient.disconnect();
     sharedClient = null;
     connectionPromise = null;

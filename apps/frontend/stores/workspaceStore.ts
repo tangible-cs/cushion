@@ -239,7 +239,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const { metadata, openFiles, tabs } = get();
 
           if (!metadata) {
-            console.warn('[WorkspaceStore] No workspace open');
             return;
           }
 
@@ -310,7 +309,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const file = openFiles.get(filePath);
 
           if (!file) {
-            console.warn('[WorkspaceStore] File not open:', filePath);
             return;
           }
 
