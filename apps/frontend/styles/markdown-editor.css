@@ -17,7 +17,9 @@
   --md-indent-size: 8;
   --md-indent-width: calc(var(--md-indent-size) * var(--md-space-width));
   --md-content-max-width: 900px;  /* Wider content area, like Notion */
-  --md-content-padding: 1em 1.25em;  /* Narrower side padding, like Notion */
+  --md-content-padding-y: 1em;
+  --md-content-padding-x: 1.25em;  /* Narrower side padding, like Notion */
+  --md-content-padding: var(--md-content-padding-y) var(--md-content-padding-x);
   
   /* Border radius */
   --md-border-radius: 6px;
@@ -26,29 +28,27 @@
 
 /* Dark theme (default) */
 :root, .dark {
-  /* Colors - Base */
-  --md-bg: #1a1a1a;
-  --md-bg-secondary: #242424;
-  --md-bg-tertiary: #2d2d2d;
-  --md-text: #e0e0e0;
-  --md-text-muted: #a0a0a0;
-  --md-text-faint: #666666;
-  --md-border: #3a3a3a;
-  
+  /* Colors - Base (reference global tokens with fallbacks) */
+  --md-bg: var(--surface, #1e1e1e);
+  --md-bg-secondary: var(--surface-elevated, #242424);
+  --md-bg-tertiary: var(--surface-tertiary, #2d2d2d);
+  --md-text: var(--foreground, #fafafa);
+  --md-text-muted: var(--foreground-muted, #8a8a8a);
+  --md-text-faint: var(--foreground-faint, #6b6b6b);
+  --md-border: var(--border, #2e2e2e);
+
   /* Colors - Accent */
-  --md-accent-hue: 210;
-  --md-accent-saturation: 60%;
-  --md-accent: hsl(var(--md-accent-hue), var(--md-accent-saturation), 55%);
-  --md-accent-bg: hsl(var(--md-accent-hue), var(--md-accent-saturation), 20%);
-  --md-accent-bg-hover: hsl(var(--md-accent-hue), var(--md-accent-saturation), 25%);
-  
+  --md-accent: var(--accent-primary, #5b9aff);
+  --md-accent-bg: #1e3a5f;
+  --md-accent-bg-hover: #254a73;
+
   /* Colors - Links */
-  --md-link-color: #6fb3d2;
-  --md-link-hover: #8ec8e3;
-  --md-link-external: #b8a6d9;
-  --md-link-empty: #d97c7c;
-  
-  /* Colors - Code */
+  --md-link-color: #5b9aff;
+  --md-link-hover: #a8c8ff;
+  --md-link-external: #a78bfa;
+  --md-link-empty: #ef4444;
+
+  /* Colors - Code (One Dark - unchanged) */
   --md-code-bg: #2a2a2a;
   --md-code-text: #e6db74;
   --md-code-border: #3a3a3a;
@@ -63,45 +63,47 @@
   --md-code-variable: #e06c75;
   --md-code-boolean: #d19a66;
   --md-code-null: #d19a66;
-  
-  /* Colors - Highlights */
+
+  /* Colors - Highlights (unchanged) */
   --md-highlight-yellow: rgba(255, 235, 59, 0.3);
   --md-highlight-green: rgba(76, 175, 80, 0.3);
   --md-highlight-blue: rgba(33, 150, 243, 0.3);
   --md-highlight-red: rgba(244, 67, 54, 0.3);
   --md-highlight-purple: rgba(156, 39, 176, 0.3);
   --md-highlight-orange: rgba(255, 152, 0, 0.3);
-  
+
   /* Colors - Selection */
   --md-selection-bg: rgba(100, 153, 255, 0.25);
-  
+
   /* Colors - Blockquote */
   --md-blockquote-border: #4a4a4a;
   --md-blockquote-text: #b0b0b0;
-  
+
   /* Colors - HR */
   --md-hr-color: #4a4a4a;
 }
 
 /* Light theme */
 .light {
-  --md-bg: #ffffff;
-  --md-bg-secondary: #f8f8f8;
-  --md-bg-tertiary: #f0f0f0;
-  --md-text: #24292e;
-  --md-text-muted: #586069;
-  --md-text-faint: #959da5;
-  --md-border: #e1e4e8;
-  
-  --md-accent: hsl(var(--md-accent-hue), var(--md-accent-saturation), 40%);
-  --md-accent-bg: hsl(var(--md-accent-hue), var(--md-accent-saturation), 92%);
-  --md-accent-bg-hover: hsl(var(--md-accent-hue), var(--md-accent-saturation), 88%);
-  
-  --md-link-color: #0366d6;
-  --md-link-hover: #034289;
-  --md-link-external: #6f42c1;
-  --md-link-empty: #cb2431;
-  
+  /* Colors - Base (reference global tokens with fallbacks) */
+  --md-bg: var(--surface, #ffffff);
+  --md-bg-secondary: #f5f5f5;
+  --md-bg-tertiary: var(--surface-tertiary, #f0f0f0);
+  --md-text: var(--foreground, #333333);
+  --md-text-muted: var(--foreground-muted, #6b6b6b);
+  --md-text-faint: var(--foreground-faint, #8a8a8a);
+  --md-border: var(--border, #e0e0e0);
+
+  --md-accent: var(--accent-primary, #3b82f6);
+  --md-accent-bg: #eef4ff;
+  --md-accent-bg-hover: #d4e4ff;
+
+  --md-link-color: #3b82f6;
+  --md-link-hover: #2563eb;
+  --md-link-external: #7c3aed;
+  --md-link-empty: #ef4444;
+
+  /* Colors - Code (GitHub theme - unchanged) */
   --md-code-bg: #f6f8fa;
   --md-code-text: #24292e;
   --md-code-border: #e1e4e8;
@@ -116,19 +118,20 @@
   --md-code-variable: #e36209;
   --md-code-boolean: #005cc5;
   --md-code-null: #005cc5;
-  
+
+  /* Colors - Highlights (unchanged) */
   --md-highlight-yellow: rgba(255, 235, 59, 0.4);
   --md-highlight-green: rgba(76, 175, 80, 0.4);
   --md-highlight-blue: rgba(33, 150, 243, 0.4);
   --md-highlight-red: rgba(244, 67, 54, 0.4);
   --md-highlight-purple: rgba(156, 39, 176, 0.4);
   --md-highlight-orange: rgba(255, 152, 0, 0.4);
-  
+
   --md-selection-bg: rgba(33, 150, 243, 0.2);
-  
+
   --md-blockquote-border: #dfe2e5;
   --md-blockquote-text: #6a737d;
-  
+
   --md-hr-color: #e1e4e8;
 }
 
@@ -157,14 +160,20 @@
   background: transparent;
   border: none;
   outline: none;
+  /* Horizontal padding lives on scroller so drawSelection() full-width
+     pieces align with the text (selection layer is inside .cm-content). */
+  padding-left: var(--md-content-padding-x);
+  padding-right: var(--md-content-padding-x);
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-content {
   /* Centering - like Tangent's article { margin: 0 auto } */
   max-width: var(--md-content-max-width);
   margin: 0 auto;
-  padding: var(--md-content-padding);
   padding-top: 0.5em;  /* Small top padding for breathing room */
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
   box-sizing: border-box;
   /* Ensure no visual separation */
   border: none;
@@ -195,9 +204,31 @@
   background: var(--md-selection-bg) !important;
 }
 
-.cm-editor.cm-markdown-wysiwyg::selection,
-.cm-editor.cm-markdown-wysiwyg *::selection {
-  background: var(--md-selection-bg);
+/* Native ::selection must be transparent — drawSelection() handles all
+   selection rendering via .cm-selectionBackground divs. Styling ::selection
+   causes double-painted highlights and artifacts on hidden (font-size:0) text. */
+.cm-editor.cm-markdown-wysiwyg .cm-line ::selection {
+  background: transparent !important;
+}
+
+/* Code blocks: restore native ::selection since drawSelection()'s layer sits
+   behind .cm-line and is hidden by the opaque code-block background.
+   Code blocks have no font-size:0 hidden text, so no double-paint artifacts.
+   Tangent uses the same pattern — native ::selection on code/pre elements. */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block ::selection {
+  background: hsl(210, 33%, 30%) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block::selection {
+  background: hsl(210, 33%, 30%) !important;
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block ::selection {
+  background: hsl(210, 100%, 87%) !important;
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block::selection {
+  background: hsl(210, 100%, 87%) !important;
 }
 
 /* Active line - no highlight for cleaner look */
@@ -265,9 +296,29 @@
 }
 
 /* ============================================
+   Hidden System (purrmd Single-Phase Pattern)
+   ============================================
+   Single-phase hiding:
+   - Add .cm-hidden ONLY when cursor is NOT in range
+   - When cursor IS in range, no decoration = syntax visible
+   This eliminates the race condition where CM resolves click
+   positions before decorations update.
+   ============================================ */
+
+/* Hidden state - applied only when cursor NOT in range */
+.cm-editor.cm-markdown-wysiwyg .cm-hidden {
+  font-size: 0;
+  line-height: 0;
+  tab-size: 0;
+  overflow: hidden;
+  display: inline;
+}
+
+/* ============================================
    Typography - Inline formatting
    ============================================ */
 
+/* DEPRECATED: Use .cm-hidden instead. Kept for backwards compatibility. */
 .cm-editor.cm-markdown-wysiwyg .cm-syntax-hidden {
   font-size: 0;
   line-height: 0;
@@ -275,6 +326,7 @@
   display: inline;
 }
 
+/* Lezer-provided classes (syntax highlighting) */
 .cm-editor.cm-markdown-wysiwyg .cm-strong {
   font-weight: 600;
   color: var(--md-text);
@@ -287,6 +339,27 @@
 .cm-editor.cm-markdown-wysiwyg .cm-strikethrough {
   text-decoration: line-through;
   color: var(--md-text-muted);
+}
+
+/* Decoration-applied text styling (Tangent pattern - always applied) */
+.cm-editor.cm-markdown-wysiwyg .cm-strong-text {
+  font-weight: 600;
+  color: var(--md-text);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-emphasis-text {
+  font-style: italic;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-strikethrough-text {
+  text-decoration: line-through;
+  color: var(--md-text-muted);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-highlight-text {
+  background: var(--md-highlight-yellow);
+  border-radius: 2px;
+  padding: 0 2px;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-inline-code {
@@ -470,17 +543,21 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start::before {
-  /* Language indicator */
+  /* Language indicator — Tangent-style label on the fence line */
   content: attr(data-lang);
-  position: absolute;
-  top: 4px;
-  right: 12px;
-  font-size: 0.7em;
-  color: var(--md-text-faint, #666);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  position: relative;
+  font-size: 0.8em;
+  color: var(--md-text-muted, #a0a0a0);
+  text-transform: lowercase;
+  letter-spacing: 0.03em;
   pointer-events: none;
-  opacity: 0.7;
+  font-weight: 500;
+  font-family: var(--md-code-font-family);
+}
+
+/* Hide the label when fence text is revealed (cursor inside code block) */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start.cm-code-fence-revealed::before {
+  display: none;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end {
@@ -491,14 +568,17 @@
 
 /* Fence lines (``` markers) — same geometry as content lines (stable height).
    Text hidden via color:transparent (not font-size:0) so CM can still resolve
-   click positions. Only color changes on reveal — zero geometry impact. */
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence {
-  color: transparent;
+   click positions. Only color changes on reveal — zero geometry impact.
+   Must also override children (Lezer wraps tokens in <span> with explicit color). */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence * {
+  color: transparent !important;
 }
 
 /* Cursor inside code block: reveal fence text with muted color */
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-revealed {
-  color: var(--md-text-faint, #666);
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-revealed,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-revealed * {
+  color: var(--md-text-faint, #666) !important;
 }
 
 /* Syntax highlighting colors for code blocks */
@@ -563,9 +643,20 @@
 .cm-editor.cm-markdown-wysiwyg .cm-hr-widget {
   display: block;
   border: none;
-  border-top: 1px solid var(--md-hr-color);
-  margin: 24px 0;
-  height: 0;
+  margin: 0;
+  position: relative;
+  height: calc(var(--md-baseline) * 1em);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-hr-widget::after {
+  content: "";
+  position: absolute;
+  left: 0.5em;
+  right: 0.5em;
+  top: 50%;
+  height: 1px;
+  background: var(--md-hr-color);
+  transform: translateY(-0.5px);
 }
 
 /* ============================================
@@ -1062,4 +1153,101 @@
 
 .light .cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-thumb {
   background: var(--md-border, #d1d5db);
+}
+
+/* ============================================
+   Heading Folding
+   Notion/Obsidian-style collapsible headings
+   ============================================ */
+
+/* Base foldable heading - positions chevron in left margin */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-foldable {
+  position: relative;
+  --md-fold-chevron-size: 18px;
+  --md-fold-gutter-max: 30px;
+  --md-fold-gutter-width: clamp(
+    var(--md-fold-chevron-size),
+    calc(var(--md-content-padding-x) - 2px),
+    var(--md-fold-gutter-max)
+  );
+  --md-fold-edge-offset: max(
+    0px,
+    calc(var(--md-fold-gutter-width) - var(--md-fold-chevron-size) - 2px)
+  );
+  --md-fold-chevron-size-actual: clamp(
+    0px,
+    calc(var(--md-fold-gutter-width) - 2px),
+    var(--md-fold-chevron-size)
+  );
+}
+
+/* Heading fold gutter overlay */
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-gutter {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-button {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--md-text-faint, #666);
+  opacity: 0.6;
+  transform: rotate(90deg);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-button.is-folded {
+  transform: rotate(0deg);
+  opacity: 0.8;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-button:hover {
+  opacity: 1;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-button:focus-visible {
+  outline: 2px solid var(--md-accent, #6fb3d2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-heading-fold-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Folded indicator: subtle ellipsis after heading text */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-folded::after {
+  content: ' ...';
+  color: var(--md-text-faint, #666);
+  font-weight: 400;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+/* Folded content widget - invisible placeholder that replaces folded lines.
+   Using Decoration.replace instead of display:none avoids CodeMirror's
+   "Invalid child in posBefore" errors when clicking near folded content.
+*/
+.cm-editor.cm-markdown-wysiwyg .cm-folded-content-widget {
+  display: none;
+}
+
+/* Light theme folded indicator */
+.light .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-folded::after {
+  color: var(--md-text-muted, #586069);
 }

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface FileHeaderProps {
   /** Full file path */
@@ -168,11 +169,11 @@ export function FileHeader({
 
   return (
     <header
-      className={`
-        file-header
-        ${fixedTitle ? 'file-header-fixed' : ''}
-        ${isEditing ? 'file-header-editing' : ''}
-      `}
+      className={cn(
+        "file-header",
+        fixedTitle && "file-header-fixed",
+        isEditing && "file-header-editing"
+      )}
       style={{
         /* Centering - like Tangent */
         maxWidth: 'var(--md-content-max-width, 800px)',

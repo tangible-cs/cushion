@@ -6,6 +6,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
 import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
+import { cn } from '@/lib/utils';
 
 type LocalAIModel = {
   id: string;
@@ -131,7 +132,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
           <button
             type="button"
             disabled={disabled}
-            className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Local AI"
             title="Local AI (Ollama)"
           >
@@ -145,7 +146,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+              className="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
             >
               <Icon name="close" size="small" />
             </button>
@@ -156,9 +157,9 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
             {isLoading ? (
               <div className="size-2 rounded-full bg-muted-foreground animate-pulse" />
             ) : isRunning ? (
-              <div className="size-2 rounded-full bg-green-500" />
+              <div className="size-2 rounded-full bg-[var(--accent-green)]" />
             ) : (
-              <div className="size-2 rounded-full bg-red-500" />
+              <div className="size-2 rounded-full bg-[var(--accent-red)]" />
             )}
             <span className="text-xs text-muted-foreground">
               {isLoading ? 'Checking...' : isRunning ? 'Ollama running' : 'Ollama not running'}
@@ -179,7 +180,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
               models.map((model) => (
                 <div
                   key={model.id}
-                  className="flex items-center gap-2 px-4 py-2 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-[var(--overlay-10)] transition-colors border-b border-border last:border-b-0"
                 >
                   <button
                     type="button"
@@ -188,11 +189,12 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
                     aria-label={model.enabled ? 'Disable' : 'Enable'}
                   >
                     <div
-                      className={`size-4 rounded-full border-2 transition-colors ${
+                      className={cn(
+                        "size-4 rounded-full border-2 transition-colors",
                         model.enabled
-                          ? 'border-blue-500 bg-blue-500'
-                          : 'border-muted-foreground bg-transparent'
-                      }`}
+                          ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
+                          : "border-muted-foreground bg-transparent"
+                      )}
                     >
                       {model.enabled && (
                         <div className="flex items-center justify-center h-full">
@@ -206,13 +208,14 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
                     type="button"
                     onClick={() => model.enabled && handleSelectModel(model.id)}
                     disabled={!model.enabled}
-                    className={`flex-1 text-left truncate text-xs transition-colors ${
+                    className={cn(
+                      "flex-1 text-left truncate text-xs transition-colors",
                       isSelectedModel(model.id)
-                        ? 'text-foreground font-medium'
+                        ? "text-foreground font-medium"
                         : model.enabled
-                          ? 'text-foreground hover:text-blue-500'
-                          : 'text-muted-foreground'
-                    }`}
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                    )}
                     title={model.name}
                   >
                     {model.name}
@@ -233,19 +236,19 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
 
           {/* Footer */}
           <div className="border-t border-border p-2 flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="flex-1 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-md transition-colors disabled:opacity-50"
-            >
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="flex-1 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] rounded-md transition-colors disabled:opacity-50"
+              >
               Refresh
             </button>
             <button
               type="button"
               onClick={() => setShowPullDialog(true)}
               disabled={!isRunning || isLoading}
-              className="flex-1 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-md transition-colors disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] rounded-md transition-colors disabled:opacity-50"
             >
               Pull model…
             </button>
@@ -347,14 +350,14 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-lg border border-border shadow-lg w-80 max-h-[80vh] overflow-auto thin-scrollbar">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-50)]">
+      <div className="bg-background rounded-lg border border-border shadow-[var(--shadow-lg)] w-80 max-h-[80vh] overflow-auto thin-scrollbar">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <span className="text-sm font-medium text-foreground">Pull Model</span>
           <button
             type="button"
             onClick={onClose}
-            className="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+            className="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
           >
             <Icon name="close" size="small" />
           </button>
@@ -366,7 +369,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
             value={modelInput}
             onChange={(e) => setModelInput(e.target.value)}
             placeholder="e.g., llama3.2:3b"
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -377,7 +380,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
           />
 
           {error && (
-            <div className="mt-2 text-xs text-red-500">{error}</div>
+            <div className="mt-2 text-xs text-[var(--accent-red)]">{error}</div>
           )}
 
           <div className="mt-4">
@@ -390,7 +393,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
                   key={model.id}
                   type="button"
                   onClick={() => setModelInput(model.id)}
-                  className="text-left px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground rounded-md transition-colors"
+                  className="text-left px-2 py-1.5 text-xs text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground rounded-md transition-colors"
                 >
                   {model.name}
                 </button>
@@ -402,7 +405,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-md transition-colors"
+              className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] rounded-md transition-colors"
             >
               Cancel
             </button>
@@ -410,7 +413,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
               type="button"
               onClick={handlePull}
               disabled={!modelInput.trim() || isPulling}
-              className="px-3 py-1.5 text-xs text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+              className="px-3 py-1.5 text-xs text-white bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
             >
               {isPulling ? 'Pulling...' : 'Pull'}
             </button>

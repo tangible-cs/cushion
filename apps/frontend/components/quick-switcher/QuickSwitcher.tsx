@@ -6,6 +6,7 @@ import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { FileTreeNode } from '@cushion/types';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getBaseName, getDirectory } from '@/lib/path-utils';
+import { cn } from '@/lib/utils';
 
 interface QuickSwitcherProps {
   isOpen: boolean;
@@ -38,7 +39,7 @@ function findMatchIndices(text: string, query: string): number[] {
   const indices: number[] = [];
   const textLower = text.toLowerCase();
   const queryLower = query.toLowerCase();
-  
+
   let queryIndex = 0;
   for (let i = 0; i < text.length && queryIndex < query.length; i++) {
     if (textLower[i] === queryLower[queryIndex]) {
@@ -46,7 +47,7 @@ function findMatchIndices(text: string, query: string): number[] {
       queryIndex++;
     }
   }
-  
+
   return indices;
 }
 
@@ -66,7 +67,7 @@ function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: 
       parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, idx)}</span>);
     }
     parts.push(
-      <span key={`h-${idx}`} className="text-[var(--md-accent)] font-semibold">
+      <span key={`h-${idx}`} className="text-foreground font-semibold">
         {text[idx]}
       </span>
     );
@@ -106,16 +107,16 @@ export function QuickSwitcher({
   // Search results
   const results = useMemo((): SearchResult[] => {
     const items: SearchResult[] = [];
-    
+
     if (query.trim()) {
       // Search with query
       const matches = searchFiles(query, fileTree, 15);
-      
+
       for (const path of matches) {
         const displayName = getBaseName(path);
         const directory = getDirectory(path);
         const matchIndices = findMatchIndices(displayName, query);
-        
+
         items.push({
           type: 'file',
           path,
@@ -124,13 +125,13 @@ export function QuickSwitcher({
           matchIndices,
         });
       }
-      
+
       // Add "Create new file" option if query doesn't exactly match a file
       const queryLower = query.toLowerCase();
       const exactMatch = items.some(
         item => item.displayName.toLowerCase() === queryLower
       );
-      
+
       if (!exactMatch && onCreateFile) {
         items.push({
           type: 'create',
@@ -151,7 +152,7 @@ export function QuickSwitcher({
           return bIsMd - aIsMd;
         })
         .slice(0, 15);
-      
+
       for (const path of sorted) {
         items.push({
           type: 'file',
@@ -161,7 +162,7 @@ export function QuickSwitcher({
         });
       }
     }
-    
+
     return items;
   }, [query, fileTree, onCreateFile]);
 
@@ -174,7 +175,7 @@ export function QuickSwitcher({
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    
+
     const selectedItem = list.children[selectedIndex] as HTMLElement;
     if (selectedItem) {
       selectedItem.scrollIntoView({ block: 'nearest' });
@@ -251,20 +252,20 @@ export function QuickSwitcher({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]">
+    <div className="fixed inset-0 z-overlay flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-[var(--overlay-50)]"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg bg-[var(--md-bg)] rounded-xl shadow-2xl border border-[var(--md-border)] overflow-hidden"
+        className="relative w-full max-w-lg bg-surface rounded-xl shadow-[var(--shadow-lg)] border border-border overflow-hidden"
         style={{ maxHeight: '60vh' }}
       >
         {/* Search input */}
-        <div className="p-3 border-b border-[var(--md-border)]">
+        <div className="p-3 border-b border-border">
           <input
             ref={inputRef}
             type="text"
@@ -272,14 +273,14 @@ export function QuickSwitcher({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type to search for a file..."
-            className="w-full px-3 py-2 bg-[var(--md-bg-secondary)] rounded-lg border border-[var(--md-border)] text-[var(--md-text)] placeholder:text-[var(--md-text-muted)] focus:outline-none focus:border-[var(--md-accent)] text-base"
+            className="w-full px-3 py-2 bg-surface-elevated rounded-lg border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
           />
         </div>
-        
+
         {/* Results list */}
         <div
           ref={listRef}
@@ -287,25 +288,24 @@ export function QuickSwitcher({
           style={{ maxHeight: 'calc(60vh - 70px)' }}
         >
           {results.length === 0 ? (
-            <div className="p-6 text-center text-[var(--md-text-muted)]">
+            <div className="p-6 text-center text-foreground-muted">
               No files found. Try a different search.
             </div>
           ) : (
             results.map((item, index) => (
               <div
                 key={item.type === 'create' ? `create-${item.path}` : item.path}
-                className={`
-                  flex items-center gap-3 px-4 py-2.5 cursor-pointer
-                  ${index === selectedIndex
-                    ? 'bg-[var(--md-accent)] text-white'
-                    : 'hover:bg-[var(--md-bg-secondary)]'
-                  }
-                `}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors rounded-md mx-2",
+                  index === selectedIndex
+                    ? "bg-surface-tertiary text-foreground"
+                    : "hover:bg-surface-tertiary/60"
+                )}
                 onClick={() => handleItemClick(item)}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
                 {/* Icon */}
-                <div className={`flex-shrink-0 ${index === selectedIndex ? 'text-white' : 'text-[var(--md-text-muted)]'}`}>
+                <div className={cn("flex-shrink-0", index === selectedIndex ? "text-foreground" : "text-foreground-muted")}>
                   {item.type === 'create' ? (
                     <FilePlus size={18} />
                   ) : item.path.endsWith('.md') ? (
@@ -314,7 +314,7 @@ export function QuickSwitcher({
                     <Folder size={18} />
                   )}
                 </div>
-                
+
                 {/* File info */}
                 <div className="flex-1 min-w-0">
                   <div className="truncate">
@@ -330,11 +330,7 @@ export function QuickSwitcher({
                     )}
                   </div>
                   {item.directory && (
-                    <div
-                      className={`text-xs truncate ${
-                        index === selectedIndex ? 'text-white/70' : 'text-[var(--md-text-muted)]'
-                      }`}
-                    >
+                    <div className="text-xs truncate text-foreground-muted">
                       {item.directory}
                     </div>
                   )}
@@ -343,19 +339,19 @@ export function QuickSwitcher({
             ))
           )}
         </div>
-        
+
         {/* Footer with shortcuts */}
-        <div className="px-4 py-2 border-t border-[var(--md-border)] flex gap-4 text-xs text-[var(--md-text-muted)]">
+        <div className="px-4 py-2 border-t border-border flex gap-4 text-xs text-foreground-muted">
           {(prevLabel || nextLabel) && (
             <span>
-              {prevLabel && <kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{prevLabel}</kbd>}
-              {nextLabel && <kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded ml-1">{nextLabel}</kbd>}
+              {prevLabel && <kbd className="px-1 py-0.5 bg-surface-elevated rounded">{prevLabel}</kbd>}
+              {nextLabel && <kbd className="px-1 py-0.5 bg-surface-elevated rounded ml-1">{nextLabel}</kbd>}
               {' '}Navigate
             </span>
           )}
-          {openLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{openLabel}</kbd> Open</span>}
-          {autocompleteLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{autocompleteLabel}</kbd> Autocomplete</span>}
-          {closeLabel && <span><kbd className="px-1 py-0.5 bg-[var(--md-bg-secondary)] rounded">{closeLabel}</kbd> Close</span>}
+          {openLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{openLabel}</kbd> Open</span>}
+          {autocompleteLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{autocompleteLabel}</kbd> Autocomplete</span>}
+          {closeLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{closeLabel}</kbd> Close</span>}
         </div>
       </div>
     </div>

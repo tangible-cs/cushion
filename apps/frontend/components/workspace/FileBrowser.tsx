@@ -191,11 +191,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     );
   }
 
-  // Generate a consistent color for the workspace avatar based on name
-  const avatarColor = metadata.projectName
-    ? `hsl(${metadata.projectName.charCodeAt(0) * 10 % 360}, 70%, 60%)`
-    : 'hsl(210, 70%, 60%)';
-
   return (
     <>
       <aside
@@ -236,9 +231,10 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             title="Switch workspace"
             aria-label="Switch workspace"
           >
-            <div
-              className="w-6 h-6 rounded"
-              style={{ backgroundColor: avatarColor }}
+            <img
+              src="/logo.png"
+              alt="Cushion"
+              className="w-8 h-8 object-contain"
             />
           </button>
 
@@ -375,11 +371,23 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               Loading files...
             </div>
           ) : error ? (
-            <div className="p-4 m-2 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-md text-red-600 dark:text-red-400 text-sm">
+            <div
+              className="p-4 m-2 rounded-md text-sm"
+              style={{
+                backgroundColor: 'var(--accent-red-12)',
+                border: '1px solid var(--accent-red)',
+                color: 'var(--accent-red)',
+              }}
+            >
               <div>{error}</div>
               <button
                 onClick={() => loadDirectory('.')}
-                className="mt-2 px-3 py-1 bg-white dark:bg-neutral-800 border border-red-200 dark:border-red-800 rounded text-xs hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                className="mt-2 px-3 py-1 rounded text-xs transition-colors hover:bg-[var(--overlay-10)]"
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--accent-red)',
+                  color: 'var(--accent-red)',
+                }}
               >
                 Retry
               </button>

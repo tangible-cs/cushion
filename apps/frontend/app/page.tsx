@@ -15,6 +15,7 @@ import { QuickSwitcher } from '@/components/quick-switcher';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ToastProvider } from '@/components/chat/Toast';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
@@ -338,7 +339,7 @@ export default function Home() {
       {connectionState === 'reconnecting' && (
         <div
           className="fixed top-0 left-0 right-0 z-[200] flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium"
-          style={{ backgroundColor: 'var(--md-accent, #e8a838)', color: '#000' }}
+          style={{ backgroundColor: 'var(--accent-primary-12)', color: 'var(--accent-primary)' }}
         >
           <span className="inline-block w-2 h-2 rounded-full bg-current animate-pulse" />
           Reconnecting to coordinator...
@@ -386,37 +387,37 @@ export default function Home() {
           </div>
 
           {/* BOTTOM: Terminal toggle bar + panel */}
-           {!focusModeEnabled && !terminalVisible && (
-             <div className="flex items-center border-t" style={{ backgroundColor: 'var(--md-bg-secondary, #242424)', borderColor: 'var(--md-border, #3a3a3a)' }}>
-               <button
-                 onClick={() => setTerminalVisible(true)}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                style={{ color: 'var(--md-text-muted, #a0a0a0)' }}
-              >
-                <TerminalSquare size={13} />
-                Terminal
-                {terminalShortcutLabel && (
-                  <span className="ml-1" style={{ color: 'var(--md-text-faint, #666)' }}>
-                    {terminalShortcutLabel}
-                  </span>
-                )}
-              </button>
-              <div className="flex-1" />
+            {!focusModeEnabled && !terminalVisible && (
+              <div className="flex items-center border-t" style={{ backgroundColor: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}>
                 <button
-                  onClick={() => setShowBacklinks((v) => !v)}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                  style={{ color: showBacklinks ? 'var(--md-accent)' : 'var(--md-text-muted, #a0a0a0)' }}
-                  title={backlinksShortcutLabel ? `Toggle backlinks (${backlinksShortcutLabel})` : 'Toggle backlinks'}
-                >
-                  <Link2 size={13} />
-                  Backlinks
-                </button>
-                <button
-                  onClick={() => setShowGraph(true)}
+                  onClick={() => setTerminalVisible(true)}
                  className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                 style={{ color: 'var(--md-text-muted, #a0a0a0)' }}
-                 title={graphShortcutLabel ? `Open graph view (${graphShortcutLabel})` : 'Open graph view'}
-              >
+                 style={{ color: 'var(--foreground-muted)' }}
+               >
+                 <TerminalSquare size={13} />
+                 Terminal
+                 {terminalShortcutLabel && (
+                   <span className="ml-1" style={{ color: 'var(--foreground-subtle)' }}>
+                     {terminalShortcutLabel}
+                   </span>
+                 )}
+               </button>
+               <div className="flex-1" />
+                 <button
+                   onClick={() => setShowBacklinks((v) => !v)}
+                   className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
+                   style={{ color: showBacklinks ? 'var(--accent-primary)' : 'var(--foreground-muted)' }}
+                   title={backlinksShortcutLabel ? `Toggle backlinks (${backlinksShortcutLabel})` : 'Toggle backlinks'}
+                 >
+                   <Link2 size={13} />
+                   Backlinks
+                 </button>
+                 <button
+                   onClick={() => setShowGraph(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
+                  style={{ color: 'var(--foreground-muted)' }}
+                  title={graphShortcutLabel ? `Open graph view (${graphShortcutLabel})` : 'Open graph view'}
+               >
                 <GitBranch size={13} />
                 Graph
               </button>
@@ -457,39 +458,33 @@ export default function Home() {
 
       {/* Backlinks modal */}
       {!focusModeEnabled && showBacklinks && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-8">
-          <div className="w-full h-full max-w-6xl max-h-[90vh] bg-[var(--md-bg)] rounded-xl overflow-hidden shadow-2xl border border-[var(--md-border)]">
-            <BacklinksPanel
-              currentFile={currentFile}
-              linkIndex={linkIndex}
-              onNavigate={handleNavigateToFile}
-              onClose={() => setShowBacklinks(false)}
-            />
-          </div>
-        </div>
+        <ModalOverlay onBackdropClick={() => setShowBacklinks(false)}>
+          <BacklinksPanel
+            currentFile={currentFile}
+            linkIndex={linkIndex}
+            onNavigate={handleNavigateToFile}
+            onClose={() => setShowBacklinks(false)}
+          />
+        </ModalOverlay>
       )}
 
       {/* Graph view modal */}
       {!focusModeEnabled && showGraph && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-8">
-          <div className="w-full h-full max-w-6xl max-h-[90vh] bg-[var(--md-bg)] rounded-xl overflow-hidden shadow-2xl border border-[var(--md-border)]">
-            <GraphView
-              linkIndex={linkIndex}
-              currentFile={currentFile}
-              onNodeClick={handleNavigateToFile}
-              onClose={() => setShowGraph(false)}
-            />
-          </div>
-        </div>
+        <ModalOverlay onBackdropClick={() => setShowGraph(false)}>
+          <GraphView
+            linkIndex={linkIndex}
+            currentFile={currentFile}
+            onNodeClick={handleNavigateToFile}
+            onClose={() => setShowGraph(false)}
+          />
+        </ModalOverlay>
       )}
 
       {/* Settings modal */}
       {!focusModeEnabled && showSettings && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-8">
-          <div className="w-full h-full max-w-5xl max-h-[90vh] bg-[var(--md-bg)] rounded-xl overflow-hidden shadow-2xl border border-[var(--md-border)]">
-            <SettingsPanel onClose={() => setShowSettings(false)} />
-          </div>
-        </div>
+        <ModalOverlay maxWidth="5xl" onBackdropClick={() => setShowSettings(false)}>
+          <SettingsPanel onClose={() => setShowSettings(false)} />
+        </ModalOverlay>
       )}
 
       {/* Workspace modal */}

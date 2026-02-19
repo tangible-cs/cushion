@@ -14,7 +14,7 @@ import {
   EditorView,
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
-import { cursorInRange } from './reveal-on-cursor';
+import { isSelectRange, isFocusEvent } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
 import { resolveWikiLink, flattenFileTree } from '../wiki-link-resolver';
 import type { FileTreeNode, WikiLinkInfo, WikiLinkState } from '@cushion/types';
@@ -120,45 +120,52 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       }
     }
     
-    // Check if cursor is inside this wiki-link range
-    const isInLink = cursorInRange(state, start, end);
-    
+    // Check if cursor/selection overlaps this wiki-link range (purrmd pattern)
+    const isInLink = isSelectRange(state, { from: start, to: end });
+
+    // =============================================================================
+    // Single-Phase Pattern (purrmd style)
+    // =============================================================================
+    // Only add hidden decoration when cursor is NOT in range.
+    // No revealed marks needed — syntax is visible by default.
+    // =============================================================================
+
     if (!isInLink) {
       // Hide opening brackets [[
       decorations.push(
-        Decoration.mark({ class: 'cm-syntax-hidden' }).range(start, openBracketEnd),
+        Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(start, openBracketEnd),
       );
-      
+
       // If there's display text, also hide the href|
       if (match[3]) {
         const pipePos = text.indexOf('|', openBracketEnd);
         if (pipePos !== -1 && pipePos < closeBracketStart) {
           decorations.push(
-            Decoration.mark({ class: 'cm-syntax-hidden' }).range(openBracketEnd, pipePos + 1),
+            Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(openBracketEnd, pipePos + 1),
           );
         }
       }
-      
-      // Also hide content ID if present (just show file name)
+
+      // Also hide content ID if present (just show file name when not focused)
       if (match[2] && !match[3]) {
         const hashPos = text.indexOf('#', openBracketEnd);
         if (hashPos !== -1 && hashPos < closeBracketStart) {
           decorations.push(
-            Decoration.mark({ class: 'cm-syntax-hidden' }).range(hashPos, closeBracketStart),
+            Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(hashPos, closeBracketStart),
           );
         }
       }
-      
+
       // Hide closing brackets ]]
       decorations.push(
-        Decoration.mark({ class: 'cm-syntax-hidden' }).range(closeBracketStart, end),
+        Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(closeBracketStart, end),
       );
     }
-    
-    // Style the link content
+
+    // Style the link content - this is always shown, not hidden
     const actualContentStart = isInLink ? openBracketEnd : contentStart;
     const actualContentEnd = isInLink ? closeBracketStart : contentEnd;
-    
+
     // Only add mark if there's content to mark
     if (actualContentEnd > actualContentStart) {
       decorations.push(
@@ -172,20 +179,6 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
             title: resolvedPath || `Create "${href}"`,
           },
         }).range(actualContentStart, actualContentEnd)
-      );
-    }
-    
-    // If inside link, also style the brackets
-    if (isInLink) {
-      decorations.push(
-        Decoration.mark({
-          class: 'cm-wiki-link-bracket',
-        }).range(start, openBracketEnd)
-      );
-      decorations.push(
-        Decoration.mark({
-          class: 'cm-wiki-link-bracket',
-        }).range(closeBracketStart, end)
       );
     }
   }
@@ -209,7 +202,8 @@ export const wikiLinkDecorationsField = StateField.define<DecorationSet>({
     return buildWikiLinkDecorations(state);
   },
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect))) {
+    // Also rebuild on focus changes (purrmd pattern: reveal all when unfocused)
+    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect)) || isFocusEvent(tr)) {
       return buildWikiLinkDecorations(tr.state);
     }
     return value;

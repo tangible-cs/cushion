@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CollapsibleContextValue {
   open: boolean;
@@ -110,7 +111,7 @@ function CollapsibleArrow({ className }: CollapsibleArrowProps) {
         height="10"
         viewBox="0 0 10 10"
         fill="none"
-        className={`transition-transform ${open ? 'rotate-180' : ''}`}
+        className={cn("transition-transform", open && "rotate-180")}
       >
         <path
           d="M6.66675 7.49984L10.0001 4.1665L13.3334 7.49984M6.66675 12.4998L10.0001 15.8332L13.3334 12.4998"

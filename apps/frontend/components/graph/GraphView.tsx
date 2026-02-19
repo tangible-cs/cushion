@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
 import type { LinkIndex, GraphNode, GraphEdge } from '@/lib/link-index';
+import { cn } from '@/lib/utils';
 
 interface GraphViewProps {
   /** Link index containing nodes and edges */
@@ -370,7 +371,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
 
   if (!linkIndex || linkIndex.nodes.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-[var(--md-text-muted)] bg-[var(--md-bg)]">
+      <div className="h-full flex flex-col items-center justify-center text-foreground-muted bg-surface">
         <div className="text-center p-8">
           <Maximize2 size={48} className="mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium mb-2">No connections yet</p>
@@ -403,7 +404,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
   return (
     <div 
       ref={containerRef}
-      className="h-full w-full relative bg-[var(--md-bg)] overflow-hidden"
+      className="h-full w-full relative bg-surface overflow-hidden"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -415,21 +416,21 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
       <div className="absolute top-4 right-4 z-20 flex gap-2">
         <button
           onClick={handleZoomIn}
-          className="p-2 rounded-lg bg-[var(--md-bg-secondary)] hover:bg-[var(--md-bg-tertiary)] text-[var(--md-text-muted)] hover:text-[var(--md-text)] transition-colors"
+          className="p-2 rounded-lg bg-surface-elevated hover:bg-surface-tertiary text-foreground-muted hover:text-foreground transition-colors"
           title="Zoom in"
         >
           <ZoomIn size={18} />
         </button>
         <button
           onClick={handleZoomOut}
-          className="p-2 rounded-lg bg-[var(--md-bg-secondary)] hover:bg-[var(--md-bg-tertiary)] text-[var(--md-text-muted)] hover:text-[var(--md-text)] transition-colors"
+          className="p-2 rounded-lg bg-surface-elevated hover:bg-surface-tertiary text-foreground-muted hover:text-foreground transition-colors"
           title="Zoom out"
         >
           <ZoomOut size={18} />
         </button>
         <button
           onClick={handleReset}
-          className="p-2 rounded-lg bg-[var(--md-bg-secondary)] hover:bg-[var(--md-bg-tertiary)] text-[var(--md-text-muted)] hover:text-[var(--md-text)] transition-colors"
+          className="p-2 rounded-lg bg-surface-elevated hover:bg-surface-tertiary text-foreground-muted hover:text-foreground transition-colors"
           title="Reset view"
         >
           <Maximize2 size={18} />
@@ -437,7 +438,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
         {onClose && (
           <button
             onClick={onClose}
-            className="p-2 rounded-lg bg-[var(--md-bg-secondary)] hover:bg-[var(--md-bg-tertiary)] text-[var(--md-text-muted)] hover:text-[var(--md-text)] transition-colors"
+            className="p-2 rounded-lg bg-surface-elevated hover:bg-surface-tertiary text-foreground-muted hover:text-foreground transition-colors"
             title="Close graph"
           >
             <X size={18} />
@@ -446,7 +447,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
       </div>
 
       {/* Info */}
-      <div className="absolute bottom-4 left-4 z-20 text-xs text-[var(--md-text-faint)]">
+      <div className="absolute bottom-4 left-4 z-20 text-xs text-foreground-faint">
         {linkIndex.nodes.length} notes · {linkIndex.edges.length} connections
       </div>
 
@@ -473,7 +474,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
                 key={i}
                 d={edge.path}
                 fill="none"
-                stroke={highlighted ? 'var(--md-accent)' : 'var(--md-text-muted)'}
+                stroke={highlighted ? 'var(--accent-primary)' : 'var(--foreground-muted)'}
                 strokeWidth={highlighted ? 3 : 2}
                 strokeOpacity={highlighted ? 1 : 0.4}
                 className="transition-all duration-200"
@@ -492,24 +493,19 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
             <div
               key={node.id}
               ref={(el) => setNodeRef(node.id, el)}
-              className={`
-                graph-node absolute cursor-pointer select-none
-                px-3 py-1.5 rounded-md border-2
-                text-sm font-medium leading-tight
-                max-w-[200px] truncate
-                transition-all duration-200
-                ${isCurrent 
-                  ? 'bg-[var(--md-accent)] text-white border-[var(--md-accent)]' 
-                  : isHovered
-                    ? 'bg-[var(--md-bg-tertiary)] border-[var(--md-accent)] text-[var(--md-text)]'
-                    : isConnected
-                      ? 'bg-[var(--md-bg-secondary)] border-[var(--md-accent-muted)] text-[var(--md-text)]'
-                      : node.exists
-                        ? 'bg-[var(--md-bg-secondary)] border-[var(--md-bg-secondary)] text-[var(--md-text)]'
-                        : 'bg-[var(--md-bg)] border-dashed border-[var(--md-link-empty)] text-[var(--md-text-muted)]'
-                }
-                ${!isCurrent && !isHovered && !isConnected ? 'opacity-80 hover:opacity-100' : ''}
-              `}
+              className={cn(
+                "graph-node absolute cursor-pointer select-none",
+                "px-3 py-1.5 rounded-md border-2",
+                "text-sm font-medium leading-tight",
+                "max-w-[200px] truncate",
+                "transition-all duration-200",
+                isCurrent && "bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]",
+                !isCurrent && isHovered && "bg-surface-tertiary border-[var(--accent-primary)] text-foreground",
+                !isCurrent && !isHovered && isConnected && "bg-surface-elevated border-[var(--accent-primary-12)] text-foreground",
+                !isCurrent && !isHovered && !isConnected && node.exists && "bg-surface-elevated border-surface-elevated text-foreground",
+                !isCurrent && !isHovered && !isConnected && !node.exists && "bg-surface border-dashed border-accent-red text-foreground-muted",
+                !isCurrent && !isHovered && !isConnected && "opacity-80 hover:opacity-100"
+              )}
               style={{
                 transform: `translate(${node.x}px, ${node.y}px)`,
                 zIndex: 1 + node.depth,
@@ -526,11 +522,11 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
 
       {/* Tooltip for hovered node */}
       {hoveredNode && (
-        <div className="absolute top-4 left-4 z-20 bg-[var(--md-bg-secondary)] border border-[var(--md-border)] rounded-lg px-3 py-2 text-sm shadow-lg">
+        <div className="absolute top-4 left-4 z-20 bg-surface-elevated border border-border rounded-lg px-3 py-2 text-sm shadow-lg">
           <div className="font-medium">
             {placedNodes.find(n => n.id === hoveredNode)?.label}
           </div>
-          <div className="text-xs text-[var(--md-text-muted)] mt-1">
+          <div className="text-xs text-foreground-muted mt-1">
             {placedNodes.find(n => n.id === hoveredNode)?.incomingCount || 0} incoming · {' '}
             {placedNodes.find(n => n.id === hoveredNode)?.outgoingCount || 0} outgoing
           </div>

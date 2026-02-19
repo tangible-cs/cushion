@@ -1,6 +1,7 @@
 'use client';
 
 import { X, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -32,180 +33,53 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="dialog-backdrop"
+      className="fixed inset-0 z-confirm flex items-center justify-center bg-[var(--overlay-50)]"
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        zIndex: 10001, // Higher than MoveToDialog
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
     >
-      <style jsx>{`
-        .confirm-dialog {
-          background: white;
-          border-radius: 8px;
-          width: 400px;
-          max-width: 90%;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-          animation: slideIn 0.15s ease-out;
-        }
-
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-
-        .dialog-header {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 20px 20px 16px 20px;
-        }
-
-        .header-icon {
-          flex-shrink: 0;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .header-icon.danger {
-          background: #fef2f2;
-          color: #dc2626;
-        }
-
-        .header-icon.default {
-          background: #f3f4f6;
-          color: #6b7280;
-        }
-
-        .header-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .dialog-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: rgba(0, 0, 0, 0.9);
-          margin: 0 0 8px 0;
-        }
-
-        .dialog-message {
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.6);
-          line-height: 1.5;
-          margin: 0;
-        }
-
-        .close-button {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          padding: 4px;
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: rgba(0, 0, 0, 0.5);
-          transition: all 0.15s;
-          flex-shrink: 0;
-        }
-
-        .close-button:hover {
-          background: rgba(0, 0, 0, 0.05);
-          color: rgba(0, 0, 0, 0.8);
-        }
-
-        .dialog-footer {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          padding: 16px 20px 20px 20px;
-          gap: 8px;
-        }
-
-        .button {
-          padding: 8px 16px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          border: none;
-          outline: none;
-        }
-
-        .button:focus-visible {
-          box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
-        }
-
-        .button-cancel {
-          background: transparent;
-          color: rgba(0, 0, 0, 0.7);
-          border: 1px solid rgba(0, 0, 0, 0.2);
-        }
-
-        .button-cancel:hover {
-          background: rgba(0, 0, 0, 0.05);
-        }
-
-        .button-confirm {
-          background: #0078d4;
-          color: white;
-        }
-
-        .button-confirm:hover {
-          background: #106ebe;
-        }
-
-        .button-confirm.danger {
-          background: #dc2626;
-        }
-
-        .button-confirm.danger:hover {
-          background: #b91c1c;
-        }
-      `}</style>
-
       <div
-        className="confirm-dialog"
+        className="bg-surface rounded-lg w-[400px] max-w-[90%] flex flex-col shadow-lg animate-slide-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="dialog-header">
-          <div className={`header-icon ${variant}`}>
+        {/* Header */}
+        <div className="flex items-start gap-3 px-5 pt-5 pb-4">
+          <div
+            className={cn(
+              "shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
+              variant === 'danger'
+                ? "bg-[var(--accent-red-12)] text-accent-red"
+                : "bg-border-subtle text-foreground-muted"
+            )}
+          >
             <AlertTriangle size={20} />
           </div>
-          <div className="header-content">
-            <h3 className="dialog-title">{title}</h3>
-            <p className="dialog-message">{message}</p>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold text-foreground mb-2">{title}</h3>
+            <p className="text-sm text-foreground-muted leading-normal">{message}</p>
           </div>
-          <button className="close-button" onClick={onClose} title="Close">
+          <button
+            className="shrink-0 p-1 rounded cursor-pointer flex items-center justify-center text-foreground-muted hover:bg-[var(--overlay-10)] hover:text-foreground transition-all"
+            onClick={onClose}
+            title="Close"
+          >
             <X size={18} />
           </button>
         </div>
 
-        <div className="dialog-footer">
-          <button className="button button-cancel" onClick={onClose}>
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 pt-4 pb-5">
+          <button
+            className="px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent-primary-12)]"
+            onClick={onClose}
+          >
             {cancelText}
           </button>
           <button
-            className={`button button-confirm ${variant}`}
+            className={cn(
+              "px-4 py-2 rounded-md text-sm font-medium cursor-pointer border-none text-surface transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent-primary-12)]",
+              variant === 'danger'
+                ? "bg-accent-red hover:bg-[var(--accent-red-hover)]"
+                : "bg-accent hover:bg-accent-hover"
+            )}
             onClick={handleConfirm}
             autoFocus
           >

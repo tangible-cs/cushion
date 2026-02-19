@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Pencil, Trash2, Files, X } from 'lucide-react';
 import { useOverlayClose } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
 
 export interface ContextMenuItem {
   id: string;
@@ -65,97 +66,20 @@ export function ContextMenu({ items, isOpen, onClose, position }: ContextMenuPro
         position: 'fixed',
         left: `${adjustedPosition.x}px`,
         top: `${adjustedPosition.y}px`,
-        zIndex: 10000,
       }}
-      className="context-menu"
+      className="z-context-menu bg-surface border border-border rounded-lg shadow-md p-1 min-w-[220px] animate-menu-fade-in"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <style jsx>{`
-        .context-menu {
-          background: white;
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          padding: 4px;
-          min-width: 220px;
-          animation: menuFadeIn 0.15s ease-out;
-        }
-
-        @keyframes menuFadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        .menu-separator {
-          height: 1px;
-          background: rgba(0, 0, 0, 0.1);
-          margin: 4px 0;
-        }
-
-        .menu-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 6px 8px;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: background 0.15s;
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.8);
-          user-select: none;
-        }
-
-        .menu-item:hover {
-          background: rgba(0, 0, 0, 0.05);
-        }
-
-        .menu-item.danger {
-          color: #dc2626;
-        }
-
-        .menu-item.danger:hover {
-          background: rgba(220, 38, 38, 0.1);
-        }
-
-        .menu-item-content {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex: 1;
-        }
-
-        .menu-item-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 16px;
-          height: 16px;
-          flex-shrink: 0;
-        }
-
-        .menu-item-label {
-          flex: 1;
-        }
-
-        .menu-item-shortcut {
-          font-size: 12px;
-          color: rgba(0, 0, 0, 0.4);
-          font-family: monospace;
-          margin-left: 12px;
-        }
-      `}</style>
-
       {items.map((item, index) => (
         <div key={item.id}>
-          {item.separator && index > 0 && <div className="menu-separator" />}
+          {item.separator && index > 0 && <div className="h-px bg-border my-1" />}
           <div
-            className={`menu-item ${item.variant === 'danger' ? 'danger' : ''}`}
+            className={cn(
+              "flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors text-sm select-none",
+              item.variant === "danger"
+                ? "text-accent-red hover:bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--surface))]"
+                : "text-foreground hover:bg-[var(--overlay-10)]"
+            )}
             onClick={(e) => {
               e.stopPropagation();
               item.onClick();
@@ -163,16 +87,18 @@ export function ContextMenu({ items, isOpen, onClose, position }: ContextMenuPro
             }}
             role="menuitem"
           >
-            <div className="menu-item-content">
+            <div className="flex items-center gap-2 flex-1">
               {item.icon && (
-                <div className="menu-item-icon">
+                <div className="flex items-center justify-center w-4 h-4 shrink-0">
                   <item.icon size={16} />
                 </div>
               )}
-              <div className="menu-item-label">{item.label}</div>
+              <div className="flex-1">{item.label}</div>
             </div>
             {item.shortcut && (
-              <div className="menu-item-shortcut">{item.shortcut}</div>
+              <div className="text-xs text-foreground-subtle font-mono ml-3">
+                {item.shortcut}
+              </div>
             )}
           </div>
         </div>

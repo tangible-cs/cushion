@@ -6,6 +6,7 @@ import { X, RefreshCw } from 'lucide-react';
 import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
 import { ProviderIcon } from './ProviderIcon';
 import { iconNames, type IconName } from './provider-icons/types';
+import { cn } from '@/lib/utils';
 
 type Provider = {
   id: string;
@@ -90,8 +91,8 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-lg shadow-lg border border-border max-w-2xl w-full max-h-[600px] flex flex-col">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]">
+      <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-2xl w-full max-h-[600px] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-lg font-semibold">Connect provider</h2>
           <div className="flex items-center gap-2">
@@ -99,15 +100,15 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors disabled:opacity-50"
               title="Refresh providers from models.dev"
             >
-              <RefreshCw className={`size-5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={cn("size-5", refreshing && "animate-spin")} />
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             >
               <X className="size-5" />
             </button>
@@ -119,7 +120,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
             placeholder="Search providers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             autoFocus
           />
         </div>
@@ -137,15 +138,15 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
                     key={provider.id}
                     type="button"
                     onClick={() => onProviderSelect(provider.id, provider.name)}
-                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
+                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--overlay-10)] transition-colors border-b border-border last:border-b-0"
                   >
                     <ProviderIcon id={providerIcon} className="size-5 text-muted-foreground shrink-0" />
                     <span className="flex-1 text-left">{provider.name}</span>
                     {provider.id === 'opencode' && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">Recommended</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-primary-12)] text-[var(--accent-primary)]">Recommended</span>
                     )}
                     {isConnected && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500">Connected</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-green-12)] text-[var(--accent-green)]">Connected</span>
                     )}
                   </button>
                 );
@@ -165,12 +166,12 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
                     key={provider.id}
                     type="button"
                     onClick={() => onProviderSelect(provider.id, provider.name)}
-                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
+                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--overlay-10)] transition-colors border-b border-border last:border-b-0"
                   >
                     <ProviderIcon id={providerIcon} className="size-5 text-muted-foreground shrink-0" />
                     <span className="flex-1 text-left">{provider.name}</span>
                     {isConnected && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500">Connected</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-green-12)] text-[var(--accent-green)]">Connected</span>
                     )}
                   </button>
                 );

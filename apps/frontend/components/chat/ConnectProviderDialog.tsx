@@ -281,15 +281,15 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-lg shadow-lg border border-border max-w-md w-full">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]">
+      <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-md w-full">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             {onBack && !isOllama && (
               <button
                 type="button"
                 onClick={goBack}
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                 title="Go back"
               >
                 <ArrowLeft className="size-5" />
@@ -300,7 +300,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
           <button
             type="button"
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
           >
             <X className="size-5" />
           </button>
@@ -322,11 +322,11 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                     value={ollamaBaseUrl}
                     onChange={(e) => setOllamaBaseUrl(e.target.value)}
                     placeholder="http://localhost:11434"
-                    className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono"
                     disabled={loading}
                   />
                   {error && (
-                    <p className="text-red-500 text-xs mt-2">{error}</p>
+                    <p className="text-[var(--accent-red)] text-xs mt-2">{error}</p>
                   )}
                 </div>
 
@@ -334,9 +334,9 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                 <div className="flex items-center justify-between p-3 bg-muted rounded-md">
                   <div className="flex items-center gap-2">
                     {healthStatus === 'running' ? (
-                      <CheckCircle className="size-5 text-green-500" />
+                      <CheckCircle className="size-5 text-[var(--accent-green)]" />
                     ) : healthStatus === 'not-running' ? (
-                      <X className="size-5 text-red-500" />
+                      <X className="size-5 text-[var(--accent-red)]" />
                     ) : (
                       <Loader2 className="size-5 text-muted-foreground" />
                     )}
@@ -366,7 +366,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                   disabled={loading || healthStatus !== 'running'}
                 >
                   {loading && <Loader2 className="size-4 animate-spin" />}
@@ -385,7 +385,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                     key={index}
                     type="button"
                     onClick={() => handleMethodSelect(index)}
-                    className="w-full px-4 py-3 text-left text-sm border border-border rounded-md hover:bg-muted/40 transition-colors flex items-center gap-3"
+                    className="w-full px-4 py-3 text-left text-sm border border-border rounded-md hover:bg-[var(--overlay-10)] transition-colors flex items-center gap-3"
                   >
                     <div className="w-4 h-2 rounded-sm bg-muted flex items-center justify-center">
                       <div className="w-2.5 h-0.5 ml-0 bg-muted-foreground hidden" />
@@ -408,12 +408,12 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Enter your API key"
-                    className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                     autoFocus
                     disabled={loading}
                   />
                   {error && (
-                    <p className="text-red-500 text-xs mt-2">{error}</p>
+                    <p className="text-[var(--accent-red)] text-xs mt-2">{error}</p>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -431,7 +431,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                   disabled={!apiKey || loading}
                 >
                   {loading && <Loader2 className="size-4 animate-spin" />}
@@ -447,17 +447,17 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                   <span>Starting OAuth flow...</span>
                 </div>
               )}
-              {oauthState === 'error' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-red-500">
-                    <X className="size-4" />
-                    <span>OAuth flow failed</span>
-                  </div>
+                {oauthState === 'error' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm text-[var(--accent-red)]">
+                      <X className="size-4" />
+                      <span>OAuth flow failed</span>
+                    </div>
                   {error && <p className="text-sm text-muted-foreground">{error}</p>}
                   <button
                     type="button"
                     onClick={goBack}
-                    className="px-4 py-2 text-sm bg-muted hover:bg-muted/80 transition-colors"
+                    className="px-4 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                   >
                     Back
                   </button>
@@ -466,7 +466,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
               {oauthState !== 'error' && oauthMethod === 'code' && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Visit <span className="text-blue-500 underline cursor-pointer" onClick={() => window.open(oauthUrl || '', '_blank')}>authorization page</span> to get your code
+                    Visit <span className="text-[var(--accent-primary)] underline cursor-pointer" onClick={() => window.open(oauthUrl || '', '_blank')}>authorization page</span> to get your code
                   </p>
                   <form onSubmit={handleOAuthCodeSubmit}>
                     <div className="space-y-4">
@@ -480,12 +480,12 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                           value={oauthCode}
                           onChange={(e) => setOAuthCode(e.target.value)}
                           placeholder="Enter code from authorization page"
-                          className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                           autoFocus
                           disabled={loading}
                         />
                         {error && (
-                          <p className="text-red-500 text-xs mt-2">{error}</p>
+                          <p className="text-[var(--accent-red)] text-xs mt-2">{error}</p>
                         )}
                       </div>
                       <div className="flex justify-end gap-2">
@@ -499,7 +499,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                          className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                           disabled={!oauthCode || loading}
                         >
                           {loading && <Loader2 className="size-4 animate-spin" />}
@@ -513,7 +513,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
               {oauthState !== 'error' && oauthMethod === 'auto' && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Visit <span className="text-blue-500 underline cursor-pointer" onClick={() => window.open(oauthUrl || '', '_blank')}>authorization page</span> to complete authorization
+                    Visit <span className="text-[var(--accent-primary)] underline cursor-pointer" onClick={() => window.open(oauthUrl || '', '_blank')}>authorization page</span> to complete authorization
                   </p>
                   {confirmationCode && (
                     <div>
@@ -538,7 +538,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                               duration: 2000,
                             });
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                           title="Copy code"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -563,4 +563,3 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     document.body
   );
 }
-

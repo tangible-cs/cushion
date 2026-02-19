@@ -2,6 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type {
   Message,
   Part,
@@ -235,7 +236,7 @@ export function MessageList({ className }: MessageListProps) {
   const sessionId = resolvedSessionId ?? '';
 
   return (
-    <div className={`relative flex-1 min-h-0 ${className ?? ''}`.trim()}>
+    <div className={cn("relative flex-1 min-h-0", className)}>
       <div data-slot="session-turn-resume" data-visible={autoScroll.userScrolled ? 'true' : undefined}>
         <button
           type="button"
@@ -261,7 +262,7 @@ export function MessageList({ className }: MessageListProps) {
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-muted/40"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                     aria-label="Select session"
                   >
                     <span className="truncate max-w-[240px]">{titleLabel}</span>
@@ -284,9 +285,7 @@ export function MessageList({ className }: MessageListProps) {
                         setSessionMenuOpen(false);
                         setActiveSession(null).catch(() => undefined);
                       }}
-                      className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                      className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
                     >
                       <Icon name="plus-small" size="small" />
                       New session
@@ -302,9 +301,7 @@ export function MessageList({ className }: MessageListProps) {
                             setSessionMenuOpen(false);
                             setActiveSession(session.id).catch(() => undefined);
                           }}
-                          className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)'; e.currentTarget.style.color = 'var(--foreground)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
+                          className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
                         >
                           <span className="truncate">{label}</span>
                           {isActive && <Icon name="check-small" size="small" className="text-muted-foreground" />}
@@ -323,7 +320,7 @@ export function MessageList({ className }: MessageListProps) {
                   setSessionMenuOpen(false);
                   setActiveSession(null).catch(() => undefined);
                 }}
-                className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                 aria-label="New session"
               >
                 <Icon name="plus-small" size="small" />
@@ -340,7 +337,7 @@ export function MessageList({ className }: MessageListProps) {
                 if (!resolvedSessionId) return;
                 loadMoreMessages(resolvedSessionId).catch(() => undefined);
               }}
-              className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+              className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] disabled:opacity-50 transition-colors"
             >
               {meta.loading ? 'Loading...' : 'Load earlier'}
             </button>
@@ -503,7 +500,7 @@ function Turn({ turn, sessionId, isWorking, onInteract }: TurnProps) {
                     height="10"
                     viewBox="0 0 10 10"
                     fill="none"
-                    className={`transition-transform ${stepsExpanded ? 'rotate-180' : ''}`}
+                    className={cn("transition-transform", stepsExpanded && "rotate-180")}
                     data-slot="session-turn-trigger-icon"
                   >
                     <path

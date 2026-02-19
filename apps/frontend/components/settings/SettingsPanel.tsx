@@ -17,17 +17,17 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<(typeof sections)[number]['id']>('shortcuts');
 
   return (
-    <div className="h-full flex flex-col bg-[var(--md-bg-secondary)] text-[var(--md-text)]">
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-[var(--md-border)]">
+    <div className="h-full flex flex-col bg-surface-elevated text-foreground">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <SettingsIcon size={16} className="text-[var(--md-accent)]" />
+          <SettingsIcon size={16} className="text-foreground-muted" />
           <span className="text-sm font-semibold">Settings</span>
         </div>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md text-[var(--md-text-muted)] hover:text-[var(--md-text)] hover:bg-[var(--md-bg-tertiary)] transition-colors"
+            className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
             aria-label="Close settings"
           >
             <X size={14} />
@@ -36,7 +36,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        <aside className="w-56 border-r border-[var(--md-border)] p-2">
+        <aside className="w-42 border-r border-border p-2">
           {sections.map((section) => (
             <button
               key={section.id}
@@ -45,8 +45,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
                 activeSection === section.id
-                  ? 'bg-[var(--md-bg-tertiary)] text-[var(--md-text)]'
-                  : 'text-[var(--md-text-muted)] hover:text-[var(--md-text)] hover:bg-[var(--md-bg-tertiary)]/60'
+                  ? 'bg-surface-tertiary text-foreground'
+                  : 'text-foreground-muted hover:text-foreground hover:bg-surface-tertiary/60'
               )}
             >
               <section.icon size={16} />

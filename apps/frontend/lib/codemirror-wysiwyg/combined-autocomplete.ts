@@ -13,7 +13,7 @@ import {
   startCompletion,
 } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
-import { Extension } from '@codemirror/state';
+import { EditorState, Extension } from '@codemirror/state';
 import { fileTreeField } from './wiki-link-plugin';
 import { searchFiles, flattenFileTree } from '../wiki-link-resolver';
 import { getBaseName, getDirectory } from '../path-utils';
@@ -183,6 +183,19 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
 }
 
 /**
+ * Check if there's an auto-inserted closing fence below the given line.
+ * Looks for a pattern: opening ``` line → empty line → closing ``` line.
+ */
+function hasAutoClosingFence(state: EditorState, openingLineNumber: number): boolean {
+  const totalLines = state.doc.lines;
+  // Expect: openingLine, emptyLine, closingFenceLine
+  if (openingLineNumber + 2 > totalLines) return false;
+  const emptyLine = state.doc.line(openingLineNumber + 1);
+  const closingLine = state.doc.line(openingLineNumber + 2);
+  return emptyLine.text.trim() === '' && /^\s*```\s*$/.test(closingLine.text);
+}
+
+/**
  * Code block language completion source.
  * Triggers when typing ```.
  */
@@ -210,13 +223,25 @@ function codeLangCompletion(ctx: CompletionContext): CompletionResult | null {
       type: 'keyword' as const,
       boost: lang === 'javascript' || lang === 'python' || lang === 'typescript' ? 1 : 0,
       apply: (view: EditorView, _completion: Completion, fromPos: number, toPos: number) => {
-        // Insert language + newline + cursor position + newline + closing fence
-        const insert = `${lang}\n\n\`\`\``;
-        const cursorPos = fromPos + lang.length + 1; // right after the first newline
-        view.dispatch({
-          changes: { from: fromPos, to: toPos, insert },
-          selection: { anchor: cursorPos },
-        });
+        const line = view.state.doc.lineAt(fromPos);
+        // Check if closing fence already exists (auto-inserted by codeFenceTrigger)
+        const hasClosingFence = hasAutoClosingFence(view.state, line.number);
+
+        if (hasClosingFence) {
+          // Just insert language name and move cursor to the empty line between fences
+          view.dispatch({
+            changes: { from: fromPos, to: toPos, insert: lang },
+            selection: { anchor: fromPos + lang.length + 1 }, // after the newline
+          });
+        } else {
+          // Fallback: insert language + newline + cursor position + newline + closing fence
+          const insert = `${lang}\n\n\`\`\``;
+          const cursorPos = fromPos + lang.length + 1;
+          view.dispatch({
+            changes: { from: fromPos, to: toPos, insert },
+            selection: { anchor: cursorPos },
+          });
+        }
       },
     })),
     validFor: /^\w*$/,
@@ -251,21 +276,53 @@ const wikiLinkTrigger = EditorView.inputHandler.of((view, from, to, text) => {
 });
 
 /**
- * Input handler that triggers autocomplete when the third ` is typed at the start of a line.
+ * Input handler that auto-inserts closing ``` when the third ` is typed at
+ * the start of a line, then triggers language autocomplete.
+ *
+ * Tangent-inspired: typing ``` immediately creates a complete fenced code
+ * block so Lezer parses it as FencedCode and decorations apply right away.
+ * The cursor stays after the opening ``` so the user can type a language name.
  */
 const codeFenceTrigger = EditorView.inputHandler.of((view, from, to, text) => {
-  if (text === '`') {
-    const before = view.state.doc.sliceString(Math.max(0, from - 2), from);
-    if (before === '``') {
-      const line = view.state.doc.lineAt(from);
-      const textBeforeCursor = view.state.doc.sliceString(line.from, from);
-      if (/^\s*``$/.test(textBeforeCursor)) {
-        setTimeout(() => {
-          startCompletion(view);
-        }, 0);
+  if (text !== '`') return false;
+
+  const before = view.state.doc.sliceString(Math.max(0, from - 2), from);
+  if (before !== '``') return false;
+
+  const line = view.state.doc.lineAt(from);
+  const textBeforeCursor = view.state.doc.sliceString(line.from, from);
+  if (!/^\s*``$/.test(textBeforeCursor)) return false;
+
+  // Let the ` be inserted first, then auto-insert closing fence
+  setTimeout(() => {
+    const pos = view.state.selection.main.head;
+    const currentLine = view.state.doc.lineAt(pos);
+    const currentText = currentLine.text.trim();
+
+    // Only proceed if we're still on a bare ``` line (no language yet)
+    if (!/^```\w*$/.test(currentText)) return;
+    // Don't insert if a closing fence already exists right after
+    if (currentLine.number < view.state.doc.lines) {
+      const nextLine = view.state.doc.line(currentLine.number + 1);
+      if (/^\s*```\s*$/.test(nextLine.text)) {
+        // Closing fence already present, just trigger autocomplete
+        startCompletion(view);
+        return;
       }
     }
-  }
+
+    // Insert newline + closing fence after current line
+    const insertPos = currentLine.to;
+    view.dispatch({
+      changes: { from: insertPos, insert: '\n\n```' },
+      // Keep cursor right where it is (after opening ```)
+      selection: { anchor: pos },
+    });
+
+    // Trigger language autocomplete
+    startCompletion(view);
+  }, 0);
+
   return false;
 });
 

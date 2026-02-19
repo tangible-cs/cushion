@@ -43,14 +43,9 @@ import {
   completionKeymap,
 } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { javascript } from '@codemirror/lang-javascript';
 import { markdown } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
-import { json } from '@codemirror/lang-json';
-import { css } from '@codemirror/lang-css';
-import { html } from '@codemirror/lang-html';
-import { python } from '@codemirror/lang-python';
-import { LanguageDescription } from '@codemirror/language';
+import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
 import type { FileTreeNode } from '@cushion/types';
 import {
@@ -63,8 +58,9 @@ import {
   setEmbedResolver,
   type EmbedResolver,
 } from '@/lib/codemirror-wysiwyg';
-import { TaskListWithCanceled } from '@/lib/markdown-extensions';
+import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath } from '@/lib/markdown-extensions';
 import { createListKeymap } from '@/lib/codemirror-wysiwyg/list-commands';
+import { createFormatKeymap } from '@/lib/codemirror-wysiwyg/format-commands';
 import { useShortcutBindings } from '@/lib/shortcuts';
 import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
 
@@ -74,7 +70,6 @@ interface CodeEditorProps {
   language?: string;
   onChange?: (content: string) => void;
   onSave?: () => void;
-  onSelectionChange?: (selection: SelectionInfo | null) => void;
   /** File tree for wiki-link resolution */
   fileTree?: FileTreeNode[];
   /** Callback when a wiki-link is clicked (Ctrl+Click) */
@@ -85,55 +80,22 @@ interface CodeEditorProps {
   focusModeEnabled?: boolean;
 }
 
-export type SelectionInfo = {
-  text: string;
-  startLine: number;
-  startChar: number;
-  endLine: number;
-  endChar: number;
-};
-
-/**
- * Language descriptions for code blocks inside markdown.
- * Maps common language identifiers to their CodeMirror language support.
- */
-const markdownCodeLanguages = [
-  // JavaScript/TypeScript variants
-  LanguageDescription.of({
-    name: 'javascript',
-    alias: ['js', 'jsx'],
-    support: javascript({ jsx: true }),
-  }),
-  LanguageDescription.of({
-    name: 'typescript',
-    alias: ['ts', 'tsx'],
-    support: javascript({ jsx: true, typescript: true }),
-  }),
-  // Other languages
-  LanguageDescription.of({
-    name: 'json',
-    support: json(),
-  }),
-  LanguageDescription.of({
-    name: 'css',
-    support: css(),
-  }),
-  LanguageDescription.of({
-    name: 'html',
-    alias: ['htm'],
-    support: html(),
-  }),
-  LanguageDescription.of({
-    name: 'python',
-    alias: ['py'],
-    support: python(),
-  }),
-];
 
 const EDITOR_SHORTCUT_IDS = [
   'editor.save',
   'editor.indent',
   'editor.outdent',
+] as const;
+
+const EDITOR_FORMAT_SHORTCUT_IDS = [
+  'editor.format.bold',
+  'editor.format.italic',
+  'editor.format.strikethrough',
+  'editor.format.code',
+  'editor.format.link',
+  'editor.format.highlight',
+  'editor.format.inlineMath',
+  'editor.format.blockMath',
 ] as const;
 
 const EDITOR_LIST_SHORTCUT_IDS = [
@@ -150,7 +112,10 @@ function getLanguageExtension(filePath: string, language?: string): Extension | 
     case 'md':
     case 'markdown':
       // Configure markdown with code block syntax highlighting
-      return markdown({ codeLanguages: markdownCodeLanguages, extensions: [Table, TaskListWithCanceled] });
+      return markdown({
+        codeLanguages: languages,
+        extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, DisableSetextHeading],
+      });
     case 'js':
     case 'jsx':
     case 'javascript':
@@ -180,7 +145,6 @@ export function CodeEditor({
   language,
   onChange,
   onSave,
-  onSelectionChange,
   fileTree,
   onWikiLinkNavigate,
   embedResolver,
@@ -192,7 +156,6 @@ export function CodeEditor({
   const onSaveRef = useRef(onSave);
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
   const embedResolverRef = useRef(embedResolver);
-  const onSelectionChangeRef = useRef(onSelectionChange);
   const focusModeEnabledRef = useRef(focusModeEnabled);
   const typewriterRafRef = useRef<number | null>(null);
   const typewriterScrollRafRef = useRef<number | null>(null);
@@ -200,9 +163,11 @@ export function CodeEditor({
   const isMouseDownRef = useRef(false);
   const editorKeymapCompartmentRef = useRef(new Compartment());
   const listKeymapCompartmentRef = useRef(new Compartment());
+  const formatKeymapCompartmentRef = useRef(new Compartment());
 
   const editorShortcuts = useShortcutBindings(EDITOR_SHORTCUT_IDS);
   const listShortcuts = useShortcutBindings(EDITOR_LIST_SHORTCUT_IDS);
+  const formatShortcuts = useShortcutBindings(EDITOR_FORMAT_SHORTCUT_IDS);
 
   const isMarkdownFile = useMemo(() => /\.(md|markdown)$/i.test(filePath), [filePath]);
 
@@ -239,12 +204,24 @@ export function CodeEditor({
     });
   }, [listShortcuts]);
 
+  const formatKeymap = useMemo(() => {
+    return createFormatKeymap({
+      bold: formatShortcuts['editor.format.bold'],
+      italic: formatShortcuts['editor.format.italic'],
+      strikethrough: formatShortcuts['editor.format.strikethrough'],
+      inlineCode: formatShortcuts['editor.format.code'],
+      link: formatShortcuts['editor.format.link'],
+      highlight: formatShortcuts['editor.format.highlight'],
+      inlineMath: formatShortcuts['editor.format.inlineMath'],
+      blockMath: formatShortcuts['editor.format.blockMath'],
+    });
+  }, [formatShortcuts]);
+
   // Keep callback refs up to date without re-creating the editor
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
   embedResolverRef.current = embedResolver;
-  onSelectionChangeRef.current = onSelectionChange;
   focusModeEnabledRef.current = focusModeEnabled;
 
   const stopTypewriterScroll = useCallback(() => {
@@ -345,7 +322,7 @@ export function CodeEditor({
       '.cm-cursor, .cm-dropCursor': {
         borderLeftColor: 'var(--md-text, #e0e0e0)',
       },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
         backgroundColor: 'var(--md-selection-bg, rgba(100, 153, 255, 0.25)) !important',
       },
       '.cm-panels': {
@@ -383,7 +360,8 @@ export function CodeEditor({
       { tag: tags.strong, fontWeight: 'bold' },
       { tag: tags.emphasis, fontStyle: 'italic' },
       { tag: tags.strikethrough, textDecoration: 'line-through' },
-      { tag: tags.link, color: 'var(--md-link-color, #61afef)', textDecoration: 'underline' },
+      // Note: tags.link removed - we use .cm-link decoration for links with actual URLs
+      // This prevents [0,1,2] from being styled as a link by the syntax highlighter
       { tag: tags.heading, fontWeight: 'bold', color: 'var(--md-code-text, #e06c75)' },
       { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: '#d19a66' },
       { tag: [tags.processingInstruction, tags.string, tags.inserted], color: '#98c379' },
@@ -465,27 +443,6 @@ export function CodeEditor({
         if (update.docChanged) {
           onChangeRef.current?.(update.state.doc.toString());
         }
-        if (update.selectionSet) {
-          const selection = update.state.selection.main;
-          const hasSelection = selection.from !== selection.to;
-          const callback = onSelectionChangeRef.current;
-          if (!callback) return;
-          if (!hasSelection) {
-            callback(null);
-            return;
-          }
-          const from = Math.min(selection.from, selection.to);
-          const to = Math.max(selection.from, selection.to);
-          const fromLine = update.state.doc.lineAt(from);
-          const toLine = update.state.doc.lineAt(to);
-          callback({
-            text: update.state.doc.sliceString(from, to),
-            startLine: fromLine.number,
-            startChar: from - fromLine.from,
-            endLine: toLine.number,
-            endChar: to - toLine.from,
-          });
-        }
       }),
       EditorView.domEventHandlers({
         mousedown: () => {
@@ -517,6 +474,9 @@ export function CodeEditor({
       listKeymapCompartmentRef.current.of(
         isMarkdownFile ? Prec.high(keymap.of(listKeymap)) : []
       ),
+      formatKeymapCompartmentRef.current.of(
+        isMarkdownFile ? Prec.high(keymap.of(formatKeymap)) : []
+      ),
       editorKeymapCompartmentRef.current.of(
         Prec.high(keymap.of(editorKeymap))
       ),
@@ -527,12 +487,16 @@ export function CodeEditor({
           overflow: 'visible',
           marginLeft: 'calc(-1 * var(--md-code-gutter-width, 0px))',
           width: 'calc(100% + var(--md-code-gutter-width, 0px))',
+          paddingLeft: 'var(--md-content-padding-x, 1.25em)',
+          paddingRight: 'var(--md-content-padding-x, 1.25em)',
         },
         /* Content area — match markdown layout padding for all file types */
         '.cm-content': {
           maxWidth: 'var(--md-content-max-width, 900px)',
-          padding: 'var(--md-content-padding, 1em 1.25em)',
+          paddingTop: '1em',
           paddingBottom: '40vh',
+          paddingLeft: '0',
+          paddingRight: '0',
         },
       }),
     ];
@@ -646,6 +610,16 @@ export function CodeEditor({
       ),
     });
   }, [listKeymap, isMarkdownFile]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: formatKeymapCompartmentRef.current.reconfigure(
+        isMarkdownFile ? Prec.high(keymap.of(formatKeymap)) : []
+      ),
+    });
+  }, [formatKeymap, isMarkdownFile]);
 
   // Update file tree when it changes (for wiki-link resolution)
   useEffect(() => {

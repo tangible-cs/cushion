@@ -60,8 +60,8 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
         .workspace-picker {
           min-height: 100vh;
           width: 100%;
-          background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-          color: #e0e0e0;
+          background: linear-gradient(180deg, var(--background) 0%, var(--sidebar-bg) 100%);
+          color: var(--foreground);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -77,23 +77,23 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
         }
 
         .picker-card {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 12px;
           padding: 20px;
-          backdrop-filter: blur(12px);
+          box-shadow: var(--shadow-sm);
         }
 
         .picker-title {
           font-size: 20px;
           font-weight: 600;
           margin: 0 0 4px;
-          color: #fff;
+          color: var(--foreground);
         }
 
         .picker-subtitle {
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.5);
+          color: var(--foreground-muted);
           margin: 0;
         }
 
@@ -102,12 +102,12 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
           padding: 14px 24px;
           border-radius: 10px;
           border: none;
-          background: linear-gradient(180deg, #5a8aff 0%, #3b6ff0 100%);
-          color: white;
+          background: var(--accent-primary);
+          color: var(--surface);
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
-          transition: transform 0.15s, box-shadow 0.15s;
+          transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
           font-family: inherit;
         }
 
@@ -118,15 +118,16 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
 
         .browse-btn:not(:disabled):hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 20px rgba(59, 111, 240, 0.35);
+          box-shadow: var(--shadow-md);
+          background: var(--accent-primary-hover);
         }
 
         .error-msg {
           padding: 8px 12px;
           border-radius: 8px;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          background: rgba(239, 68, 68, 0.1);
-          color: #fca5a5;
+          border: 1px solid var(--accent-red);
+          background: var(--accent-red-12);
+          color: var(--accent-red);
           font-size: 12px;
           margin-top: 8px;
         }
@@ -136,7 +137,7 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.15em;
-          color: rgba(255, 255, 255, 0.35);
+          color: var(--foreground-subtle);
           margin-bottom: 8px;
         }
 
@@ -160,18 +161,18 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
         }
 
         .recent-item:hover {
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--overlay-10);
         }
 
         .recent-name {
           font-size: 13px;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.85);
+          color: var(--foreground);
         }
 
         .recent-path {
           font-size: 11px;
-          color: rgba(255, 255, 255, 0.4);
+          color: var(--foreground-subtle);
           word-break: break-all;
           margin-top: 2px;
         }

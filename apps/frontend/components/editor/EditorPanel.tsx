@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { CodeEditor, type SelectionInfo } from './CodeEditor';
-import { useChatStore } from '@/stores/chatStore';
+import { CodeEditor } from './CodeEditor';
 import { EditorTabs } from './EditorTabs';
 import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
 import { ImageViewer } from './ImageViewer';
@@ -50,8 +49,6 @@ export function EditorPanel({
   const closeFile = useWorkspaceStore((s) => s.closeFile);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const openFile = useWorkspaceStore((s) => s.openFile);
-  const addContextItem = useChatStore((s) => s.addContextItem);
-  const [selection, setSelection] = useState<SelectionInfo | null>(null);
 
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({
     entries: [],
@@ -237,9 +234,6 @@ export function EditorPanel({
     }
   }, [currentFile, client, markFileSaved]);
 
-  const handleSelectionChange = useCallback((next: SelectionInfo | null) => {
-    setSelection(next);
-  }, []);
 
   const handleEmbedResolve = useCallback<EmbedResolver>(async (path, options) => {
     const hint = options?.hint ?? 'binary';
@@ -264,10 +258,6 @@ export function EditorPanel({
     embedCacheRef.current.set(cacheKey, promise);
     return promise;
   }, [client]);
-
-  useEffect(() => {
-    setSelection(null);
-  }, [currentFile]);
 
   const handleSelectTab = useCallback(
     (filePath: string) => {
@@ -343,20 +333,6 @@ export function EditorPanel({
     );
   }, []);
 
-  const handleAskSelection = useCallback(() => {
-    if (!currentFile || !selection) return;
-    addContextItem({
-      path: currentFile,
-      selection: {
-        startLine: selection.startLine,
-        startChar: selection.startChar,
-        endLine: selection.endLine,
-        endChar: selection.endChar,
-      },
-      preview: selection.text,
-    });
-    onOpenChat?.();
-  }, [addContextItem, currentFile, selection, onOpenChat]);
 
   const handleWikiLinkNavigate: WikiLinkNavigateCallback = useCallback(
     async (href, resolvedPath, createIfMissing) => {
@@ -537,23 +513,6 @@ export function EditorPanel({
               onExit={handleHeaderExit}
               showExtension={!/\.(md|markdown)$/i.test(currentFile)}
             />
-            {!focusModeEnabled && selection && selection.text.trim().length > 0 && (
-              <div
-                className="flex items-center justify-end px-5 pb-2"
-                style={{
-                  maxWidth: 'var(--md-content-max-width, 900px)',
-                  margin: '0 auto',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleAskSelection}
-                  className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Ask AI about selection
-                </button>
-              </div>
-            )}
             {/* Editor */}
             <CodeEditor
               filePath={currentFile}
@@ -561,7 +520,6 @@ export function EditorPanel({
               language={fileState.language}
               onChange={handleChange}
               onSave={handleSave}
-              onSelectionChange={handleSelectionChange}
               focusModeEnabled={focusModeEnabled}
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}

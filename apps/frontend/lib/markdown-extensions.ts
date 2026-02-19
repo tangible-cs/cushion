@@ -1,4 +1,5 @@
-import type { BlockContext, LeafBlock, LeafBlockParser, MarkdownConfig } from '@lezer/markdown';
+import type { BlockContext, LeafBlock, LeafBlockParser, MarkdownConfig, InlineContext } from '@lezer/markdown';
+import { tags } from '@lezer/highlight';
 
 class TaskParser implements LeafBlockParser {
   nextLine() {
@@ -31,6 +32,110 @@ export const TaskListWithCanceled: MarkdownConfig = {
           : null;
       },
       after: 'SetextHeading',
+    },
+  ],
+};
+
+/**
+ * Highlight/Mark extension for ==highlighted text== syntax
+ */
+export const Highlight: MarkdownConfig = {
+  defineNodes: [
+    { name: 'Highlight', style: tags.special(tags.emphasis) },
+    { name: 'HighlightMark', style: tags.processingInstruction },
+  ],
+  parseInline: [
+    {
+      name: 'Highlight',
+      parse(cx: InlineContext, next: number, pos: number) {
+        // Check for == at current position
+        if (next !== 61 /* = */ || cx.char(pos + 1) !== 61) return -1;
+
+        // Look for closing ==
+        let end = pos + 2;
+        while (end < cx.end) {
+          if (cx.char(end) === 61 && cx.char(end + 1) === 61) {
+            // Found closing ==
+            const content = cx.slice(pos + 2, end);
+            if (content.length > 0) {
+              return cx.addElement(
+                cx.elt('Highlight', pos, end + 2, [
+                  cx.elt('HighlightMark', pos, pos + 2),
+                  ...cx.parser.parseInline(content, pos + 2),
+                  cx.elt('HighlightMark', end, end + 2),
+                ])
+              );
+            }
+            return -1;
+          }
+          end++;
+        }
+        return -1;
+      },
+    },
+  ],
+};
+
+export const DisableSetextHeading: MarkdownConfig = {
+  remove: ['SetextHeading'],
+};
+
+/**
+ * Inline math extension for $...$ syntax
+ * Requires non-whitespace after opening $ and before closing $
+ * Does NOT handle $$...$$ - block math uses multi-line format only
+ */
+export const InlineMath: MarkdownConfig = {
+  defineNodes: [
+    { name: 'InlineMath', style: tags.special(tags.string) },
+    { name: 'InlineMathMark', style: tags.processingInstruction },
+  ],
+  parseInline: [
+    {
+      name: 'InlineMath',
+      parse(cx: InlineContext, next: number, pos: number) {
+        // Check for $ at current position (but NOT $$)
+        if (next !== 36 /* $ */) return -1;
+        if (cx.char(pos + 1) === 36 /* $ */) return -1; // Skip $$ (multi-line block math only)
+
+        // Character after opening $ must not be whitespace (prevents $100 false positives)
+        const afterOpen = cx.char(pos + 1);
+        if (afterOpen === 32 /* space */ || afterOpen === 9 /* tab */ || afterOpen === 10 /* newline */) {
+          return -1;
+        }
+
+        // Look for closing $
+        let end = pos + 1;
+        while (end < cx.end) {
+          if (cx.char(end) === 36 /* $ */) {
+            // Check it's not $$ (part of block math)
+            if (cx.char(end + 1) === 36) {
+              end += 2;
+              continue;
+            }
+            // Character before closing $ must not be whitespace
+            const beforeClose = cx.char(end - 1);
+            if (beforeClose === 32 || beforeClose === 9 || beforeClose === 10) {
+              end++;
+              continue;
+            }
+            // Found valid closing $
+            const content = cx.slice(pos + 1, end);
+            if (content.length > 0) {
+              // Inline math doesn't parse inline content (it's LaTeX)
+              return cx.addElement(
+                cx.elt('InlineMath', pos, end + 1, [
+                  cx.elt('InlineMathMark', pos, pos + 1),
+                  cx.elt('InlineMathMark', end, end + 1),
+                ])
+              );
+            }
+            return -1;
+          }
+          end++;
+        }
+        return -1;
+      },
     },
   ],
 };

@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markDecorationsField, widgetDecorationsField, widgetUpdateScheduler, linkClickHandler } from './hide-markup';
+import { focusState, focusListener } from './reveal-on-cursor';
 import { embedResolverField, setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 import {
   wikiLinkExtension,
@@ -11,9 +12,20 @@ import {
 import { combinedAutocomplete } from './combined-autocomplete';
 import { codeBlockHighlighter } from './code-block-highlight';
 import { slashCommandExtension } from './slash-command';
+import { headingFoldExtension } from './heading-fold';
+import { headingFoldGutterExtension } from './heading-fold-gutter';
 
 // Re-export focus mode utilities
 export { focusModeExtension, setFocusMode, isFocusModeEnabled } from './focus-mode';
+
+// Re-export focus state utilities (purrmd pattern)
+export {
+  focusState,
+  focusListener,
+  hasFocus,
+  isFocusEvent,
+  isSelectRange,
+} from './reveal-on-cursor';
 
 // Re-export wiki-link utilities
 export {
@@ -23,6 +35,18 @@ export {
 } from './wiki-link-plugin';
 
 export { setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
+
+// Re-export heading fold utilities
+export {
+  headingFoldExtension,
+  toggleHeadingFold,
+  foldAllHeadings,
+  unfoldAllHeadings,
+  headingFoldState,
+  headingFoldInfoField,
+} from './heading-fold';
+
+export { headingFoldGutterExtension } from './heading-fold-gutter';
 
 /**
  * Prose-optimized theme for markdown editing.
@@ -37,17 +61,22 @@ const markdownProseTheme = EditorView.theme({
     color: 'var(--md-text, #e0e0e0)',
   },
   // Scroller - handles overflow and contains the content
+  // Horizontal padding on scroller (not .cm-content) so drawSelection()
+  // full-width pieces align with text instead of extending into padding.
   '.cm-scroller': {
     overflow: 'auto',
     fontFamily: 'var(--md-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)',
     backgroundColor: 'transparent',
+    paddingLeft: 'var(--md-content-padding-x, 1.25em)',
+    paddingRight: 'var(--md-content-padding-x, 1.25em)',
   },
   // Content area — left-aligned, comfortable reading width
   '.cm-content': {
     maxWidth: 'var(--md-content-max-width, 800px)',
-    padding: 'var(--md-content-padding, 1em 2em)',
     paddingTop: '0',  /* No top padding - header handles spacing */
     paddingBottom: '40vh !important',  /* Extra space at bottom so user can scroll past content */
+    paddingLeft: '0',
+    paddingRight: '0',
     caretColor: 'var(--md-text, #e0e0e0)',
     lineHeight: 'var(--md-baseline, 1.6)',
   },
@@ -70,7 +99,7 @@ const markdownProseTheme = EditorView.theme({
     backgroundColor: 'transparent !important',
   },
   // Selection color
-  '&.cm-focused .cm-selectionBackground, ::selection': {
+  '&.cm-focused .cm-selectionBackground': {
     backgroundColor: 'var(--md-selection-bg, rgba(100, 153, 255, 0.25)) !important',
   },
 });
@@ -162,9 +191,19 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
   '.cm-hr-widget': {
     display: 'block',
     border: 'none',
-    borderTop: '1px solid var(--md-hr-color, #4a4a4a)',
-    margin: '24px 0',
-    height: '0',
+    margin: '0',
+    position: 'relative',
+    height: 'calc(var(--md-baseline) * 1em)',
+  },
+  '.cm-hr-widget::after': {
+    content: '""',
+    position: 'absolute',
+    left: '0.5em',
+    right: '0.5em',
+    top: '50%',
+    height: '1px',
+    background: 'var(--md-hr-color, #4a4a4a)',
+    transform: 'translateY(-0.5px)',
   },
   
   // Links
@@ -206,7 +245,14 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     textDecoration: 'line-through',
     color: 'var(--md-text-muted, #a0a0a0)',
   },
-  
+
+  // Highlight/Mark ==text==
+  '.cm-highlight-text': {
+    backgroundColor: 'var(--md-highlight-bg, rgba(255, 235, 59, 0.35))',
+    borderRadius: '2px',
+    padding: '1px 0',
+  },
+
   // Headings - line decorations
   '.cm-heading-1': {
     fontSize: '2em',
@@ -252,15 +298,6 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     fontStyle: 'italic',
   },
   
-  // Code blocks
-  '.cm-code-block': {
-    fontFamily: 'var(--md-code-font-family, "Fira Code", Consolas, monospace)',
-    fontSize: '0.9em',
-    backgroundColor: 'var(--md-code-bg, #2a2a2a)',
-    borderLeft: '3px solid var(--md-accent, #6fb3d2)',
-    padding: '4px 12px',
-  },
-  
   // Tables — rendered widget
   '.cm-table-widget': {
     width: '100%',
@@ -301,6 +338,7 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     fontSize: '0.85em',
     color: 'var(--md-text-faint, #666)',
   },
+
 });
 
 /**
@@ -321,6 +359,9 @@ export function wysiwygExtension(): Extension {
     editorAttributes,
     markdownProseTheme,
     wysiwygWidgetTheme,
+    // Focus state tracking (purrmd pattern: reveal all when unfocused)
+    focusState,
+    focusListener,
     embedResolverField,
     markDecorationsField,
     widgetDecorationsField,
@@ -334,5 +375,8 @@ export function wysiwygExtension(): Extension {
     slashCommandExtension(),
     // Code block syntax highlighting
     codeBlockHighlighter,
+    // Heading folding (Notion-style collapsible headings)
+    headingFoldExtension(),
+    headingFoldGutterExtension(),
   ];
 }

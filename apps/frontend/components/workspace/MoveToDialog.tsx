@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { FileTreeNode } from '@cushion/types';
 import { Folder, ChevronRight, ChevronDown, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface MoveToDialogProps {
   isOpen: boolean;
@@ -43,7 +44,6 @@ export function MoveToDialog({
       if (!dirContents.has(path)) {
         try {
           const contents = await onLoadDirectory(path);
-          // Filter to show only directories
           const directories = contents.filter(node => node.type === 'directory');
           setDirContents(new Map(dirContents).set(path, directories));
         } catch (error) {
@@ -78,13 +78,14 @@ export function MoveToDialog({
       return (
         <div key={node.path}>
           <div
-            className={`tree-item ${isSelected ? 'selected' : ''}`}
-            style={{
-              paddingLeft: `${level * 12 + 12}px`,
-            }}
+            className={cn(
+              "flex items-center py-1.5 px-2 rounded cursor-pointer transition-colors select-none hover:bg-[var(--overlay-10)]",
+              isSelected && "bg-[var(--accent-primary-12)] text-accent"
+            )}
+            style={{ paddingLeft: `${level * 12 + 12}px` }}
           >
             <div
-              className="expand-icon"
+              className="w-4 h-4 flex items-center justify-center mr-1 shrink-0 text-foreground-subtle"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleDirectory(node.path);
@@ -93,11 +94,11 @@ export function MoveToDialog({
               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </div>
             <div
-              className="folder-content"
+              className="flex items-center gap-2 flex-1"
               onClick={() => setSelectedPath(node.path)}
             >
               <Folder size={16} />
-              <span className="folder-name">{node.name}</span>
+              <span className="text-sm">{node.name}</span>
             </div>
           </div>
 
@@ -112,223 +113,79 @@ export function MoveToDialog({
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]"
+      onClick={onClose}
+    >
       <div
-        className="dialog-backdrop"
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 10000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        className="bg-surface rounded-lg w-[480px] max-h-[600px] flex flex-col shadow-lg"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Dialog */}
-        <div
-          className="move-dialog"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <style jsx>{`
-            .move-dialog {
-              background: white;
-              border-radius: 8px;
-              width: 480px;
-              max-height: 600px;
-              display: flex;
-              flex-direction: column;
-              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            }
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="text-base font-semibold text-foreground">Move to folder</div>
+          <button
+            className="p-1 rounded cursor-pointer flex items-center justify-center text-foreground-muted hover:bg-[var(--overlay-10)] hover:text-foreground transition-all bg-transparent border-none"
+            onClick={onClose}
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
 
-            .dialog-header {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 16px 20px;
-              border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            }
-
-            .dialog-title {
-              font-size: 16px;
-              font-weight: 600;
-              color: rgba(0, 0, 0, 0.9);
-            }
-
-            .close-button {
-              background: transparent;
-              border: none;
-              cursor: pointer;
-              padding: 4px;
-              border-radius: 4px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: rgba(0, 0, 0, 0.5);
-              transition: all 0.15s;
-            }
-
-            .close-button:hover {
-              background: rgba(0, 0, 0, 0.05);
-              color: rgba(0, 0, 0, 0.8);
-            }
-
-            .dialog-body {
-              flex: 1;
-              overflow-y: auto;
-              padding: 12px;
-              min-height: 300px;
-            }
-
-            .tree-item {
-              display: flex;
-              align-items: center;
-              padding: 6px 8px;
-              border-radius: 4px;
-              cursor: pointer;
-              transition: background 0.15s;
-              user-select: none;
-            }
-
-            .tree-item:hover {
-              background: rgba(0, 0, 0, 0.05);
-            }
-
-            .tree-item.selected {
-              background: rgba(0, 120, 212, 0.1);
-              color: #0078d4;
-            }
-
-            .expand-icon {
-              width: 16px;
-              height: 16px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              margin-right: 4px;
-              flex-shrink: 0;
-              color: rgba(0, 0, 0, 0.5);
-            }
-
-            .folder-content {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              flex: 1;
-            }
-
-            .folder-name {
-              font-size: 14px;
-            }
-
-            .dialog-footer {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 16px 20px;
-              border-top: 1px solid rgba(0, 0, 0, 0.1);
-              gap: 12px;
-            }
-
-            .selected-path {
-              flex: 1;
-              font-size: 13px;
-              color: rgba(0, 0, 0, 0.6);
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-
-            .dialog-actions {
-              display: flex;
-              gap: 8px;
-            }
-
-            .button {
-              padding: 8px 16px;
-              border-radius: 4px;
-              font-size: 14px;
-              font-weight: 500;
-              cursor: pointer;
-              transition: all 0.15s;
-              border: none;
-            }
-
-            .button-cancel {
-              background: transparent;
-              color: rgba(0, 0, 0, 0.7);
-              border: 1px solid rgba(0, 0, 0, 0.2);
-            }
-
-            .button-cancel:hover {
-              background: rgba(0, 0, 0, 0.05);
-            }
-
-            .button-move {
-              background: #0078d4;
-              color: white;
-            }
-
-            .button-move:hover {
-              background: #106ebe;
-            }
-          `}</style>
-
-          {/* Header */}
-          <div className="dialog-header">
-            <div className="dialog-title">Move to folder</div>
-            <button className="close-button" onClick={onClose} title="Close">
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="dialog-body">
-            {/* Root folder */}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-3 min-h-[300px]">
+          {/* Root folder */}
+          <div
+            className={cn(
+              "flex items-center py-1.5 px-2 rounded cursor-pointer transition-colors select-none hover:bg-[var(--overlay-10)]",
+              selectedPath === "." && "bg-[var(--accent-primary-12)] text-accent"
+            )}
+            style={{ paddingLeft: '12px' }}
+          >
             <div
-              className={`tree-item ${selectedPath === '.' ? 'selected' : ''}`}
-              style={{ paddingLeft: '12px' }}
+              className="w-4 h-4 flex items-center justify-center mr-1 shrink-0 text-foreground-subtle"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleDirectory('.');
+              }}
             >
-              <div
-                className="expand-icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleDirectory('.');
-                }}
-              >
-                {expandedDirs.has('.') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </div>
-              <div
-                className="folder-content"
-                onClick={() => setSelectedPath('.')}
-              >
-                <Folder size={16} />
-                <span className="folder-name">Project Root</span>
-              </div>
+              {expandedDirs.has('.') ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </div>
-
-            {/* Tree */}
-            {expandedDirs.has('.') && renderTree(rootFiles)}
+            <div
+              className="flex items-center gap-2 flex-1"
+              onClick={() => setSelectedPath('.')}
+            >
+              <Folder size={16} />
+              <span className="text-sm">Project Root</span>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="dialog-footer">
-            <div className="selected-path" title={selectedPath}>
-              Moving to: {selectedPath === '.' ? 'Project Root' : selectedPath}
-            </div>
-            <div className="dialog-actions">
-              <button className="button button-cancel" onClick={onClose}>
-                Cancel
-              </button>
-              <button className="button button-move" onClick={handleMove}>
-                Move
-              </button>
-            </div>
+          {/* Tree */}
+          {expandedDirs.has('.') && renderTree(rootFiles)}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-4 border-t border-border gap-3">
+          <div className="flex-1 text-[13px] text-foreground-muted overflow-hidden text-ellipsis whitespace-nowrap" title={selectedPath}>
+            Moving to: {selectedPath === '.' ? 'Project Root' : selectedPath}
+          </div>
+          <div className="flex gap-2">
+            <button
+              className="px-4 py-2 rounded text-sm font-medium cursor-pointer border border-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 rounded text-sm font-medium cursor-pointer border-none bg-accent text-surface hover:bg-accent-hover transition-all"
+              onClick={handleMove}
+            >
+              Move
+            </button>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

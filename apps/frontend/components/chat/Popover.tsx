@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, cloneElement, isValidElement, Children, type ReactElement, type ReactNode } from 'react';
 import * as React from 'react';
 import { useOverlayClose } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
 
 type PopoverContextValue = {
   isOpen: boolean;
@@ -141,7 +142,7 @@ export function PopoverContent({ children, className = '' }: PopoverContentProps
   return (
     <div
       ref={contentRef}
-      className={`fixed z-50 w-72 max-h-80 overflow-auto rounded-md border border-border bg-background shadow-md outline-none thin-scrollbar ${className}`}
+      className={cn("fixed z-popover w-72 max-h-80 overflow-auto rounded-md border border-border bg-background shadow-md outline-none thin-scrollbar", className)}
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,

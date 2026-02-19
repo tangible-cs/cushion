@@ -8,7 +8,7 @@ import {
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
-import { cursorInRange } from './reveal-on-cursor';
+import { cursorInRange, isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
 import { resolveWikiLink } from '../wiki-link-resolver';
 import { fileTreeField } from './wiki-link-plugin';
 import { embedResolverField } from './embed-resolver';
@@ -70,19 +70,39 @@ function hasListBreak(state: EditorState, from: number, to: number): boolean {
   return /\n\s*\n/.test(between);
 }
 
+/**
+ * Adds a hidden mark decoration with optional type-specific class.
+ * Single-phase pattern: only called when cursor is NOT in range.
+ */
+function addHiddenMark(
+  decorations: Range<Decoration>[],
+  from: number,
+  to: number,
+  syntaxType: string,
+): void {
+  decorations.push(
+    Decoration.mark({
+      class: `cm-hidden cm-${syntaxType}-syntax`,
+    }).range(from, to),
+  );
+}
+
+/**
+ * Hides sub-node marks using the single-phase pattern.
+ * Only call this when cursor is NOT in the parent element range.
+ */
 function hideSubNodeMarks(
   node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } },
   names: string | string[],
   decorations: Range<Decoration>[],
+  syntaxType: string,
 ): void {
   const isArray = Array.isArray(names);
   const cursor = node.node.cursor();
   cursor.iterate((child) => {
     const isMatch = isArray ? names.includes(child.type.name) : child.type.name === names;
     if (isMatch) {
-      decorations.push(
-        Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, child.to),
-      );
+      addHiddenMark(decorations, child.from, child.to, syntaxType);
     }
   });
 }
@@ -173,98 +193,129 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Headings (H1-H6) ---
+      // --- Headings (H1-H6) --- purrmd single-phase pattern
       if (/^ATXHeading[1-6]$/.test(type)) {
         const level = parseInt(type.charAt(type.length - 1), 10);
 
-        // Always apply heading class so font size stays consistent (prevents cursor jumping)
+        // Always apply heading line class (stable geometry)
         decorations.push(
           Decoration.line({
             class: `cm-heading-${level}`,
           }).range(state.doc.lineAt(from).from),
         );
 
-        // Only hide the # markers when cursor is outside the heading range
-        if (!cursorInRange(state, from, to)) {
-          const child = node.node.getChild('HeaderMark');
-          if (child) {
-            const hideEnd = Math.min(child.to + 1, to);
-            decorations.push(
-              Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, hideEnd),
-            );
+        // Single-phase: only hide when cursor is NOT in range.
+        const child = node.node.getChild('HeaderMark');
+        if (child) {
+          const hideEnd = Math.min(child.to + 1, to);
+          // Only hide if:
+          // 1. Visible text remains after the marker (prevents posBefore errors)
+          // 2. Cursor is NOT in the heading range
+          if (hideEnd < to && !isSelectRange(state, { from, to })) {
+            addHiddenMark(decorations, child.from, hideEnd, 'heading');
           }
         }
         return true;
       }
 
-      // --- Bold (StrongEmphasis) ---
+      // --- Bold (StrongEmphasis) --- purrmd single-phase pattern
       if (type === 'StrongEmphasis') {
-        if (!cursorInRange(state, from, to)) {
-          hideSubNodeMarks(node, 'EmphasisMark', decorations);
-          decorations.push(
-            Decoration.mark({ class: 'cm-strong-text' }).range(from, to),
-          );
+        // Always apply bold styling (stable)
+        decorations.push(
+          Decoration.mark({ class: 'cm-strong-text' }).range(from, to),
+        );
+
+        // Single-phase: only hide ** when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'EmphasisMark', decorations, 'emphasis');
         }
         return false;
       }
 
-      // --- Italic (Emphasis) ---
+      // --- Italic (Emphasis) --- purrmd single-phase pattern
       if (type === 'Emphasis') {
-        if (!cursorInRange(state, from, to)) {
-          hideSubNodeMarks(node, 'EmphasisMark', decorations);
-          decorations.push(
-            Decoration.mark({ class: 'cm-emphasis-text' }).range(from, to),
-          );
+        // Always apply italic styling (stable)
+        decorations.push(
+          Decoration.mark({ class: 'cm-emphasis-text' }).range(from, to),
+        );
+
+        // Single-phase: only hide * when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'EmphasisMark', decorations, 'emphasis');
         }
         return false;
       }
 
-      // --- Strikethrough ---
+      // --- Strikethrough --- purrmd single-phase pattern
       if (type === 'Strikethrough') {
-        if (!cursorInRange(state, from, to)) {
-          hideSubNodeMarks(node, 'StrikethroughMark', decorations);
-          decorations.push(
-            Decoration.mark({ class: 'cm-strikethrough-text' }).range(from, to),
-          );
+        // Always apply strikethrough styling (stable)
+        decorations.push(
+          Decoration.mark({ class: 'cm-strikethrough-text' }).range(from, to),
+        );
+
+        // Single-phase: only hide ~~ when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'StrikethroughMark', decorations, 'strikethrough');
         }
         return false;
       }
 
-      // --- Inline Code ---
+      // --- Highlight ==text== --- purrmd single-phase pattern
+      if (type === 'Highlight') {
+        // Always apply highlight styling (stable)
+        decorations.push(
+          Decoration.mark({ class: 'cm-highlight-text' }).range(from, to),
+        );
+
+        // Single-phase: only hide == when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'HighlightMark', decorations, 'highlight');
+        }
+        return false;
+      }
+
+      // --- Inline Code --- purrmd single-phase pattern
       if (type === 'InlineCode') {
-        if (!cursorInRange(state, from, to)) {
-          hideSubNodeMarks(node, 'CodeMark', decorations);
-          decorations.push(
-            Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
-          );
+        // Always apply inline code styling (stable)
+        decorations.push(
+          Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
+        );
+
+        // Single-phase: only hide ` when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'CodeMark', decorations, 'code');
         }
         return false;
       }
 
-      // --- Links [text](url) ---
+      // --- Links [text](url) --- purrmd single-phase pattern
+      // Only style links that have an actual URL (not reference links like [text] or [text][ref])
+      // Lezer parses [anything] as a Link node even without a URL, so we filter them out
       if (type === 'Link') {
-        if (!cursorInRange(state, from, to)) {
-          const linkUrl = findLinkUrl(state, node);
-          const attributes: Record<string, string> | undefined = linkUrl
-            ? {
-                title: linkUrl,
-                'data-href': linkUrl,
-              }
-            : undefined;
+        const linkUrl = findLinkUrl(state, node);
 
-          decorations.push(
-            Decoration.mark({
-              class: 'cm-link',
-              attributes,
-            }).range(from, to),
-          );
+        // Skip styling if no URL - prevents [0,1,2] from being styled as a link
+        if (!linkUrl) {
+          return false;
+        }
 
+        // Apply link styling with href attributes
+        decorations.push(
+          Decoration.mark({
+            class: 'cm-link',
+            attributes: {
+              title: linkUrl,
+              'data-href': linkUrl,
+            },
+          }).range(from, to),
+        );
+
+        // Single-phase: only hide link syntax when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
           const childRanges = getChildRanges(node);
           for (const child of childRanges) {
             if (child.name === 'LinkMark' || child.name === 'URL') {
-              decorations.push(
-                Decoration.mark({ class: 'cm-syntax-hidden' }).range(child.from, child.to),
-              );
+              addHiddenMark(decorations, child.from, child.to, 'link');
             } else if (child.name === 'LinkTitle') {
               let hideFrom = child.from;
               let hideTo = child.to;
@@ -280,9 +331,7 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
                   hideTo += 1;
                 }
               }
-              decorations.push(
-                Decoration.mark({ class: 'cm-syntax-hidden' }).range(hideFrom, hideTo),
-              );
+              addHiddenMark(decorations, hideFrom, hideTo, 'link');
             }
           }
         }
@@ -294,7 +343,7 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Blockquote ---
+      // --- Blockquote --- purrmd single-phase pattern
       if (type === 'Blockquote') {
         const startLine = state.doc.lineAt(from).number;
         const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
@@ -302,7 +351,7 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         for (let i = startLine; i <= endLine; i++) {
           const line = state.doc.line(i);
 
-          // Always apply blockquote styling to keep line height stable
+          // Always apply blockquote line styling (stable geometry)
           decorations.push(
             Decoration.line({ class: 'cm-blockquote' }).range(line.from),
           );
@@ -310,11 +359,11 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
           const qMatch = line.text.match(/^(>\s?)+/);
           if (qMatch) {
             const markerEnd = line.from + qMatch[0].length;
-            // Only hide the > marker when cursor is outside the marker range
-            if (!cursorInRange(state, line.from, markerEnd)) {
-              decorations.push(
-                Decoration.mark({ class: 'cm-syntax-hidden' }).range(line.from, markerEnd),
-              );
+            // Only hide if:
+            // 1. Visible text remains after the marker (empty blockquote lines keep marker visible)
+            // 2. Cursor is NOT on this line
+            if (markerEnd < line.to && !isSelectLine(state, line.from, line.to)) {
+              addHiddenMark(decorations, line.from, markerEnd, 'blockquote');
             }
           }
         }
@@ -326,10 +375,11 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      // --- Escape (\\) ---
+      // --- Escape (\\) --- purrmd single-phase pattern
       if (type === 'Escape') {
-        if (!cursorInRange(state, from, to)) {
-          hideSubNodeMarks(node, 'EscapeMark', decorations);
+        // Single-phase: only hide \ when cursor is NOT inside
+        if (!isSelectRange(state, { from, to })) {
+          hideSubNodeMarks(node, 'EscapeMark', decorations, 'escape');
         }
         return false;
       }
@@ -360,15 +410,15 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         }
         const hideEnd = Math.min(line.from + offsetInLine, state.doc.length);
 
-        // Task list items: hide the list marker so the checkbox is first
+        // Task list items: hide the list marker so the checkbox is first (single-phase)
         if (parent && (parent.getChild('Task') || parent.getChild('TaskMarker'))) {
           const listRoot = parent.parent;
           const isBulletList = listRoot?.type?.name === 'BulletList';
           if (isBulletList) {
-            if (!cursorInRange(state, from, hideEnd)) {
-              decorations.push(
-                Decoration.mark({ class: 'cm-syntax-hidden' }).range(from, hideEnd),
-              );
+            // Single-phase: only hide if cursor is NOT in range
+            // Task items have [x] or [ ] after the marker, so line.to check handles empty tasks
+            if (hideEnd < line.to && !isSelectRange(state, { from, to: hideEnd })) {
+              addHiddenMark(decorations, from, hideEnd, 'list');
             }
             return false;
           }
@@ -379,7 +429,8 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
         const styleDepth = depth % 3;
         const depthClass = `cm-list-depth-${Math.min(styleDepth, 2)}`;
 
-        if (cursorInRange(state, from, hideEnd)) {
+        // Single-phase: show raw marker when cursor is in range
+        if (isSelectRange(state, { from, to: hideEnd })) {
           decorations.push(
             Decoration.mark({
               class: `cm-list-marker ${depthClass}`,
@@ -462,7 +513,7 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
           language = state.doc.sliceString(codeInfo.from, codeInfo.to).trim();
         }
 
-        const cursorInside = cursorInRange(state, from, to);
+        const cursorInside = isSelectRange(state, { from, to });
 
         for (let i = startLine; i <= endLine; i++) {
           const line = state.doc.line(i);
@@ -686,29 +737,15 @@ function detectMathMarks(state: EditorState, decorations: Range<Decoration>[], t
 
   // Multi-line block math
   for (const block of blocks) {
-    if (cursorInRange(state, block.rangeFrom, block.rangeTo)) {
+    if (isSelectRange(state, { from: block.rangeFrom, to: block.rangeTo })) {
       decorations.push(
         Decoration.mark({ class: 'cm-math-syntax' }).range(block.rangeFrom, block.rangeTo),
       );
     }
   }
 
-  // Single-line block math ($$...$$)
-  const blockMathRegex = /\$\$([^\$\n]+?)\$\$/g;
-  let match;
-  while ((match = blockMathRegex.exec(text)) !== null) {
-    const from = match.index;
-    const to = blockMathRegex.lastIndex;
-    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-    if (isInsideCode(state, from)) continue;
-    if (cursorInRange(state, from, to)) {
-      decorations.push(
-        Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
-      );
-    }
-  }
-
   // Inline math ($...$)
+  let match;
   const inlineMathRegex = /\$([^$\n]+?)\$/g;
   while ((match = inlineMathRegex.exec(text)) !== null) {
     const from = match.index;
@@ -719,7 +756,7 @@ function detectMathMarks(state: EditorState, decorations: Range<Decoration>[], t
     if (isPartOfBlockMath) continue;
     if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
     if (isInsideCode(state, from)) continue;
-    if (cursorInRange(state, from, to)) {
+    if (isSelectRange(state, { from, to })) {
       decorations.push(
         Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
       );
@@ -747,25 +784,8 @@ function detectMathWidgets(state: EditorState, decorations: Range<Decoration>[],
     }
   }
 
-  // Single-line block math ($$...$$)
-  const blockMathRegex = /\$\$([^\$\n]+?)\$\$/g;
-  let match;
-  while ((match = blockMathRegex.exec(text)) !== null) {
-    const from = match.index;
-    const to = blockMathRegex.lastIndex;
-    const latex = match[1].trim();
-    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-    if (isInsideCode(state, from)) continue;
-    if (!cursorInRange(state, from, to)) {
-      decorations.push(
-        Decoration.replace({
-          widget: new MathWidget(latex, true),
-        }).range(from, to),
-      );
-    }
-  }
-
   // Inline math ($...$)
+  let match;
   const inlineMathRegex = /\$([^$\n]+?)\$/g;
   while ((match = inlineMathRegex.exec(text)) !== null) {
     const from = match.index;
@@ -846,7 +866,8 @@ export const markDecorationsField = StateField.define<DecorationSet>({
     // when the parser finishes a new chunk. Rebuilding here prevents stale
     // decorations from accumulating and causing a massive one-time rebuild later.
     const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
-    if (tr.docChanged || tr.selection || treeChanged) {
+    // Also rebuild on focus changes (purrmd pattern: reveal all when unfocused)
+    if (tr.docChanged || tr.selection || treeChanged || isFocusEvent(tr)) {
       return buildMarkDecorations(tr.state);
     }
     return value;

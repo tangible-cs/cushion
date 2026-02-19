@@ -8,6 +8,7 @@ import {
   MousePointer
 } from 'lucide-react';
 import { formatShortcutList, matchShortcut, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
 
 interface PdfViewerNativeProps {
   filePath: string;
@@ -449,7 +450,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
       <div className="flex items-center gap-1 px-2 py-1 bg-[#323130] border-b border-[#484644] text-sm select-none">
         {/* Search button */}
         <button
-          className={`p-1.5 rounded transition-colors ${showSearch ? 'bg-[#484644] text-white' : 'hover:bg-[#484644] text-[#d4d4d4]'}`}
+          className={cn("p-1.5 rounded transition-colors", showSearch ? "bg-[#484644] text-white" : "hover:bg-[#484644] text-[#d4d4d4]")}
           onClick={() => {
             setShowSearch(s => !s);
             if (!showSearch) setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -463,11 +464,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
         {/* Annotation tools */}
         <button
-          className={`p-1.5 rounded transition-colors ${
-            editorMode === 'none'
-              ? 'bg-[#0078d4] text-white'
-              : 'hover:bg-[#484644] text-[#d4d4d4]'
-          }`}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            editorMode === "none"
+              ? "bg-[#0078d4] text-white"
+              : "hover:bg-[#484644] text-[#d4d4d4]"
+          )}
           onClick={() => setEditorMode('none')}
           title={cancelShortcutLabel ? `Selection tool (${cancelShortcutLabel})` : 'Selection tool'}
         >
@@ -475,11 +477,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         </button>
 
         <button
-          className={`p-1.5 rounded transition-colors ${
-            editorMode === 'freetext'
-              ? 'bg-[#0078d4] text-white'
-              : 'hover:bg-[#484644] text-[#d4d4d4]'
-          }`}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            editorMode === "freetext"
+              ? "bg-[#0078d4] text-white"
+              : "hover:bg-[#484644] text-[#d4d4d4]"
+          )}
           onClick={() => setEditorMode(editorMode === 'freetext' ? 'none' : 'freetext')}
           title="Add text annotation"
         >
@@ -487,11 +490,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         </button>
 
         <button
-          className={`p-1.5 rounded transition-colors ${
-            editorMode === 'ink'
-              ? 'bg-[#0078d4] text-white'
-              : 'hover:bg-[#484644] text-[#d4d4d4]'
-          }`}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            editorMode === "ink"
+              ? "bg-[#0078d4] text-white"
+              : "hover:bg-[#484644] text-[#d4d4d4]"
+          )}
           onClick={() => setEditorMode(editorMode === 'ink' ? 'none' : 'ink')}
           title="Draw / Ink annotation"
         >
@@ -499,11 +503,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         </button>
 
         <button
-          className={`p-1.5 rounded transition-colors ${
-            editorMode === 'highlight'
-              ? 'bg-[#0078d4] text-white'
-              : 'hover:bg-[#484644] text-[#d4d4d4]'
-          }`}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            editorMode === "highlight"
+              ? "bg-[#0078d4] text-white"
+              : "hover:bg-[#484644] text-[#d4d4d4]"
+          )}
           onClick={() => setEditorMode(editorMode === 'highlight' ? 'none' : 'highlight')}
           title="Highlight text"
         >
@@ -511,11 +516,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         </button>
 
         <button
-          className={`p-1.5 rounded transition-colors ${
-            editorMode === 'stamp'
-              ? 'bg-[#0078d4] text-white'
-              : 'hover:bg-[#484644] text-[#d4d4d4]'
-          }`}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            editorMode === "stamp"
+              ? "bg-[#0078d4] text-white"
+              : "hover:bg-[#484644] text-[#d4d4d4]"
+          )}
           onClick={() => editorMode === 'stamp' ? setEditorMode('none') : handleAddImage()}
           title="Add image"
         >
@@ -605,11 +611,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
             {HIGHLIGHT_COLORS.map((c) => (
               <button
                 key={c.hex}
-                className={`w-6 h-6 rounded-full border-2 transition-colors ${
+                className={cn(
+                  "w-6 h-6 rounded-full border-2 transition-colors",
                   highlightColor.toUpperCase() === c.hex
-                    ? 'border-white scale-110'
-                    : 'border-transparent hover:border-[#888]'
-                }`}
+                    ? "border-white scale-110"
+                    : "border-transparent hover:border-[#888]"
+                )}
                 style={{ backgroundColor: c.hex }}
                 onClick={() => {
                   setHighlightColor(c.hex);
@@ -714,11 +721,12 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           </button>
 
           <button
-            className={`p-1.5 rounded transition-colors ${
+            className={cn(
+              "p-1.5 rounded transition-colors",
               hasChanges
-                ? 'bg-[#0078d4] text-white hover:bg-[#1084d8]'
-                : 'hover:bg-[#484644] text-[#d4d4d4] opacity-50'
-            }`}
+                ? "bg-[#0078d4] text-white hover:bg-[#1084d8]"
+                : "hover:bg-[#484644] text-[#d4d4d4] opacity-50"
+            )}
             onClick={handleSave}
             disabled={!hasChanges || saving}
             title={hasChanges

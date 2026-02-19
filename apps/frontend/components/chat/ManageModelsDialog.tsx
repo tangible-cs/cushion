@@ -8,6 +8,7 @@ import { POPULAR_PROVIDERS } from '@/lib/model-constants';
 import { ProviderIcon } from './ProviderIcon';
 import { iconNames, type IconName } from './provider-icons/types';
 import { Icon } from './Icon';
+import { cn } from '@/lib/utils';
 
 type ManageModelsDialogProps = {
   onClose: () => void;
@@ -105,8 +106,8 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-lg shadow-lg border border-border max-w-2xl w-full max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]">
+      <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-2xl w-full max-h-[80vh] flex flex-col">
         <div className="flex items-start justify-between gap-4 p-4 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold">Manage Models</h2>
@@ -119,16 +120,16 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors disabled:opacity-50"
               title="Refresh models"
               aria-label="Refresh models"
             >
-              <RefreshCw className={`size-5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={cn("size-5", refreshing && "animate-spin")} />
             </button>
             <button
               type="button"
               onClick={onConnectProvider}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             >
               <Icon name="plus-small" size="normal" />
               Connect provider
@@ -136,7 +137,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
             <button
               type="button"
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
               aria-label="Close"
             >
               <X className="size-5" />
@@ -149,7 +150,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
             placeholder="Search models"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--md-accent)]"
+            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             autoFocus
           />
         </div>
@@ -162,9 +163,10 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
             providerEntries.map(([providerName, models]) => (
               <div key={providerName}>
                 <div
-                  className={`px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background flex items-center gap-2 ${
-                    providerName === firstProvider ? '' : 'border-t border-border'
-                  }`}
+                  className={cn(
+                    "px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background flex items-center gap-2",
+                    providerName !== firstProvider && "border-t border-border"
+                  )}
                 >
                   <ProviderIcon
                     id={resolveProviderIcon(models[0]?.providerID ?? 'synthetic')}
@@ -217,14 +219,16 @@ function VisibilityToggle({ checked, label, onChange }: VisibilityToggleProps) {
         event.stopPropagation();
         onChange(!checked);
       }}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full border border-border transition-colors ${
-        checked ? 'bg-[var(--md-accent)]' : 'bg-muted/40'
-      }`}
+      className={cn(
+        "relative inline-flex h-5 w-9 items-center rounded-full border border-border transition-colors",
+        checked ? "bg-[var(--accent-primary)]" : "bg-[var(--border-subtle)]"
+      )}
     >
       <span
-        className={`inline-block size-4 rounded-full bg-background shadow transition-transform ${
-          checked ? 'translate-x-4' : 'translate-x-0.5'
-        }`}
+        className={cn(
+          "inline-block size-4 rounded-full bg-background shadow transition-transform",
+          checked ? "translate-x-4" : "translate-x-0.5"
+        )}
       />
     </button>
   );

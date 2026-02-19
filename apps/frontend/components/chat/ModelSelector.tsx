@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
+import { cn } from '@/lib/utils';
 import { ProviderIcon } from './ProviderIcon';
 import { iconNames, type IconName } from './provider-icons/types';
 import { SelectProviderDialog } from './SelectProviderDialog';
@@ -178,7 +179,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
             type="button"
             disabled={disabled}
             title={displayText}
-            className={`h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--border-subtle)] focus-visible:bg-[var(--border-subtle)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors ${sizeClass}`.trim()}
+            className={cn("h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors", sizeClass)}
             aria-label={displayText}
           >
             {providerIcon ? (
@@ -205,7 +206,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
             <button
               type="button"
               onClick={() => handleConnectProvider()}
-              className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+              className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
               aria-label="Connect provider"
               title="Add new provider"
             >
@@ -214,7 +215,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
             <button
               type="button"
               onClick={handleManageModels}
-              className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+              className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
               aria-label="Manage models"
               title="Manage models"
             >
@@ -246,9 +247,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
                         key={`${model.providerID}:${model.modelID}`}
                         type="button"
                         onClick={() => handleSelect(model.providerID, model.modelID)}
-                        className={`w-full px-3 py-1.5 text-left text-xs hover:bg-muted/40 transition-colors ${
-                          isSelected ? 'bg-muted/40 text-foreground' : 'text-muted-foreground'
-                        }`}
+                        className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <div className="truncate flex-1">{model.modelName}</div>
@@ -257,6 +256,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
                               Local
                             </span>
                           )}
+                          {isSelected && <Check className="size-3 text-muted-foreground shrink-0" />}
                         </div>
                       </button>
                     );

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export type ToastVariant = 'default' | 'success' | 'error' | 'loading';
 
@@ -75,7 +76,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast, dismissToast }}>
       {children}
       {mounted && createPortal(
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+        <div className="fixed bottom-4 right-4 z-toast flex flex-col gap-2 pointer-events-none">
           {toasts.map((toast) => (
             <ToastItem key={toast.id} toast={toast} onDismiss={dismissToast} />
           ))}
@@ -122,9 +123,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
 
   return (
     <div
-      className={`pointer-events-auto w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300 ${
-        getVariantStyles()
-      } ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
+      className={cn(
+        "pointer-events-auto w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300",
+        getVariantStyles(),
+        isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+      )}
     >
       <div className="flex gap-3">
         {getIcon() && <div className="shrink-0 mt-0.5">{getIcon()}</div>}
@@ -142,7 +145,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
                     action.onClick();
                     onDismiss(toast.id);
                   }}
-                  className="px-3 py-1 text-xs font-medium rounded-md bg-muted hover:bg-muted/80 transition-colors"
+                  className="px-3 py-1 text-xs font-medium rounded-md hover:bg-[var(--overlay-10)] transition-colors"
                 >
                   {action.label}
                 </button>
@@ -153,7 +156,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
         {!toast.persistent && (
           <button
             onClick={() => onDismiss(toast.id)}
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
           >
             <X className="size-4" />
           </button>

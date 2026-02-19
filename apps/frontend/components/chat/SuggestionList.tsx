@@ -70,15 +70,7 @@ export function SuggestionList({ suggestions, onSelect }: SuggestionListProps) {
             key={item.id}
             type="button"
             onClick={() => onSelect(item)}
-            className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'color-mix(in srgb, var(--accent-primary) 15%, transparent)';
-              e.currentTarget.style.color = 'var(--foreground)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '';
-              e.currentTarget.style.color = '';
-            }}
+            className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-xs text-left text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
           >
             {isAgent ? (
               <>

@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import fuzzysort from 'fuzzysort';
 import { ArrowUp, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useChatStore,
@@ -906,7 +907,7 @@ export function PromptInput({
   };
 
   return (
-    <div className={`relative flex flex-col gap-3 max-h-[320px] ${className ?? ''}`.trim()}>
+    <div className={cn("relative flex flex-col gap-3 max-h-[320px]", className)}>
       {trigger && (
         <SuggestionList
           suggestions={suggestions}
@@ -916,9 +917,10 @@ export function PromptInput({
       <form
         data-slot="prompt-input-form"
         onSubmit={handleSubmit}
-        className={`group/prompt-input relative flex flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm ${
-          dragging ? 'border-dashed border-[var(--md-accent)]' : ''
-        }`.trim()}
+        className={cn(
+          "group/prompt-input relative flex flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm",
+          dragging && "border-dashed border-[var(--md-accent)]"
+        )}
       >
         {dragging && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 pointer-events-none">
@@ -1000,7 +1002,7 @@ export function PromptInput({
                   >
                     <Icon name="close" size="small" className="text-muted-foreground" />
                   </button>
-                  <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/50 rounded-b-md">
+                  <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-[var(--overlay-50)] rounded-b-md">
                     <span className="text-[10px] text-white truncate block">{attachment.filename}</span>
                   </div>
                 </div>
@@ -1008,7 +1010,7 @@ export function PromptInput({
             })}
           </div>
         )}
-        <div className={`relative max-h-[240px] overflow-y-auto thin-scrollbar ${editorWrapperClassName ?? ''}`.trim()}>
+        <div className={cn("relative max-h-[240px] overflow-y-auto thin-scrollbar", editorWrapperClassName)}>
           <div
             ref={editorRef}
             role="textbox"
@@ -1030,9 +1032,11 @@ export function PromptInput({
             onCompositionStart={() => setComposing(true)}
             onCompositionEnd={() => setComposing(false)}
             onBlur={() => setComposing(false)}
-            className={`w-full min-h-[96px] whitespace-pre-wrap px-3 py-3 pr-12 text-sm text-foreground focus:outline-none ${
-              shellMode ? 'font-mono' : ''
-            } ${editorClassName ?? ''}`.trim()}
+            className={cn(
+              "w-full min-h-[96px] whitespace-pre-wrap px-3 py-3 pr-12 text-sm text-foreground focus:outline-none",
+              shellMode && "font-mono",
+              editorClassName
+            )}
           />
           {showPlaceholder && (
             <div className="pointer-events-none absolute top-0 inset-x-0 px-3 py-3 pr-12 text-sm text-muted-foreground truncate">
@@ -1065,9 +1069,10 @@ export function PromptInput({
                     onClick={cycleVariant}
                     disabled={disabled}
                     title={variantLabel}
-                    className={`h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--border-subtle)] focus-visible:bg-[var(--border-subtle)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={cn(
+                      "h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
                       VARIANT_SIZE_CLASSES[Math.min(compactLevel, COMPACT_LEVEL_MAX)]
-                    }`.trim()}
+                    )}
                     aria-label="Cycle thinking effort"
                   >
                     <span className="text-foreground truncate">
@@ -1095,7 +1100,7 @@ export function PromptInput({
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+              className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
               aria-label="Attach files"
             >
               <ImageIcon className="size-5" />

@@ -6,6 +6,7 @@ import { Terminal } from './Terminal';
 import { useTerminal } from '@/hooks/useTerminal';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { formatShortcutList, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
 
 interface TerminalPanelProps {
   isVisible: boolean;
@@ -76,9 +77,10 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
   return (
     <div
       ref={panelRef}
-      className={`terminal-panel bg-gray-900 border-t border-gray-700 flex flex-col ${
-        isMaximized ? 'fixed inset-0 z-50' : ''
-      }`}
+      className={cn(
+        "terminal-panel bg-gray-900 border-t border-gray-700 flex flex-col",
+        isMaximized && "fixed inset-0 z-overlay"
+      )}
       style={{
         height: isMaximized ? '100vh' : `${terminalHeight}px`,
         cursor: isResizing ? 'ns-resize' : 'default'

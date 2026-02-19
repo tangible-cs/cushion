@@ -237,6 +237,11 @@ export class OpenAIOAuth {
   <head>
     <title>Cushion - OpenAI Authorization Successful</title>
     <style>
+      :root {
+        --background: #fafafa;
+        --foreground: #333333;
+        --foreground-muted: #6b6b6b;
+      }
       body {
         font-family: system-ui, -apple-system, sans-serif;
         display: flex;
@@ -244,19 +249,19 @@ export class OpenAIOAuth {
         align-items: center;
         height: 100vh;
         margin: 0;
-        background: #131010;
-        color: #f1ecec;
+        background: var(--background);
+        color: var(--foreground);
       }
       .container {
         text-align: center;
         padding: 2rem;
       }
       h1 {
-        color: #f1ecec;
+        color: var(--foreground);
         margin-bottom: 1rem;
       }
       p {
-        color: #b7b1b1;
+        color: var(--foreground-muted);
       }
     </style>
   </head>
@@ -278,6 +283,14 @@ export class OpenAIOAuth {
   <head>
     <title>Cushion - OpenAI Authorization Failed</title>
     <style>
+      :root {
+        --background: #fafafa;
+        --foreground: #333333;
+        --foreground-muted: #6b6b6b;
+        --accent-red: #ef4444;
+        --accent-red-hover: #dc2626;
+        --accent-red-12: rgba(239, 68, 68, 0.12);
+      }
       body {
         font-family: system-ui, -apple-system, sans-serif;
         display: flex;
@@ -285,26 +298,27 @@ export class OpenAIOAuth {
         align-items: center;
         height: 100vh;
         margin: 0;
-        background: #131010;
-        color: #f1ecec;
+        background: var(--background);
+        color: var(--foreground);
       }
       .container {
         text-align: center;
         padding: 2rem;
       }
       h1 {
-        color: #fc533a;
+        color: var(--accent-red);
         margin-bottom: 1rem;
       }
       p {
-        color: #b7b1b1;
+        color: var(--foreground-muted);
       }
       .error {
-        color: #ff917b;
+        color: var(--accent-red-hover);
         font-family: monospace;
         margin-top: 1rem;
         padding: 1rem;
-        background: #3c140d;
+        background: var(--accent-red-12);
+        border: 1px solid var(--accent-red);
         border-radius: 0.5rem;
       }
     </style>

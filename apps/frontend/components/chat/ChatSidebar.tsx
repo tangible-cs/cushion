@@ -5,6 +5,7 @@ import { useChatStore, type PromptInputPayload } from '@/stores/chatStore';
 import { MessageList } from './MessageList';
 import { PromptInput } from './PromptInput';
 import type { PermissionRequest, QuestionRequest } from '@opencode-ai/sdk/v2/client';
+import { cn } from '@/lib/utils';
 
 export function ChatSidebar() {
   const connection = useChatStore((state) => state.connection);
@@ -97,21 +98,21 @@ function PermissionPanel({ requests, onRespond }: PermissionPanelProps) {
             <button
               type="button"
               onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'once' })}
-              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             >
               Allow once
             </button>
             <button
               type="button"
               onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'always' })}
-              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             >
               Always allow
             </button>
             <button
               type="button"
               onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'reject' })}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             >
               Deny
             </button>
@@ -207,11 +208,12 @@ function QuestionCard({ request, onReply, onReject }: QuestionCardProps) {
                     key={opt.label}
                     type="button"
                     onClick={() => updateAnswer(index, opt.label, multiple)}
-                    className={`rounded-md border px-2 py-1 text-xs ${
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-xs",
                       active
-                        ? 'border-[var(--md-accent)] text-foreground'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    }`}
+                        ? "border-[var(--md-accent)] text-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)]"
+                    )}
                   >
                     {opt.label}
                   </button>
@@ -233,7 +235,7 @@ function QuestionCard({ request, onReply, onReject }: QuestionCardProps) {
                 <button
                   type="button"
                   onClick={() => addCustom(index, multiple)}
-                  className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                  className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
                 >
                   {multiple ? 'Add' : 'Set'}
                 </button>
@@ -246,7 +248,7 @@ function QuestionCard({ request, onReply, onReject }: QuestionCardProps) {
         <button
           type="button"
           onClick={() => onReject({ requestID: request.id })}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
         >
           Dismiss
         </button>
@@ -254,7 +256,7 @@ function QuestionCard({ request, onReply, onReject }: QuestionCardProps) {
           type="button"
           onClick={() => onReply({ requestID: request.id, answers })}
           disabled={!canSubmit}
-          className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] disabled:opacity-50 transition-colors"
         >
           Submit
         </button>

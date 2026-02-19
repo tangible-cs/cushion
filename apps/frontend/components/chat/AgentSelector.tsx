@@ -5,6 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
+import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type AgentSelectorProps = {
   disabled?: boolean;
@@ -64,7 +66,7 @@ export function AgentSelector({ disabled = false, compactLevel }: AgentSelectorP
           type="button"
           disabled={disabled}
           title={displayLabel}
-          className={`h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--border-subtle)] focus-visible:bg-[var(--border-subtle)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors ${sizeClass}`.trim()}
+          className={cn("h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors", sizeClass)}
           aria-label={displayLabel}
         >
           {showIcon && <Icon name="brain" size="small" className="text-muted-foreground shrink-0" />}
@@ -89,12 +91,11 @@ export function AgentSelector({ disabled = false, compactLevel }: AgentSelectorP
           <button
             type="button"
             onClick={() => setSelectedAgent(null)}
-            className={`w-full px-3 py-1.5 text-left text-xs hover:bg-muted/40 transition-colors ${
-              !selectedAgent ? 'bg-muted/40 text-foreground' : 'text-muted-foreground'
-            }`.trim()}
+            className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
               <div className="truncate flex-1">Default agent</div>
+              {!selectedAgent && <Check className="size-3 text-muted-foreground shrink-0" />}
             </div>
           </button>
           {filteredAgents.map((agent) => {
@@ -104,13 +105,12 @@ export function AgentSelector({ disabled = false, compactLevel }: AgentSelectorP
                 key={agent.name}
                 type="button"
                 onClick={() => setSelectedAgent(agent.name)}
-                className={`w-full px-3 py-1.5 text-left text-xs hover:bg-muted/40 transition-colors ${
-                  isSelected ? 'bg-muted/40 text-foreground' : 'text-muted-foreground'
-                }`.trim()}
+                className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
                 title={agent.name}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <div className="truncate flex-1">{agent.name}</div>
+                  {isSelected && <Check className="size-3 text-muted-foreground shrink-0" />}
                 </div>
                 {agent.description && (
                   <div className="mt-0.5 text-[10px] text-muted-foreground truncate">
