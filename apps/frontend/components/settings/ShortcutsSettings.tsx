@@ -101,23 +101,6 @@ export function ShortcutsSettings() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-border">
-        <div>
-          <h2 className="text-base font-semibold">Shortcuts</h2>
-          <p className="text-xs text-foreground-muted mt-1">
-            Customize keyboard shortcuts used across the app.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={resetAll}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
-        >
-          <RotateCcw size={14} />
-          Reset all
-        </button>
-      </div>
-
       <div className="px-6 py-3 border-b border-border">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-foreground-muted" />
@@ -126,7 +109,7 @@ export function ShortcutsSettings() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search shortcuts"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-md bg-surface border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-md bg-surface border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-primary)]"
           />
         </div>
         {recordingId && (
@@ -137,6 +120,16 @@ export function ShortcutsSettings() {
       </div>
 
       <div className="flex-1 overflow-y-auto thin-scrollbar">
+        <div className="px-6 pt-3 pb-1 flex justify-end">
+          <button
+            type="button"
+            onClick={resetAll}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
+          >
+            <RotateCcw size={14} />
+            Reset all
+          </button>
+        </div>
         {filteredGroups.map((group) => (
           <div key={group.category} className="px-6 py-4">
             <div className="text-xs uppercase tracking-wide text-foreground-faint">
@@ -220,7 +213,7 @@ export function ShortcutsSettings() {
                           className={cn(
                             'flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border transition-colors',
                             isRecording
-                              ? 'border-foreground text-foreground'
+                              ? 'border-[var(--accent-primary)] text-[var(--accent-primary)] bg-[var(--accent-primary-12)]'
                               : 'border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary'
                           )}
                         >

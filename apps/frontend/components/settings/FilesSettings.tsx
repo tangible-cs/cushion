@@ -1,14 +1,27 @@
 'use client';
 
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { cn } from '@/lib/utils';
 
-export function FilesSettings() {
+interface FilesSettingsProps {
+  embedded?: boolean;
+}
+
+export function FilesSettings({ embedded = false }: FilesSettingsProps) {
   const showCushionFiles = useWorkspaceStore((s) => s.preferences.showCushionFiles);
   const updatePreferences = useWorkspaceStore((s) => s.updatePreferences);
 
   return (
-    <div className="p-6 overflow-y-auto">
-      <h2 className="text-base font-semibold mb-4">Files</h2>
+    <div className={cn(embedded ? 'px-6 py-4 border-b border-border' : 'p-6 overflow-y-auto')}>
+      <h2
+        className={cn(
+          embedded
+            ? 'text-xs uppercase tracking-wide text-foreground-faint mb-3'
+            : 'text-base font-semibold mb-4'
+        )}
+      >
+        Files
+      </h2>
 
       <label className="flex items-center justify-between gap-4 py-2">
         <div>
@@ -22,9 +35,10 @@ export function FilesSettings() {
           role="switch"
           aria-checked={showCushionFiles}
           onClick={() => updatePreferences({ showCushionFiles: !showCushionFiles })}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-            showCushionFiles ? 'bg-foreground' : 'bg-border'
-          }`}
+          className={cn(
+            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
+            showCushionFiles ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]'
+          )}
         >
           <span
             className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${

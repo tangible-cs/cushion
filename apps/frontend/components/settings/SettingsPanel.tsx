@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { FolderOpen, Keyboard, Settings as SettingsIcon, X } from 'lucide-react';
+import { Keyboard, Settings as SettingsIcon, SlidersHorizontal, X } from 'lucide-react';
 import { ShortcutsSettings } from './ShortcutsSettings';
-import { FilesSettings } from './FilesSettings';
+import { ConfigSettings } from './ConfigSettings';
 import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
@@ -11,12 +11,12 @@ interface SettingsPanelProps {
 }
 
 const sections = [
-  { id: 'files', label: 'Files', icon: FolderOpen },
+  { id: 'config', label: 'Config', icon: SlidersHorizontal },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ] as const;
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const [activeSection, setActiveSection] = useState<(typeof sections)[number]['id']>('files');
+  const [activeSection, setActiveSection] = useState<(typeof sections)[number]['id']>('config');
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
@@ -58,7 +58,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </aside>
 
         <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {activeSection === 'files' && <FilesSettings />}
+          {activeSection === 'config' && <ConfigSettings />}
           {activeSection === 'shortcuts' && <ShortcutsSettings />}
         </section>
       </div>
