@@ -29,6 +29,9 @@ const IGNORED_PATTERNS = [
   '.cushion-trash',
 ];
 
+/** Extra patterns only ignored by the file watcher (not file listing) */
+const WATCHER_ONLY_IGNORED = ['.cushion'];
+
 /**
  * Workspace Manager class
  */
@@ -129,7 +132,7 @@ export class WorkspaceManager {
           continue;
         }
 
-        const entryPath = path.join(relativePath, entry.name);
+        const entryPath = path.join(relativePath, entry.name).replace(/\\/g, '/');
         const isHidden = entry.name.startsWith('.');
 
         if (entry.isDirectory()) {
@@ -459,8 +462,8 @@ export class WorkspaceManager {
    * Start watching the workspace for file-system changes.
    */
   private startWatcher(projectPath: string) {
-    // Build ignored glob patterns from IGNORED_PATTERNS
-    const ignored = IGNORED_PATTERNS.map((p) => `**/${p}/**`);
+    // Build ignored glob patterns from IGNORED_PATTERNS + watcher-only patterns
+    const ignored = [...IGNORED_PATTERNS, ...WATCHER_ONLY_IGNORED].flatMap((p) => [`**/${p}`, `**/${p}/**`]);
 
     this.watcher = watch(projectPath, {
       ignored,

@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { TerminalSquare, Link2, GitBranch } from 'lucide-react';
+import { Link2, GitBranch } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useChatStore } from '@/stores/chatStore';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { FileBrowser, FileBrowserHandle } from '@/components/workspace/FileBrowser';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
-import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { EditorPanel } from '@/components/editor/EditorPanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { GraphView } from '@/components/graph/GraphView';
@@ -25,7 +24,6 @@ import type { CoordinatorClient } from '@/lib/coordinator-client';
 const APP_SHORTCUT_IDS = [
   'app.quickSwitcher.open',
   'app.chat.newSession',
-  'app.terminal.toggle',
   'app.graph.toggle',
   'app.backlinks.toggle',
   'app.overlay.close',
@@ -56,7 +54,6 @@ export default function Home() {
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [terminalVisible, setTerminalVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<'none' | 'chat'>('none');
@@ -187,11 +184,6 @@ export default function Home() {
         setActiveSession(null).catch(() => undefined);
         return;
       }
-      if (matchShortcut(e, appShortcuts['app.terminal.toggle'])) {
-        e.preventDefault();
-        setTerminalVisible((v) => !v);
-        return;
-      }
       if (matchShortcut(e, appShortcuts['app.graph.toggle'])) {
         e.preventDefault();
         setShowGraph((v) => !v);
@@ -278,7 +270,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!focusModeEnabled) return;
-    setTerminalVisible(false);
     setShowBacklinks(false);
     setShowGraph(false);
     setShowQuickSwitcher(false);
@@ -328,7 +319,6 @@ export default function Home() {
     }
   }, [client, openFile, fetchFileTree]);
 
-  const terminalShortcutLabel = formatShortcutList(appShortcuts['app.terminal.toggle']);
   const backlinksShortcutLabel = formatShortcutList(appShortcuts['app.backlinks.toggle']);
   const graphShortcutLabel = formatShortcutList(appShortcuts['app.graph.toggle']);
 
@@ -386,22 +376,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* BOTTOM: Terminal toggle bar + panel */}
-            {!focusModeEnabled && !terminalVisible && (
+          {/* BOTTOM: Status bar */}
+            {!focusModeEnabled && (
               <div className="flex items-center border-t" style={{ backgroundColor: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}>
-                <button
-                  onClick={() => setTerminalVisible(true)}
-                 className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                 style={{ color: 'var(--foreground-muted)' }}
-               >
-                 <TerminalSquare size={13} />
-                 Terminal
-                 {terminalShortcutLabel && (
-                   <span className="ml-1" style={{ color: 'var(--foreground-subtle)' }}>
-                     {terminalShortcutLabel}
-                   </span>
-                 )}
-               </button>
                <div className="flex-1" />
                  <button
                    onClick={() => setShowBacklinks((v) => !v)}
@@ -422,12 +399,6 @@ export default function Home() {
                 Graph
               </button>
             </div>
-          )}
-          {!focusModeEnabled && (
-            <TerminalPanel
-              isVisible={terminalVisible}
-              onClose={() => setTerminalVisible(false)}
-            />
           )}
         </main>
 

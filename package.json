@@ -3,18 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Cushion monorepo",
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently --names coordinator,frontend --prefix-colors blue,green \"pnpm --filter coordinator dev\" \"pnpm --filter frontend dev\"",
-    "dev:frontend": "pnpm --filter frontend dev",
-    "dev:coordinator": "pnpm --filter coordinator dev",
-    "build": "pnpm --filter @cushion/types build && pnpm --filter frontend build && pnpm --filter coordinator build",
-    "type-check": "pnpm --recursive run type-check",
-    "lint": "pnpm --recursive run lint",
-    "clean": "pnpm --recursive exec rm -rf node_modules dist .next"
-  },
-  "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "dev": "concurrently --names coordinator,frontend --prefix-colors blue,green \"bun run --filter coordinator dev\" \"bun run --filter frontend dev\"",
+    "dev:frontend": "bun run --filter frontend dev",
+    "dev:coordinator": "bun run --filter coordinator dev",
+    "build": "bun run --filter @cushion/types build && bun run --filter frontend build && bun run --filter coordinator build",
+    "type-check": "bun run --filter '*' type-check",
+    "lint": "bun run --filter '*' lint",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next apps/*/dist"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

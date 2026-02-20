@@ -78,6 +78,8 @@ interface CodeEditorProps {
   embedResolver?: EmbedResolver;
   /** Whether focus mode is enabled */
   focusModeEnabled?: boolean;
+  /** Handle image pastes in markdown */
+  onPasteImages?: (params: { files: File[]; view: EditorView; filePath: string }) => void;
 }
 
 
@@ -105,38 +107,44 @@ const EDITOR_LIST_SHORTCUT_IDS = [
   'editor.list.removePrefix',
 ] as const;
 
-function getLanguageExtension(filePath: string, language?: string): Extension | null {
+async function getLanguageExtension(filePath: string, language?: string): Promise<Extension | null> {
   const ext = language || filePath.split('.').pop()?.toLowerCase() || '';
 
-  switch (ext) {
-    case 'md':
-    case 'markdown':
-      // Configure markdown with code block syntax highlighting
-      return markdown({
-        codeLanguages: languages,
-        extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, DisableSetextHeading],
-      });
-    case 'js':
-    case 'jsx':
-    case 'javascript':
-      return javascript({ jsx: true });
-    case 'ts':
-    case 'tsx':
-    case 'typescript':
-    case 'typescriptreact':
-      return javascript({ jsx: true, typescript: true });
-    case 'json':
-      return json();
-    case 'css':
-      return css();
-    case 'html':
-      return html();
-    case 'py':
-    case 'python':
-      return python();
-    default:
-      return null;
+  // Markdown is special — needs WYSIWYG extensions
+  if (ext === 'md' || ext === 'markdown') {
+    return markdown({
+      codeLanguages: languages,
+      extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, DisableSetextHeading],
+    });
   }
+
+  // For all other files, look up language support from the bundle (~30 languages)
+  const filename = filePath.split('/').pop() || filePath.split('\\').pop() || '';
+  const langDesc = languages.find((lang) =>
+    lang.extensions.includes(ext) || lang.filename?.test(filename)
+  );
+  if (langDesc) {
+    const langSupport = await langDesc.load();
+    return langSupport;
+  }
+
+  return null;
+}
+
+function getClipboardImageFiles(clipboard: DataTransfer): File[] {
+  const items = Array.from(clipboard.items ?? []);
+  const files: File[] = [];
+
+  for (const item of items) {
+    if (item.kind !== 'file') continue;
+    if (!item.type.startsWith('image/')) continue;
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+
+  if (files.length > 0) return files;
+
+  return Array.from(clipboard.files ?? []).filter((file) => file.type.startsWith('image/'));
 }
 
 export function CodeEditor({
@@ -149,6 +157,7 @@ export function CodeEditor({
   onWikiLinkNavigate,
   embedResolver,
   focusModeEnabled = false,
+  onPasteImages,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -157,6 +166,7 @@ export function CodeEditor({
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
   const embedResolverRef = useRef(embedResolver);
   const focusModeEnabledRef = useRef(focusModeEnabled);
+  const onPasteImagesRef = useRef(onPasteImages);
   const typewriterRafRef = useRef<number | null>(null);
   const typewriterScrollRafRef = useRef<number | null>(null);
   const typewriterScrollTargetRef = useRef<number | null>(null);
@@ -223,6 +233,7 @@ export function CodeEditor({
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
   embedResolverRef.current = embedResolver;
   focusModeEnabledRef.current = focusModeEnabled;
+  onPasteImagesRef.current = onPasteImages;
 
   const stopTypewriterScroll = useCallback(() => {
     if (typewriterScrollRafRef.current !== null) {
@@ -304,7 +315,7 @@ export function CodeEditor({
 
     const container = containerRef.current;
     container.style.setProperty('--md-code-gutter-width', '0px');
-    const langExt = getLanguageExtension(filePath, language);
+    let cancelled = false;
 
     // Theme that adapts via CSS variables (supports light/dark)
     const adaptiveTheme = EditorView.theme({
@@ -465,6 +476,20 @@ export function CodeEditor({
           stopTypewriterScroll();
           return false;
         },
+        paste: (event, view) => {
+          if (!isMarkdownFile) return false;
+          const handler = onPasteImagesRef.current;
+          if (!handler) return false;
+          const clipboard = event.clipboardData;
+          if (!clipboard) return false;
+
+          const files = getClipboardImageFiles(clipboard);
+          if (files.length === 0) return false;
+
+          event.preventDefault();
+          handler({ files, view, filePath });
+          return true;
+        },
       }),
       EditorView.updateListener.of((update) => {
         if (!focusModeEnabledRef.current) return;
@@ -501,81 +526,89 @@ export function CodeEditor({
       }),
     ];
 
-    if (langExt) {
-      extensions.push(langExt);
-    }
-
-    // Add WYSIWYG rendering for markdown files
-    const fileExt = filePath.split('.').pop()?.toLowerCase() || '';
-    if (fileExt === 'md' || fileExt === 'markdown') {
-      extensions.push(wysiwygExtension());
-    }
-
-    const state = EditorState.create({
-      doc: content,
-      extensions,
-    });
-
     let gutterObserver: ResizeObserver | null = null;
     let destroyed = false;
 
-    const view = new EditorView({
-      state,
-      parent: container,
-    });
+    const initEditor = async () => {
+      const langExt = await getLanguageExtension(filePath, language);
+      if (cancelled) return;
 
-    viewRef.current = view;
-    setFocusMode(view, focusModeEnabledRef.current);
-    if (focusModeEnabledRef.current) {
-      scheduleTypewriterCentering(view);
-    }
+      if (langExt) {
+        extensions.push(langExt);
+      }
+
+      // Add WYSIWYG rendering for markdown files
+      const fileExt = filePath.split('.').pop()?.toLowerCase() || '';
+      if (fileExt === 'md' || fileExt === 'markdown') {
+        extensions.push(wysiwygExtension());
+      }
+
+      const state = EditorState.create({
+        doc: content,
+        extensions,
+      });
+
+      const view = new EditorView({
+        state,
+        parent: container,
+      });
+
+      viewRef.current = view;
+      setFocusMode(view, focusModeEnabledRef.current);
+      if (focusModeEnabledRef.current) {
+        scheduleTypewriterCentering(view);
+      }
+
+      if (!isMarkdownFile) {
+        const gutterEl = view.dom.querySelector('.cm-gutters') as HTMLElement | null;
+        const updateGutterWidth = () => {
+          if (destroyed || !gutterEl) return;
+          const width = gutterEl.getBoundingClientRect().width;
+          if (!Number.isFinite(width)) return;
+          let shift = width;
+          const parent = container.parentElement;
+          if (parent) {
+            const parentRect = parent.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const availableLeft = Math.max(0, containerRect.left - parentRect.left);
+            shift = Math.min(width, availableLeft);
+          }
+          container.style.setProperty('--md-code-gutter-width', `${Math.ceil(shift)}px`);
+        };
+
+        if (gutterEl) {
+          requestAnimationFrame(updateGutterWidth);
+          if (typeof ResizeObserver !== 'undefined') {
+            gutterObserver = new ResizeObserver(updateGutterWidth);
+            gutterObserver.observe(gutterEl);
+            gutterObserver.observe(container);
+          }
+        }
+      }
+
+      if (fileTree && fileTree.length > 0) {
+        updateWikiLinkFileTree(view, fileTree);
+      }
+
+      setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
+        onWikiLinkNavigateRef.current?.(href, resolvedPath, createIfMissing);
+      });
+
+      setEmbedResolver(view, (path, options) => {
+        if (!embedResolverRef.current) return Promise.resolve(null);
+        return embedResolverRef.current(path, options);
+      });
+    };
 
     const handleWindowMouseUp = () => {
       isMouseDownRef.current = false;
     };
     window.addEventListener('mouseup', handleWindowMouseUp);
 
-    if (!isMarkdownFile) {
-      const gutterEl = view.dom.querySelector('.cm-gutters') as HTMLElement | null;
-      const updateGutterWidth = () => {
-        if (destroyed || !gutterEl) return;
-        const width = gutterEl.getBoundingClientRect().width;
-        if (!Number.isFinite(width)) return;
-        let shift = width;
-        const parent = container.parentElement;
-        if (parent) {
-          const parentRect = parent.getBoundingClientRect();
-          const containerRect = container.getBoundingClientRect();
-          const availableLeft = Math.max(0, containerRect.left - parentRect.left);
-          shift = Math.min(width, availableLeft);
-        }
-        container.style.setProperty('--md-code-gutter-width', `${Math.ceil(shift)}px`);
-      };
-
-      if (gutterEl) {
-        requestAnimationFrame(updateGutterWidth);
-        if (typeof ResizeObserver !== 'undefined') {
-          gutterObserver = new ResizeObserver(updateGutterWidth);
-          gutterObserver.observe(gutterEl);
-          gutterObserver.observe(container);
-        }
-      }
-    }
-
-    if (fileTree && fileTree.length > 0) {
-      updateWikiLinkFileTree(view, fileTree);
-    }
-
-    setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
-      onWikiLinkNavigateRef.current?.(href, resolvedPath, createIfMissing);
-    });
-
-    setEmbedResolver(view, (path, options) => {
-      if (!embedResolverRef.current) return Promise.resolve(null);
-      return embedResolverRef.current(path, options);
-    });
+    initEditor();
 
     return () => {
+      cancelled = true;
       destroyed = true;
       gutterObserver?.disconnect();
       if (typewriterRafRef.current !== null) {
@@ -584,8 +617,10 @@ export function CodeEditor({
       }
       stopTypewriterScroll();
       window.removeEventListener('mouseup', handleWindowMouseUp);
-      view.destroy();
-      viewRef.current = null;
+      if (viewRef.current) {
+        viewRef.current.destroy();
+        viewRef.current = null;
+      }
     };
     // Re-create editor when filePath or language changes; content is initial only per file
     // eslint-disable-next-line react-hooks/exhaustive-deps

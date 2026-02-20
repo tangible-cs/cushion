@@ -1,19 +1,15 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import fuzzysort from 'fuzzysort';
 import { ArrowUp, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useChatStore,
-  type PromptAttachment,
   type PromptInputPayload,
 } from '@/stores/chatStore';
 import { getModelVariantOptions } from '@/lib/chat-helpers';
 import {
   type PromptPart,
   type InsertPart,
-  type FilePart,
-  type AgentPart,
   ZERO_WIDTH_SPACE,
   buildPromptParts,
   isPromptEqual,
@@ -24,8 +20,6 @@ import {
   setRangeEdge,
   parseFromDOM,
   isNormalizedEditor,
-  createId,
-  readAsDataUrl,
 } from '@/lib/prompt-dom';
 import { Icon } from './Icon';
 import { SessionContextUsage } from './SessionContextUsage';
@@ -35,14 +29,25 @@ import { AgentSelector } from './AgentSelector';
 import { useToast } from './Toast';
 import {
   SuggestionList,
-  BUILTIN_COMMANDS,
-  type TriggerType,
-  type TriggerState,
   type SuggestionItem,
 } from './SuggestionList';
-import { searchFiles } from '@/lib/wiki-link-resolver';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getDirectory, getFilename } from '@/lib/path-utils';
+import {
+  usePromptCompact,
+  COMPACT_LABEL_LENGTHS,
+  COMPACT_LEVEL_MAX,
+  VARIANT_SIZE_CLASSES,
+  getCompactLabel,
+} from '@/hooks/usePromptCompact';
+import { usePromptHistory } from '@/hooks/usePromptHistory';
+import {
+  usePromptAttachments,
+  SUPPORTED_TYPES,
+  DragOverlay,
+  AttachmentPreview,
+} from './PromptInputAttachments';
+import { usePromptSuggestions } from './PromptInputSuggestions';
 
 const CHAT_SHORTCUT_IDS = [
   'chat.shell.exit',
@@ -55,13 +60,6 @@ const CHAT_SHORTCUT_IDS = [
   'chat.submit',
 ] as const;
 
-function getCompactLabel(label: string, maxLength = 3): string {
-  const trimmed = label.trim();
-  if (maxLength <= 0) return '';
-  if (trimmed.length <= maxLength) return trimmed;
-  return `${trimmed.slice(0, maxLength)}...`;
-}
-
 type PromptInputProps = {
   disabled?: boolean;
   placeholder?: string;
@@ -70,28 +68,6 @@ type PromptInputProps = {
   editorClassName?: string;
   editorWrapperClassName?: string;
 };
-
-const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'];
-const COMPACT_LABEL_LENGTHS = [0, 12, 8, 3] as const;
-const COMPACT_LEVEL_MAX = COMPACT_LABEL_LENGTHS.length - 1;
-const COMPACT_STEP_RATIO = 0.16;
-const COMPACT_STEP_MIN = 56;
-const VARIANT_SIZE_CLASSES = [
-  'max-w-[160px] px-2.5',
-  'max-w-[16ch] px-2.5',
-  'max-w-[12ch] px-2',
-  'max-w-[7ch] px-2',
-] as const;
-
-function resolveCompactLevel(overflow: number, fullWidth: number): number {
-  if (overflow <= 0 || fullWidth <= 0) return 0;
-  const step = Math.max(COMPACT_STEP_MIN, Math.round(fullWidth * COMPACT_STEP_RATIO));
-  if (overflow <= step * 0.5) return 0;
-  if (overflow <= step * 1.2) return 1;
-  if (overflow <= step * 2) return 2;
-  return Math.min(3, COMPACT_LEVEL_MAX);
-}
-
 
 export function PromptInput({
   disabled,
@@ -103,16 +79,10 @@ export function PromptInput({
 }: PromptInputProps) {
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
-  const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
-  const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const mirror = useRef({ input: false });
-  const footerRef = useRef<HTMLDivElement | null>(null);
-  const leftControlsRef = useRef<HTMLDivElement | null>(null);
-  const rightControlsRef = useRef<HTMLDivElement | null>(null);
   const chatShortcuts = useShortcutBindings(CHAT_SHORTCUT_IDS);
-  const fullLeftWidthRef = useRef(0);
   const contextItems = useChatStore((state) => state.contextItems);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const directory = useChatStore((state) => state.directory);
@@ -133,134 +103,34 @@ export function PromptInput({
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
   const selectedVariant = useChatStore((state) => state.selectedVariant);
   const setSelectedVariant = useChatStore((state) => state.setSelectedVariant);
-  const commands = useChatStore((state) => state.commands);
   const { showToast } = useToast();
-  const openFiles = useWorkspaceStore((state) => state.openFiles);
-  const [trigger, setTrigger] = useState<TriggerState | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [fileSearchResults, setFileSearchResults] = useState<string[]>([]);
-  const [history, setHistory] = useState({ normal: [] as string[], shell: [] as string[] });
-  const [historyIndex, setHistoryIndex] = useState({ normal: -1, shell: -1 });
-  const [draft, setDraft] = useState({ normal: '', shell: '' });
   const [composing, setComposing] = useState(false);
-  const [compactLevel, setCompactLevel] = useState(0);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
   const working = status?.type === 'busy' || status?.type === 'retry';
 
-  useEffect(() => {
-    setAttachments([]);
-  }, [activeSessionId, directory]);
+  // Extracted hooks
+  const { attachments, dragging, handleFiles, removeAttachment, clearAttachments } =
+    usePromptAttachments(activeSessionId, directory, disabled);
 
-  const workspaceMetadata = useWorkspaceStore((state) => state.metadata);
-  const fileTree = useWorkspaceStore((state) => state.fileTree);
+  const {
+    trigger,
+    activeIndex,
+    setActiveIndex,
+    suggestions,
+    setTriggerState,
+    updateTrigger,
+  } = usePromptSuggestions();
 
-  const searchWorkspaceFiles = useCallback((query: string): string[] => {
-    if (!workspaceMetadata || !query || fileTree.length === 0) return [];
-    return searchFiles(query, fileTree, 20).map((p: string) => p.replace(/\\/g, '/'));
-  }, [workspaceMetadata, fileTree]);
-
-  useEffect(() => {
-    if (trigger?.type === 'mention' && trigger.query.length > 0 && workspaceMetadata) {
-      const debouncedSearch = setTimeout(() => {
-        setFileSearchResults(searchWorkspaceFiles(trigger.query));
-      }, 150);
-      return () => clearTimeout(debouncedSearch);
-    } else {
-      setFileSearchResults([]);
-    }
-  }, [trigger?.query, trigger?.type, workspaceMetadata, searchWorkspaceFiles]);
-
-  const recentFiles = useMemo(() => {
-    return Array.from(openFiles.keys()).map((key) => String(key).replace(/\\/g, '/'));
-  }, [openFiles]);
-
-  const agentSuggestions = useMemo(() => {
-    return agents
-      .filter((agent) => !agent.hidden && agent.mode !== 'primary')
-      .map((agent) => ({
-        id: `agent-${agent.name}`,
-        label: `@${agent.name}`,
-        value: `@${agent.name}`,
-        description: agent.description,
-        type: 'mention' as const,
-        agent: agent.name,
-        group: 'agent' as const,
-      }));
-  }, [agents]);
-
-  const fileSuggestions = useMemo(() => {
-    const recentSuggestions = recentFiles
-      .filter((path) => !fileSearchResults.includes(path))
-      .map((path) => ({
-        id: path,
-        label: `@${path}`,
-        value: `@${path}`,
-        description: path,
-        type: 'mention' as const,
-        path,
-        group: 'recent' as const,
-      }));
-
-    const searchSuggestions = fileSearchResults
-      .filter((path) => !recentFiles.includes(path))
-      .map((path) => ({
-        id: `search-${path}`,
-        label: `@${path}`,
-        value: `@${path}`,
-        description: path,
-        type: 'mention' as const,
-        path,
-        group: 'search' as const,
-      }));
-
-    return [...recentSuggestions, ...searchSuggestions];
-  }, [recentFiles, fileSearchResults]);
-
-  const commandSuggestions = useMemo(() => {
-    const builtinIds = new Set(BUILTIN_COMMANDS.map((item) => item.id));
-    const dynamic = commands
-      .filter((command) => !builtinIds.has(command.name))
-      .map((command) => {
-        const template = command.template?.trim() ?? '';
-        const value = template ? `/${command.name} ${template}` : `/${command.name}`;
-        return {
-          id: `cmd-${command.name}`,
-          label: `/${command.name}`,
-          value,
-          description: command.description,
-          type: 'command' as const,
-        };
-      });
-    return [...BUILTIN_COMMANDS, ...dynamic];
-  }, [commands]);
- 
-  const suggestions = useMemo(() => {
-    if (!trigger) return [];
-    const query = trigger.query.toLowerCase();
-    if (trigger.type === 'command') {
-      return commandSuggestions.filter((item) => item.label.toLowerCase().includes(query));
-    }
-
-    const needle = query;
-    const allSuggestions = [...agentSuggestions, ...fileSuggestions];
-
-    if (!needle) {
-      return allSuggestions.filter((item) =>
-        !('group' in item && item.group === 'search')
-      );
-    }
-
-    const results = fuzzysort.go(needle, allSuggestions, {
-      key: 'label',
-      limit: 20,
-    });
-
-    return results.map((r) => r.obj);
-  }, [trigger, agentSuggestions, fileSuggestions, commandSuggestions]);
-
+  const { navigateUp, navigateDown, pushHistory } = usePromptHistory();
 
   const shellMode = promptText.startsWith('!');
+
+  const { compactLevel, footerRef, leftControlsRef, rightControlsRef } = usePromptCompact({
+    shellMode,
+    deps: [selectedAgent, agents.length, selectedModel?.providerID, selectedModel?.modelID],
+  });
+
   const variantOptions = useMemo(() => getModelVariantOptions(providers, selectedModel), [providers, selectedModel]);
   const variantLabel = useMemo(() => {
     if (variantOptions.length === 0) return null;
@@ -274,46 +144,6 @@ export function PromptInput({
     return getCompactLabel(variantLabel, maxLength);
   }, [variantLabel, compactLevel]);
 
-  const updateFooterCompact = useCallback(() => {
-    if (shellMode) return;
-    const footer = footerRef.current;
-    const left = leftControlsRef.current;
-    const right = rightControlsRef.current;
-    if (!footer || !left || !right) return;
-    const footerWidth = footer.getBoundingClientRect().width;
-    const rightWidth = right.getBoundingClientRect().width;
-    const available = footerWidth - rightWidth - 12;
-    const measuredLeftWidth = left.scrollWidth;
-    if (fullLeftWidthRef.current === 0) {
-      fullLeftWidthRef.current = measuredLeftWidth;
-    }
-    const fullLeftWidth = fullLeftWidthRef.current || measuredLeftWidth;
-    const overflow = fullLeftWidth - available;
-    const nextLevel = resolveCompactLevel(overflow, fullLeftWidth);
-    setCompactLevel((prev) => (prev === nextLevel ? prev : nextLevel));
-  }, [shellMode]);
-
-  useEffect(() => {
-    if (shellMode || compactLevel > 0) return;
-    const left = leftControlsRef.current;
-    if (!left) return;
-    fullLeftWidthRef.current = left.scrollWidth;
-    updateFooterCompact();
-  }, [shellMode, compactLevel, selectedAgent, agents.length, selectedModel?.providerID, selectedModel?.modelID, variantLabel, updateFooterCompact]);
-
-  useEffect(() => {
-    updateFooterCompact();
-    const footer = footerRef.current;
-    const left = leftControlsRef.current;
-    const right = rightControlsRef.current;
-    if (!footer || !left || !right) return;
-    const observer = new ResizeObserver(updateFooterCompact);
-    observer.observe(footer);
-    observer.observe(left);
-    observer.observe(right);
-    return () => observer.disconnect();
-  }, [updateFooterCompact]);
-
   const cycleVariant = useCallback(() => {
     if (variantOptions.length === 0) return;
     const keys = variantOptions.map((option) => option.key);
@@ -322,6 +152,7 @@ export function PromptInput({
     const nextVariant = nextIndex === 0 ? null : keys[nextIndex - 1];
     setSelectedVariant(nextVariant);
   }, [variantOptions, selectedVariant, setSelectedVariant]);
+
   const isEmptyPrompt = promptText.replace(/\u200B/g, '').trim().length === 0;
   const showPlaceholder = Boolean(placeholder) && isEmptyPrompt && attachments.length === 0;
   const submitDisabled = Boolean(disabled)
@@ -366,17 +197,6 @@ export function PromptInput({
     }
   }, [promptText, contextItems, agents]);
 
-  const setTriggerState = (next: TriggerState | null) => {
-    setTrigger((prev) => {
-      if (!next && !prev) return prev;
-      if (next && prev && next.type === prev.type && next.query === prev.query && next.start === prev.start) {
-        return prev;
-      }
-      setActiveIndex(0);
-      return next;
-    });
-  };
-
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (!error) return fallback;
     if (typeof error === 'string') return error;
@@ -396,7 +216,7 @@ export function PromptInput({
     }
     if (id === 'reset') {
       setPromptText('');
-      setAttachments([]);
+      clearAttachments();
       clearContextItems();
       setTriggerState(null);
       return true;
@@ -494,11 +314,10 @@ export function PromptInput({
     }
     return false;
   }, [
+    clearAttachments,
     clearContextItems,
     compactSession,
-    getErrorMessage,
     redoSession,
-    setAttachments,
     setPromptText,
     setTriggerState,
     shareSession,
@@ -506,25 +325,6 @@ export function PromptInput({
     undoSession,
     unshareSession,
   ]);
-
-  const updateTrigger = (rawText: string, cursorPosition: number) => {
-    if (rawText.startsWith('!')) {
-      setTriggerState(null);
-      return;
-    }
-    const before = rawText.substring(0, cursorPosition);
-    const atMatch = before.match(/@(\S*)$/);
-    if (atMatch) {
-      setTriggerState({ type: 'mention', query: atMatch[1], start: cursorPosition - atMatch[0].length });
-      return;
-    }
-    const slashMatch = rawText.match(/^\/(\S*)$/);
-    if (slashMatch) {
-      setTriggerState({ type: 'command', query: slashMatch[1], start: 0 });
-      return;
-    }
-    setTriggerState(null);
-  };
 
   const handleInput = () => {
     const editor = editorRef.current;
@@ -642,88 +442,10 @@ export function PromptInput({
     if (isEmpty) return;
     onSubmit?.({ text: promptText, attachments, mode: shellMode ? 'shell' : 'prompt' });
     if (trimmed.length > 0) {
-      const key = shellMode ? 'shell' : 'normal';
-      setHistory((prev) => {
-        const list = prev[key];
-        const last = list[list.length - 1];
-        if (last === trimmed) return prev;
-        return {
-          ...prev,
-          [key]: [...list, trimmed],
-        };
-      });
+      pushHistory(shellMode ? 'shell' : 'normal', trimmed);
     }
-    setHistoryIndex((prev) => (({
-      ...prev,
-      [shellMode ? 'shell' : 'normal']: -1,
-    })));
-    setDraft((prev) => (({
-      ...prev,
-      [shellMode ? 'shell' : 'normal']: '',
-    })));
-    setAttachments([]);
+    clearAttachments();
   };
-
-  const handleFiles = useCallback(async (files: File[]) => {
-    if (!files || files.length === 0) return;
-    const next: PromptAttachment[] = [];
-    for (const file of files) {
-      if (!SUPPORTED_TYPES.includes(file.type)) continue;
-      const url = await readAsDataUrl(file);
-      next.push({
-        id: createId(),
-        url,
-        mime: file.type,
-        filename: file.name,
-      });
-    }
-    if (next.length === 0) return;
-    setAttachments((prev) => [...prev, ...next]);
-  }, []);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const handleGlobalDragOver = (event: DragEvent) => {
-      if (disabled) return;
-      const types = event.dataTransfer?.types;
-      if (!types || !Array.from(types).includes('Files')) return;
-      event.preventDefault();
-      setDragging(true);
-    };
-
-    const handleGlobalDragLeave = (event: DragEvent) => {
-      if (disabled) return;
-      if (!event.relatedTarget) {
-        setDragging(false);
-      }
-    };
-
-    const handleGlobalDrop = (event: DragEvent) => {
-      if (disabled) return;
-      event.preventDefault();
-      setDragging(false);
-      const dropped = event.dataTransfer?.files;
-      if (dropped && dropped.length > 0) {
-        void handleFiles(Array.from(dropped));
-      }
-    };
-
-    document.addEventListener('dragover', handleGlobalDragOver);
-    document.addEventListener('dragleave', handleGlobalDragLeave);
-    document.addEventListener('drop', handleGlobalDrop);
-
-    return () => {
-      document.removeEventListener('dragover', handleGlobalDragOver);
-      document.removeEventListener('dragleave', handleGlobalDragLeave);
-      document.removeEventListener('drop', handleGlobalDrop);
-    };
-  }, [disabled, handleFiles]);
-
-  useEffect(() => {
-    if (!disabled) return;
-    setDragging(false);
-  }, [disabled]);
 
   const applySuggestion = (item: SuggestionItem) => {
     if (item.type === 'command') {
@@ -857,18 +579,10 @@ export function PromptInput({
 
     if (event.key === 'ArrowUp') {
       const caret = getCursorPosition(editor);
-      if (caret !== 0) return;
       const key = shellMode ? 'shell' : 'normal';
-      const list = history[key];
-      if (list.length === 0) return;
+      const nextValue = navigateUp(key, promptText, caret === 0);
+      if (nextValue === null) return;
       event.preventDefault();
-      const currentIndex = historyIndex[key];
-      const nextIndex = currentIndex < 0 ? list.length - 1 : Math.max(currentIndex - 1, 0);
-      if (currentIndex < 0) {
-        setDraft((prev) => ({ ...prev, [key]: promptText }));
-      }
-      setHistoryIndex((prev) => (({ ...prev, [key]: nextIndex })));
-      const nextValue = list[nextIndex] ?? '';
       setPromptText(nextValue);
       focusEditorAt(nextValue.length);
       return;
@@ -876,26 +590,12 @@ export function PromptInput({
 
     if (event.key === 'ArrowDown') {
       const key = shellMode ? 'shell' : 'normal';
-      const list = history[key];
-      const currentIndex = historyIndex[key];
-      if (currentIndex < 0) return;
+      const nextValue = navigateDown(key);
+      if (nextValue === null) return;
       event.preventDefault();
-      const nextIndex = currentIndex + 1;
-      if (nextIndex >= list.length) {
-        setHistoryIndex((prev) => (({ ...prev, [key]: -1 })));
-        setPromptText(draft[key]);
-        focusEditorAt(draft[key].length);
-        return;
-      }
-      setHistoryIndex((prev) => (({ ...prev, [key]: nextIndex })));
-      const nextValue = list[nextIndex] ?? '';
       setPromptText(nextValue);
       focusEditorAt(nextValue.length);
     }
-  };
-
-  const removeAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleSuggestionSelect = (item: SuggestionItem) => {
@@ -922,14 +622,7 @@ export function PromptInput({
           dragging && "border-dashed border-[var(--md-accent)]"
         )}
       >
-        {dragging && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 pointer-events-none">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <ImageIcon className="size-8" />
-              <span className="text-xs">Drop files to attach</span>
-            </div>
-          </div>
-        )}
+        <DragOverlay dragging={dragging} />
         {contextItems.length > 0 && (
           <div className="flex flex-nowrap items-center gap-1.5 px-3 pt-2.5 pb-0.5 overflow-x-auto thin-scrollbar">
             {contextItems.map((item) => {
@@ -977,39 +670,7 @@ export function PromptInput({
             })}
           </div>
         )}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-3 pt-3">
-            {attachments.map((attachment) => {
-              const isImage = attachment.mime.startsWith('image/');
-              return (
-                <div key={attachment.id} className="relative group">
-                  {isImage ? (
-                    <img
-                      src={attachment.url}
-                      alt={attachment.filename}
-                      className="size-16 rounded-md object-cover border border-border"
-                    />
-                  ) : (
-                    <div className="size-16 rounded-md bg-muted/20 flex items-center justify-center border border-border">
-                      <FileIcon className="size-5 text-muted-foreground" />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(attachment.id)}
-                    className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-background border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Remove attachment"
-                  >
-                    <Icon name="close" size="small" className="text-muted-foreground" />
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-[var(--overlay-50)] rounded-b-md">
-                    <span className="text-[10px] text-white truncate block">{attachment.filename}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
         <div className={cn("relative max-h-[240px] overflow-y-auto thin-scrollbar", editorWrapperClassName)}>
           <div
             ref={editorRef}

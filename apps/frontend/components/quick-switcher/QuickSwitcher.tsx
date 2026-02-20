@@ -261,7 +261,7 @@ export function QuickSwitcher({
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg bg-surface rounded-xl shadow-[var(--shadow-lg)] border border-border overflow-hidden"
+        className="relative w-full max-w-lg bg-background rounded-xl shadow-[var(--shadow-lg)] border border-border overflow-hidden"
         style={{ maxHeight: '60vh' }}
       >
         {/* Search input */}
@@ -273,7 +273,7 @@ export function QuickSwitcher({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type to search for a file..."
-            className="w-full px-3 py-2 bg-surface-elevated rounded-lg border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
+            className="w-full px-3 py-2 bg-background rounded-lg border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -298,8 +298,8 @@ export function QuickSwitcher({
                 className={cn(
                   "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors rounded-md mx-2",
                   index === selectedIndex
-                    ? "bg-surface-tertiary text-foreground"
-                    : "hover:bg-surface-tertiary/60"
+                    ? "bg-[var(--overlay-10)] text-foreground"
+                    : "hover:bg-[var(--overlay-10)]"
                 )}
                 onClick={() => handleItemClick(item)}
                 onMouseEnter={() => setSelectedIndex(index)}

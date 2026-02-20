@@ -70,6 +70,7 @@ export interface TabState {
 
 export interface WorkspacePreferences {
   showHiddenFiles: boolean;
+  showCushionFiles: boolean;
   fileTreeCollapsed: boolean;
   sidebarWidth: number;
   autoSave: boolean;
@@ -147,31 +148,6 @@ export interface JSONRPCNotification {
   jsonrpc: '2.0';
   method: string;
   params: unknown;
-}
-
-export interface TerminalCommandParams {
-  command: string;
-  workingDirectory?: string;
-}
-
-export interface TerminalOutputParams {
-  output: string;
-  error?: boolean;
-  exitCode?: number;
-}
-
-export interface TerminalCreateParams {
-  workingDirectory?: string;
-  shell?: string;
-}
-
-export interface TerminalInputParams {
-  input: string;
-}
-
-export interface TerminalResizeParams {
-  cols: number;
-  rows: number;
 }
 
 export interface DocumentState {

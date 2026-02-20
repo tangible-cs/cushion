@@ -80,6 +80,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   recentFiles: [],
   preferences: {
     showHiddenFiles: false,
+    showCushionFiles: false,
     fileTreeCollapsed: false,
     sidebarWidth: 240,
     autoSave: true,

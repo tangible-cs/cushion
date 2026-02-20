@@ -2,7 +2,7 @@
  * Slash Command Extension for CodeMirror
  *
  * Typing "/" at the start of a line (or after whitespace) opens a floating
- * menu with block-type commands. Styled to match the QuickSwitcher.
+ * menu with block-type commands.
  */
 
 import { EditorView, ViewPlugin, ViewUpdate, showTooltip, Tooltip } from '@codemirror/view';
@@ -186,11 +186,11 @@ interface SlashMenuState {
   slashPos: number;
   /** Current query text after "/" */
   query: string;
-  /** Currently selected index */
+  /** Currently selected index (-1 means none) */
   selectedIndex: number;
 }
 
-const initialState: SlashMenuState = { open: false, slashPos: 0, query: '', selectedIndex: 0 };
+const initialState: SlashMenuState = { open: false, slashPos: 0, query: '', selectedIndex: -1 };
 
 const openSlashMenu = StateEffect.define<{ pos: number }>();
 const closeSlashMenu = StateEffect.define<void>();
@@ -215,15 +215,21 @@ const slashMenuField = StateField.define<SlashMenuState>({
     let state = value;
     for (const effect of tr.effects) {
       if (effect.is(openSlashMenu)) {
-        state = { open: true, slashPos: effect.value.pos, query: '', selectedIndex: 0 };
+        state = { open: true, slashPos: effect.value.pos, query: '', selectedIndex: -1 };
       } else if (effect.is(closeSlashMenu)) {
         state = initialState;
       } else if (effect.is(updateSlashQuery)) {
         const filtered = filterCommands(effect.value.query);
+        const maxIndex = filtered.length - 1;
+        const nextSelectedIndex = state.selectedIndex < 0
+          ? -1
+          : maxIndex < 0
+            ? -1
+            : Math.min(state.selectedIndex, maxIndex);
         state = {
           ...state,
           query: effect.value.query,
-          selectedIndex: Math.min(state.selectedIndex, Math.max(0, filtered.length - 1)),
+          selectedIndex: nextSelectedIndex,
         };
       } else if (effect.is(updateSlashSelection)) {
         state = { ...state, selectedIndex: effect.value.index };
@@ -444,7 +450,8 @@ const slashKeymap = EditorView.domEventHandlers({
     const nextBindings = getResolvedBindings('editor.slashMenu.next');
     if (matchShortcut(event, nextBindings)) {
       event.preventDefault();
-      const next = (menu.selectedIndex + 1) % Math.max(1, filtered.length);
+      if (filtered.length === 0) return true;
+      const next = menu.selectedIndex < 0 ? 0 : (menu.selectedIndex + 1) % filtered.length;
       view.dispatch({ effects: updateSlashSelection.of({ index: next }) });
       return true;
     }
@@ -452,7 +459,10 @@ const slashKeymap = EditorView.domEventHandlers({
     const prevBindings = getResolvedBindings('editor.slashMenu.prev');
     if (matchShortcut(event, prevBindings)) {
       event.preventDefault();
-      const prev = (menu.selectedIndex - 1 + filtered.length) % Math.max(1, filtered.length);
+      if (filtered.length === 0) return true;
+      const prev = menu.selectedIndex < 0
+        ? filtered.length - 1
+        : (menu.selectedIndex - 1 + filtered.length) % filtered.length;
       view.dispatch({ effects: updateSlashSelection.of({ index: prev }) });
       return true;
     }
@@ -460,7 +470,9 @@ const slashKeymap = EditorView.domEventHandlers({
     const confirmBindings = getResolvedBindings('editor.slashMenu.confirm');
     if (matchShortcut(event, confirmBindings)) {
       event.preventDefault();
-      executeCommand(view, menu.selectedIndex);
+      if (menu.selectedIndex >= 0) {
+        executeCommand(view, menu.selectedIndex);
+      }
       return true;
     }
 
@@ -484,14 +496,14 @@ const slashMenuTheme = EditorView.baseTheme({
   '.cm-slash-menu': {
     width: '320px',
     maxHeight: '300px',
-    backgroundColor: 'var(--md-bg, #1e1e1e)',
-    border: '1px solid var(--md-border, #333)',
-    borderRadius: '12px',
-    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'var(--background, #fafafa)',
+    border: '1px solid var(--border, #e0e0e0)',
+    borderRadius: '6px',
+    boxShadow: 'var(--shadow-md)',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    fontFamily: 'var(--md-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)',
+    fontFamily: 'inherit',
   },
   '.cm-slash-menu-list': {
     overflowY: 'auto',
@@ -505,17 +517,18 @@ const slashMenuTheme = EditorView.baseTheme({
     padding: '8px 12px',
     cursor: 'pointer',
     borderRadius: '8px',
-    color: 'var(--md-text, #e0e0e0)',
+    color: 'var(--foreground-muted, #6b6b6b)',
   },
   '.cm-slash-menu-item:hover': {
-    backgroundColor: 'var(--md-bg-secondary, #2a2a2a)',
+    backgroundColor: 'var(--overlay-10)',
+    color: 'var(--foreground, #333333)',
   },
   '.cm-slash-menu-item-selected': {
-    backgroundColor: 'var(--md-accent, #6fb3d2) !important',
-    color: 'white !important',
+    backgroundColor: 'var(--overlay-10) !important',
+    color: 'var(--foreground, #333333) !important',
   },
   '.cm-slash-menu-item-selected .cm-slash-menu-desc': {
-    color: 'rgba(255, 255, 255, 0.7) !important',
+    color: 'var(--foreground-muted, #6b6b6b) !important',
   },
   '.cm-slash-menu-icon': {
     flexShrink: '0',
@@ -525,14 +538,14 @@ const slashMenuTheme = EditorView.baseTheme({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: '8px',
-    border: '1px solid var(--md-border, #333)',
-    backgroundColor: 'var(--md-bg-secondary, #2a2a2a)',
-    color: 'var(--md-text-muted, #a0a0a0)',
+    border: '1px solid var(--border, #e0e0e0)',
+    backgroundColor: 'var(--background, #fafafa)',
+    color: 'var(--foreground-muted, #6b6b6b)',
   },
   '.cm-slash-menu-item-selected .cm-slash-menu-icon': {
-    color: 'white !important',
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    color: 'var(--foreground, #333333) !important',
+    borderColor: 'var(--border, #e0e0e0)',
+    backgroundColor: 'var(--overlay-10)',
   },
   '.cm-slash-menu-text': {
     flex: '1',
@@ -545,26 +558,26 @@ const slashMenuTheme = EditorView.baseTheme({
   },
   '.cm-slash-menu-desc': {
     fontSize: '12px',
-    color: 'var(--md-text-muted, #a0a0a0)',
+    color: 'var(--foreground-muted, #6b6b6b)',
     lineHeight: '1.3',
   },
   '.cm-slash-menu-empty': {
     padding: '16px',
     textAlign: 'center',
-    color: 'var(--md-text-muted, #a0a0a0)',
+    color: 'var(--foreground-muted, #6b6b6b)',
     fontSize: '13px',
   },
   '.cm-slash-menu-footer': {
     display: 'flex',
     gap: '12px',
     padding: '6px 12px',
-    borderTop: '1px solid var(--md-border, #333)',
+    borderTop: '1px solid var(--border, #e0e0e0)',
     fontSize: '11px',
-    color: 'var(--md-text-muted, #a0a0a0)',
+    color: 'var(--foreground-muted, #6b6b6b)',
   },
   '.cm-slash-menu-footer kbd': {
     padding: '1px 4px',
-    backgroundColor: 'var(--md-bg-secondary, #2a2a2a)',
+    backgroundColor: 'var(--overlay-10)',
     borderRadius: '3px',
     fontSize: '11px',
   },

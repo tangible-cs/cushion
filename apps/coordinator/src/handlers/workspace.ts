@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -23,23 +23,54 @@ export async function handleSelectFolder(
   if (platform === 'win32') {
     const pickerExe = path.join(binDir, 'folder-picker.exe');
 
-    let stdout: string;
+    console.log('[Coordinator] Launching folder picker:', pickerExe);
     try {
-      const result = await execFileAsync(pickerExe, [], {
-        windowsHide: true,
-        encoding: 'utf8',
-        timeout: 5 * 60 * 1000,
-      });
-      stdout = result.stdout;
-    } catch (err: any) {
-      if (err?.code === 1) {
-        return { path: null };
-      }
-      throw err;
+      await fs.access(pickerExe);
+      console.log('[Coordinator] folder-picker.exe found');
+    } catch {
+      console.error('[Coordinator] folder-picker.exe NOT FOUND at', pickerExe);
+      throw new Error(`folder-picker.exe not found at ${pickerExe}`);
     }
 
-    const out = String(stdout || '').trim();
-    return { path: out.length > 0 ? out : null };
+    // Use spawn instead of execFile for better Bun compatibility on Windows
+    return new Promise((resolve, reject) => {
+      const child = spawn(pickerExe, [], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      const chunks: Buffer[] = [];
+      child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+      let stderr = '';
+      child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      child.on('error', (err) => {
+        console.error('[Coordinator] folder-picker spawn error:', err);
+        reject(err);
+      });
+
+      child.on('close', (code) => {
+        console.log('[Coordinator] folder-picker exited with code:', code);
+        if (code === 1) {
+          // User cancelled
+          resolve({ path: null });
+          return;
+        }
+        if (code !== 0) {
+          reject(new Error(`folder-picker exited with code ${code}: ${stderr}`));
+          return;
+        }
+        const out = Buffer.concat(chunks).toString('utf8').trim();
+        console.log('[Coordinator] folder-picker result:', out);
+        resolve({ path: out.length > 0 ? out : null });
+      });
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        child.kill();
+        reject(new Error('folder-picker timed out'));
+      }, 5 * 60 * 1000);
+    });
   }
 
   if (platform === 'darwin') {

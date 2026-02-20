@@ -10,8 +10,10 @@ import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Share2, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { uint8ArrayToBase64 } from '@/lib/pdf-bytes';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
+import type { EditorView } from '@codemirror/view';
 import type { WikiLinkNavigateCallback, EmbedResolver, EmbedResolverResult } from '@/lib/codemirror-wysiwyg';
 
 interface EditorPanelProps {
@@ -25,6 +27,52 @@ interface EditorPanelProps {
   onToggleFocusMode?: () => void;
   rightPanelOpen?: boolean;
   onToggleRightPanel?: () => void;
+}
+
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
+};
+
+
+function formatPasteTimestamp(date: Date): string {
+  const pad2 = (value: number) => String(value).padStart(2, '0');
+  const pad3 = (value: number) => String(value).padStart(3, '0');
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} at ${pad2(date.getHours())}.${pad2(date.getMinutes())}.${pad2(date.getSeconds())}.${pad3(date.getMilliseconds())}`;
+}
+
+function resolveImageExtension(file: File): string {
+  const type = file.type?.toLowerCase() ?? '';
+  if (type && IMAGE_MIME_EXTENSIONS[type]) return IMAGE_MIME_EXTENSIONS[type];
+  if (type.startsWith('image/')) {
+    const raw = type.slice('image/'.length);
+    if (raw === 'jpeg') return 'jpg';
+    if (raw === 'svg+xml') return 'svg';
+    if (raw === 'x-icon' || raw === 'vnd.microsoft.icon') return 'ico';
+    if (raw.length > 0) return raw.replace(/\+.*/, '');
+  }
+  const name = file.name || '';
+  const dot = name.lastIndexOf('.');
+  if (dot > 0 && dot < name.length - 1) {
+    return name.slice(dot + 1).toLowerCase();
+  }
+  return 'png';
+}
+
+function buildPastedImageName(date: Date, index: number, extension: string): string {
+  const suffix = index > 0 ? ` ${index + 1}` : '';
+  return `Pasted on ${formatPasteTimestamp(date)}${suffix}.${extension}`;
+}
+
+function joinWorkspacePath(...parts: string[]): string {
+  return parts.filter(Boolean).join('/').replace(/\\/g, '/');
 }
 
 export function EditorPanel({
@@ -258,6 +306,53 @@ export function EditorPanel({
     embedCacheRef.current.set(cacheKey, promise);
     return promise;
   }, [client]);
+
+  const handlePasteImages = useCallback(
+    ({ files, view, filePath }: { files: File[]; view: EditorView; filePath: string }) => {
+      if (!files.length) return;
+
+      const noteDir = filePath.split('/').slice(0, -1).join('/');
+      const pasteFolder = joinWorkspacePath(noteDir, '.cushion', 'images');
+
+      const selection = view.state.selection.main;
+      const timestamp = new Date();
+      const targets = files.map((file, index) => {
+        const extension = resolveImageExtension(file);
+        const filename = buildPastedImageName(timestamp, index, extension);
+        const relativePath = joinWorkspacePath(pasteFolder, filename);
+        return { file, relativePath };
+      });
+
+      const insertText = targets
+        .map((target) => `![[${target.relativePath}]]`)
+        .join('\n');
+
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: insertText },
+        selection: { anchor: selection.from + insertText.length },
+      });
+
+      void (async () => {
+        try {
+          await client.createFolder(pasteFolder);
+        } catch (err) {
+          console.error('[EditorPanel] Failed to create paste folder:', err);
+        }
+
+        for (const target of targets) {
+          try {
+            const data = new Uint8Array(await target.file.arrayBuffer());
+            const base64 = uint8ArrayToBase64(data);
+            await client.saveFileBase64(target.relativePath, base64);
+          } catch (err) {
+            console.error('[EditorPanel] Failed to save pasted image:', err);
+            alert('Failed to save pasted image: ' + target.relativePath);
+          }
+        }
+      })();
+    },
+    [client]
+  );
 
   const handleSelectTab = useCallback(
     (filePath: string) => {
@@ -524,6 +619,7 @@ export function EditorPanel({
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}
               embedResolver={handleEmbedResolve}
+              onPasteImages={handlePasteImages}
             />
           </>
         ) : (

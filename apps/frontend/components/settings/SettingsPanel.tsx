@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Keyboard, Settings as SettingsIcon, X } from 'lucide-react';
+import { FolderOpen, Keyboard, Settings as SettingsIcon, X } from 'lucide-react';
 import { ShortcutsSettings } from './ShortcutsSettings';
+import { FilesSettings } from './FilesSettings';
 import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
@@ -10,14 +11,15 @@ interface SettingsPanelProps {
 }
 
 const sections = [
+  { id: 'files', label: 'Files', icon: FolderOpen },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ] as const;
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const [activeSection, setActiveSection] = useState<(typeof sections)[number]['id']>('shortcuts');
+  const [activeSection, setActiveSection] = useState<(typeof sections)[number]['id']>('files');
 
   return (
-    <div className="h-full flex flex-col bg-surface-elevated text-foreground">
+    <div className="h-full flex flex-col bg-background text-foreground">
       <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <SettingsIcon size={16} className="text-foreground-muted" />
@@ -27,7 +29,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
+            className="p-1.5 rounded-md text-foreground-muted hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
             aria-label="Close settings"
           >
             <X size={14} />
@@ -45,8 +47,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
                 activeSection === section.id
-                  ? 'bg-surface-tertiary text-foreground'
-                  : 'text-foreground-muted hover:text-foreground hover:bg-surface-tertiary/60'
+                  ? 'bg-[var(--overlay-10)] text-foreground'
+                  : 'text-foreground-muted hover:text-foreground hover:bg-[var(--overlay-10)]'
               )}
             >
               <section.icon size={16} />
@@ -56,6 +58,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </aside>
 
         <section className="flex-1 min-w-0 min-h-0 flex flex-col">
+          {activeSection === 'files' && <FilesSettings />}
           {activeSection === 'shortcuts' && <ShortcutsSettings />}
         </section>
       </div>

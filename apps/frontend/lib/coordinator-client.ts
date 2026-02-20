@@ -47,7 +47,6 @@ export class CoordinatorClient {
     reject: (error: Error) => void;
   }>();
   private requestId = 0;
-  private terminalOutputCallbacks: Array<(output: string, isError?: boolean) => void> = [];
   private filesChangedCallbacks: Array<(changes: FileChange[]) => void> = [];
   private fileChangedOnDiskCallbacks: Array<(filePath: string, mtime: number) => void> = [];
 
@@ -343,11 +342,6 @@ export class CoordinatorClient {
     };
 
     switch (data.method) {
-      case 'terminal/output': {
-        const { output, error } = data.params as { output: string; error?: boolean };
-        safeForEach(this.terminalOutputCallbacks, output, error);
-        break;
-      }
       case 'workspace/filesChanged': {
         const { changes } = data.params as { changes: FileChange[] };
         safeForEach(this.filesChangedCallbacks, changes);
@@ -436,43 +430,8 @@ export class CoordinatorClient {
   }
 
   // ---------------------------------------------------------------------------
-  // Terminal RPCs
-  // ---------------------------------------------------------------------------
-
-  async executeCommand(command: string, workingDirectory?: string): Promise<{ success: boolean; output: string; exitCode?: number }> {
-    return this.sendRequest<{ success: boolean; output: string; exitCode?: number }>('terminal/command', { command, workingDirectory });
-  }
-
-  async createTerminal(workingDirectory?: string, shell?: string): Promise<{ success: boolean; sessionId: string }> {
-    return this.sendRequest<{ success: boolean; sessionId: string }>('terminal/create', { workingDirectory, shell });
-  }
-
-  async sendTerminalInput(input: string): Promise<{ success: boolean }> {
-    try {
-      return await this.sendRequest<{ success: boolean }>('terminal/input', { input });
-    } catch (error) {
-      console.error('[CoordinatorClient] sendTerminalInput error:', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  }
-
-  async resizeTerminal(cols: number, rows: number): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('terminal/resize', { cols, rows });
-  }
-
-  async destroyTerminal(): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('terminal/destroy', {});
-  }
-
-  // ---------------------------------------------------------------------------
   // Notification subscriptions
   // ---------------------------------------------------------------------------
-
-  onTerminalOutput(callback: (output: string, isError?: boolean) => void) {
-    this.terminalOutputCallbacks.push(callback);
-  }
 
   onFilesChanged(callback: (changes: FileChange[]) => void): () => void {
     this.filesChangedCallbacks.push(callback);

@@ -1,67 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { FileText, Type, Pencil, Highlighter, Image as ImageIcon } from 'lucide-react';
+import { formatShortcutList, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
 import {
-  ZoomIn, ZoomOut, ChevronUp, ChevronDown,
-  FileText, RotateCw, Download, Printer, Save,
-  Search, X, Type, Pencil, Highlighter, Image as ImageIcon,
-  MousePointer
-} from 'lucide-react';
-import { formatShortcutList, matchShortcut, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
-import { cn } from '@/lib/utils';
+  PDF_SHORTCUT_IDS,
+  AnnotationEditorType,
+  AnnotationEditorParamsType,
+  HIGHLIGHT_COLORS,
+  type EditorMode,
+} from './pdf-constants';
+import { PdfToolbar, PdfSearchBar } from './PdfToolbar';
+import { usePdfZoom } from '@/hooks/usePdfZoom';
+import { usePdfSearch } from '@/hooks/usePdfSearch';
 
 interface PdfViewerNativeProps {
   filePath: string;
   base64Data: string;
   onSave?: (data: Uint8Array) => void;
 }
-
-const PDF_SHORTCUT_IDS = [
-  'pdf.search.open',
-  'pdf.search.next',
-  'pdf.search.prev',
-  'pdf.search.close',
-  'pdf.save',
-  'pdf.zoom.in',
-  'pdf.zoom.out',
-] as const;
-
-// Annotation editor modes from pdf.js
-const AnnotationEditorType = {
-  DISABLE: -1,
-  NONE: 0,
-  FREETEXT: 3,
-  HIGHLIGHT: 9,
-  STAMP: 13,
-  INK: 15,
-};
-
-// Param types from pdf.js AnnotationEditorParamsType (src/shared/util.js)
-const AnnotationEditorParamsType = {
-  RESIZE: 1,
-  CREATE: 2,
-  FREETEXT_SIZE: 11,
-  FREETEXT_COLOR: 12,
-  FREETEXT_OPACITY: 13,
-  INK_COLOR: 21,
-  INK_THICKNESS: 22,
-  INK_OPACITY: 23,
-  HIGHLIGHT_COLOR: 31,
-  HIGHLIGHT_THICKNESS: 32,
-  HIGHLIGHT_FREE: 33,
-  HIGHLIGHT_SHOW_ALL: 34,
-};
-
-const HIGHLIGHT_COLORS = [
-  { name: 'Yellow', hex: '#FFFF00' },
-  { name: 'Green', hex: '#00FF00' },
-  { name: 'Cyan', hex: '#00FFFF' },
-  { name: 'Pink', hex: '#FF69B4' },
-  { name: 'Red', hex: '#FF0000' },
-  { name: 'Orange', hex: '#FFA500' },
-];
-
-type EditorMode = 'none' | 'freetext' | 'ink' | 'highlight' | 'stamp';
 
 /**
  * PDF Viewer using pdf.js native PDFViewer component with built-in annotation editors.
@@ -74,38 +31,30 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   const [error, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [zoom, setZoom] = useState(100);
   const [editorMode, setEditorMode] = useState<EditorMode>('none');
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const pdfShortcuts = useShortcutBindings(PDF_SHORTCUT_IDS);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Toolbar param state
-  const [freetextColor, setFreetextColor] = useState('#000000');
-  const [freetextSize, setFreetextSize] = useState(14);
-  const [inkColor, setInkColor] = useState('#000000');
-  const [inkThickness, setInkThickness] = useState(3);
-  const [inkOpacity, setInkOpacity] = useState(1);
-  const [highlightColor, setHighlightColor] = useState('#FFFF00');
 
   const pdfDocRef = useRef<any>(null);
   const pdfViewerRef = useRef<any>(null);
   const eventBusRef = useRef<any>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Extracted hooks
+  const { zoom, setZoom, handleZoom, handleZoomPreset } = usePdfZoom(pdfViewerRef, containerRef);
+  const {
+    showSearch, searchQuery, setSearchQuery, searchInputRef,
+    handleSearch, openSearch, closeSearch,
+  } = usePdfSearch(eventBusRef);
 
   // Add image via file picker: enters stamp mode, then triggers keyboard add
   const handleAddImage = useCallback(() => {
     const viewer = pdfViewerRef.current;
     if (!viewer) return;
-    // Enter stamp mode first
     try {
       viewer.annotationEditorMode = { mode: AnnotationEditorType.STAMP };
     } catch {}
     setEditorMode('stamp');
-    // Trigger the "add new editor" via dispatching Enter on the annotation layer
-    // pdf.js listens for Enter/Space to call addNewEditorFromKeyboard which opens file picker
     setTimeout(() => {
       const layer = containerRef.current?.querySelector('.annotationEditorLayer');
       if (layer) {
@@ -151,10 +100,10 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         setLoading(true);
         setError(null);
 
-        const pdfjsLib = await import('pdfjs-dist');
-        const pdfjsViewer = await import('pdfjs-dist/web/pdf_viewer.mjs');
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const pdfjsViewer = await import('pdfjs-dist/legacy/web/pdf_viewer.mjs');
 
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
 
         const binaryStr = atob(base64Data);
         const bytes = new Uint8Array(binaryStr.length);
@@ -179,7 +128,6 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         });
 
         const container = containerRef.current!;
-        // TODO: pdf.js doesn't export PDFViewer constructor types - cast unavoidable
         const viewer = new (pdfjsViewer.PDFViewer as any)({
           container,
           viewer: viewerRef.current ?? undefined,
@@ -211,30 +159,9 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           setLoading(false);
         });
 
-        // Sync param changes back from pdf.js
-        eventBus.on('annotationeditorparamschanged', (evt: any) => {
-          for (const [type, value] of evt.details) {
-            switch (type) {
-              case AnnotationEditorParamsType.FREETEXT_SIZE:
-                setFreetextSize(value);
-                break;
-              case AnnotationEditorParamsType.FREETEXT_COLOR:
-                setFreetextColor(value);
-                break;
-              case AnnotationEditorParamsType.INK_COLOR:
-                setInkColor(value);
-                break;
-              case AnnotationEditorParamsType.INK_THICKNESS:
-                setInkThickness(value);
-                break;
-              case AnnotationEditorParamsType.INK_OPACITY:
-                setInkOpacity(value);
-                break;
-              case AnnotationEditorParamsType.HIGHLIGHT_COLOR:
-                setHighlightColor(value);
-                break;
-            }
-          }
+        // Sync param changes back from pdf.js (toolbar manages its own param state now)
+        eventBus.on('annotationeditorparamschanged', (_evt: any) => {
+          // PdfToolbar owns the param state; pdf.js events are handled internally
         });
 
         const annotationStorage = pdfDoc.annotationStorage;
@@ -261,7 +188,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
       cancelled = true;
       pdfViewerRef.current?.cleanup();
     };
-  }, [base64Data]);
+  }, [base64Data, setZoom]);
 
   // Handle editor mode changes
   useEffect(() => {
@@ -283,23 +210,6 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     }
   }, [editorMode]);
 
-  const handleZoom = useCallback((delta: number) => {
-    const viewer = pdfViewerRef.current;
-    if (!viewer) return;
-    const newScale = Math.max(0.25, Math.min(5, (zoom + delta) / 100));
-    viewer.currentScale = newScale;
-  }, [zoom]);
-
-  const handleZoomPreset = useCallback((value: string) => {
-    const viewer = pdfViewerRef.current;
-    if (!viewer) return;
-    if (value === 'auto' || value === 'page-width' || value === 'page-fit') {
-      viewer.currentScaleValue = value;
-    } else {
-      viewer.currentScale = Number(value) / 100;
-    }
-  }, []);
-
   const goToPage = useCallback((page: number) => {
     const viewer = pdfViewerRef.current;
     if (!viewer) return;
@@ -312,6 +222,8 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     if (!viewer) return;
     viewer.pagesRotation = (viewer.pagesRotation + 90) % 360;
   }, []);
+
+  const fileName = filePath.split(/[/\\]/).pop() || 'Document';
 
   const handleDownload = useCallback(() => {
     const binaryStr = atob(base64Data);
@@ -326,7 +238,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
-  }, [base64Data]);
+  }, [base64Data, fileName]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -359,71 +271,22 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     } finally {
       setSaving(false);
     }
-  }, [onSave, saving]);
+  }, [onSave, saving, fileName]);
 
-  const handleSearch = useCallback((direction: 'next' | 'prev' | 'initial' = 'initial') => {
-    const eventBus = eventBusRef.current;
-    if (!eventBus || !searchQuery) return;
-
-    eventBus.dispatch('find', {
-      source: null,
-      type: direction === 'initial' ? '' : 'again',
-      query: searchQuery,
-      caseSensitive: false,
-      entireWord: false,
-      highlightAll: true,
-      findPrevious: direction === 'prev',
-    });
-  }, [searchQuery]);
-
-  // Keyboard shortcuts (US-E1)
+  // Keyboard shortcuts
   const pdfHandlers = useMemo(() => ({
-    'pdf.search.open': () => {
-      setShowSearch(true);
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    },
+    'pdf.search.open': () => { openSearch(); },
     'pdf.search.close': () => {
-      if (showSearch) {
-        setShowSearch(false);
-        setSearchQuery('');
-      }
-      if (editorMode !== 'none') {
-        setEditorMode('none');
-      }
+      if (showSearch) closeSearch();
+      if (editorMode !== 'none') setEditorMode('none');
     },
     'pdf.save': () => { if (hasChanges) handleSave(); },
     'pdf.zoom.in': () => { handleZoom(10); },
     'pdf.zoom.out': () => { handleZoom(-10); },
-  } as const), [showSearch, editorMode, hasChanges, handleSave, handleZoom]);
+  } as const), [showSearch, editorMode, hasChanges, handleSave, handleZoom, openSearch, closeSearch]);
 
   useShortcutHandler({ handlers: pdfHandlers });
 
-  // Ctrl/Cmd + Scroll wheel zoom (non-customizable platform gesture).
-  // This is intentionally NOT part of the shortcut registry because:
-  //  - Wheel events are continuous gestures, not discrete key presses.
-  //  - Ctrl+Scroll-to-zoom is a universal platform convention (browsers, PDF
-  //    viewers, image editors) and users expect it to work without configuration.
-  //  - Keyboard alternatives (pdf.zoom.in / pdf.zoom.out) are registry-driven
-  //    and fully customizable in Settings.
-  // Policy: US-D2 — classified as non-customizable gesture.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -10 : 10;
-        handleZoom(delta);
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, [handleZoom]);
-
-  const fileName = filePath.split(/[/\\]/).pop() || 'Document';
-  const zoomPresets = [50, 75, 100, 125, 150, 200, 300, 400];
   const searchShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.open']);
   const cancelShortcutLabel = formatShortcutList(pdfShortcuts['pdf.search.close']);
   const saveShortcutLabel = formatShortcutList(pdfShortcuts['pdf.save']);
@@ -446,354 +309,54 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
   return (
     <div className="flex flex-col h-full bg-[#1f1f1f]">
-      {/* Unified Toolbar - single row */}
-      <div className="flex items-center gap-1 px-2 py-1 bg-[#323130] border-b border-[#484644] text-sm select-none">
-        {/* Search button */}
-        <button
-          className={cn("p-1.5 rounded transition-colors", showSearch ? "bg-[#484644] text-white" : "hover:bg-[#484644] text-[#d4d4d4]")}
-          onClick={() => {
-            setShowSearch(s => !s);
-            if (!showSearch) setTimeout(() => searchInputRef.current?.focus(), 50);
-          }}
-          title={searchShortcutLabel ? `Search (${searchShortcutLabel})` : 'Search'}
-        >
-          <Search size={18} />
-        </button>
+      <PdfToolbar
+        editorMode={editorMode}
+        setEditorMode={setEditorMode}
+        zoom={zoom}
+        handleZoom={handleZoom}
+        handleZoomPreset={handleZoomPreset}
+        currentPage={currentPage}
+        numPages={numPages}
+        loading={loading}
+        hasChanges={hasChanges}
+        saving={saving}
+        showSearch={showSearch}
+        onToggleSearch={() => {
+          if (showSearch) closeSearch();
+          else openSearch();
+        }}
+        goToPage={goToPage}
+        handleRotate={handleRotate}
+        handlePrint={handlePrint}
+        handleDownload={handleDownload}
+        handleSave={handleSave}
+        handleAddImage={handleAddImage}
+        dispatchParam={dispatchParam}
+        shortcutLabels={{
+          search: searchShortcutLabel,
+          cancel: cancelShortcutLabel,
+          save: saveShortcutLabel,
+          zoomIn: zoomInShortcutLabel,
+          zoomOut: zoomOutShortcutLabel,
+        }}
+      />
 
-        <div className="w-px h-5 bg-[#484644] mx-0.5" />
-
-        {/* Annotation tools */}
-        <button
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            editorMode === "none"
-              ? "bg-[#0078d4] text-white"
-              : "hover:bg-[#484644] text-[#d4d4d4]"
-          )}
-          onClick={() => setEditorMode('none')}
-          title={cancelShortcutLabel ? `Selection tool (${cancelShortcutLabel})` : 'Selection tool'}
-        >
-          <MousePointer size={18} />
-        </button>
-
-        <button
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            editorMode === "freetext"
-              ? "bg-[#0078d4] text-white"
-              : "hover:bg-[#484644] text-[#d4d4d4]"
-          )}
-          onClick={() => setEditorMode(editorMode === 'freetext' ? 'none' : 'freetext')}
-          title="Add text annotation"
-        >
-          <Type size={18} />
-        </button>
-
-        <button
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            editorMode === "ink"
-              ? "bg-[#0078d4] text-white"
-              : "hover:bg-[#484644] text-[#d4d4d4]"
-          )}
-          onClick={() => setEditorMode(editorMode === 'ink' ? 'none' : 'ink')}
-          title="Draw / Ink annotation"
-        >
-          <Pencil size={18} />
-        </button>
-
-        <button
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            editorMode === "highlight"
-              ? "bg-[#0078d4] text-white"
-              : "hover:bg-[#484644] text-[#d4d4d4]"
-          )}
-          onClick={() => setEditorMode(editorMode === 'highlight' ? 'none' : 'highlight')}
-          title="Highlight text"
-        >
-          <Highlighter size={18} />
-        </button>
-
-        <button
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            editorMode === "stamp"
-              ? "bg-[#0078d4] text-white"
-              : "hover:bg-[#484644] text-[#d4d4d4]"
-          )}
-          onClick={() => editorMode === 'stamp' ? setEditorMode('none') : handleAddImage()}
-          title="Add image"
-        >
-          <ImageIcon size={18} />
-        </button>
-
-        {/* Tool-specific params inline */}
-        {editorMode === 'freetext' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input
-              type="color"
-              value={freetextColor}
-              onChange={(e) => {
-                setFreetextColor(e.target.value);
-                dispatchParam(AnnotationEditorParamsType.FREETEXT_COLOR, e.target.value);
-              }}
-              className="w-6 h-6 rounded cursor-pointer border border-[#484644] bg-transparent"
-              title="Text color"
-            />
-            <input
-              type="range"
-              min={5}
-              max={100}
-              step={1}
-              value={freetextSize}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setFreetextSize(v);
-                dispatchParam(AnnotationEditorParamsType.FREETEXT_SIZE, v);
-              }}
-              className="w-20 accent-[#0078d4]"
-              title={`Font size: ${freetextSize}px`}
-            />
-            <span className="text-[#a0a0a0] text-xs w-6">{freetextSize}</span>
-          </div>
-        )}
-
-        {editorMode === 'ink' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input
-              type="color"
-              value={inkColor}
-              onChange={(e) => {
-                setInkColor(e.target.value);
-                dispatchParam(AnnotationEditorParamsType.INK_COLOR, e.target.value);
-              }}
-              className="w-6 h-6 rounded cursor-pointer border border-[#484644] bg-transparent"
-              title="Ink color"
-            />
-            <label className="text-[#a0a0a0] text-xs">Size</label>
-            <input
-              type="range"
-              min={1}
-              max={20}
-              step={1}
-              value={inkThickness}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setInkThickness(v);
-                dispatchParam(AnnotationEditorParamsType.INK_THICKNESS, v);
-              }}
-              className="w-16 accent-[#0078d4]"
-              title={`Thickness: ${inkThickness}px`}
-            />
-            <span className="text-[#a0a0a0] text-xs w-4">{inkThickness}</span>
-            <label className="text-[#a0a0a0] text-xs ml-1">Opacity</label>
-            <input
-              type="range"
-              min={0.05}
-              max={1}
-              step={0.05}
-              value={inkOpacity}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setInkOpacity(v);
-                dispatchParam(AnnotationEditorParamsType.INK_OPACITY, v);
-              }}
-              className="w-16 accent-[#0078d4]"
-              title={`Opacity: ${Math.round(inkOpacity * 100)}%`}
-            />
-            <span className="text-[#a0a0a0] text-xs w-7">{Math.round(inkOpacity * 100)}%</span>
-          </div>
-        )}
-
-        {editorMode === 'highlight' && (
-          <div className="flex items-center gap-1 ml-1">
-            {HIGHLIGHT_COLORS.map((c) => (
-              <button
-                key={c.hex}
-                className={cn(
-                  "w-6 h-6 rounded-full border-2 transition-colors",
-                  highlightColor.toUpperCase() === c.hex
-                    ? "border-white scale-110"
-                    : "border-transparent hover:border-[#888]"
-                )}
-                style={{ backgroundColor: c.hex }}
-                onClick={() => {
-                  setHighlightColor(c.hex);
-                  dispatchParam(AnnotationEditorParamsType.HIGHLIGHT_COLOR, c.hex);
-                }}
-                title={c.name}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Center: Page navigation */}
-        <div className="flex-1 flex items-center justify-center gap-0.5">
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors disabled:opacity-40"
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage <= 1 || loading}
-            title="Previous page"
-          >
-            <ChevronUp size={18} />
-          </button>
-
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors disabled:opacity-40"
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage >= numPages || loading}
-            title="Next page"
-          >
-            <ChevronDown size={18} />
-          </button>
-
-          <div className="flex items-center gap-1.5 text-[#d4d4d4] text-sm ml-1">
-            <input
-              type="number"
-              min={1}
-              max={numPages}
-              value={currentPage}
-              onChange={(e) => goToPage(Number(e.target.value))}
-              className="w-10 bg-[#1f1f1f] text-center rounded px-1 py-0.5 border border-[#484644] outline-none focus:border-[#0078d4] text-sm"
-              disabled={loading}
-            />
-            <span className="text-[#a0a0a0]">of {numPages || '...'}</span>
-          </div>
-        </div>
-
-        {/* Right: Zoom + Actions */}
-        <div className="flex items-center gap-0.5">
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
-            onClick={() => handleZoom(-10)}
-            title={zoomOutShortcutLabel ? `Zoom out (${zoomOutShortcutLabel})` : 'Zoom out'}
-          >
-            <ZoomOut size={18} />
-          </button>
-
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
-            onClick={() => handleZoom(10)}
-            title={zoomInShortcutLabel ? `Zoom in (${zoomInShortcutLabel})` : 'Zoom in'}
-          >
-            <ZoomIn size={18} />
-          </button>
-
-          <select
-            value={zoom}
-            onChange={(e) => handleZoomPreset(e.target.value)}
-            className="bg-[#1f1f1f] text-[#d4d4d4] px-2 py-1 rounded text-sm border border-[#484644] outline-none cursor-pointer focus:border-[#0078d4] min-w-[100px] ml-1"
-          >
-            <option value="auto">Automatic</option>
-            <option value="page-width">Fit to width</option>
-            <option value="page-fit">Fit to page</option>
-            <option disabled>─────────</option>
-            {zoomPresets.map(preset => (
-              <option key={preset} value={preset}>{preset}%</option>
-            ))}
-          </select>
-
-          <div className="w-px h-5 bg-[#484644] mx-1" />
-
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
-            onClick={handleRotate}
-            title="Rotate clockwise"
-          >
-            <RotateCw size={18} />
-          </button>
-
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <Printer size={18} />
-          </button>
-
-          <button
-            className="p-1.5 rounded hover:bg-[#484644] text-[#d4d4d4] transition-colors"
-            onClick={handleDownload}
-            title="Download original"
-          >
-            <Download size={18} />
-          </button>
-
-          <button
-            className={cn(
-              "p-1.5 rounded transition-colors",
-              hasChanges
-                ? "bg-[#0078d4] text-white hover:bg-[#1084d8]"
-                : "hover:bg-[#484644] text-[#d4d4d4] opacity-50"
-            )}
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            title={hasChanges
-              ? (saveShortcutLabel ? `Save with annotations (${saveShortcutLabel})` : 'Save with annotations')
-              : 'No changes to save'
-            }
-          >
-            <Save size={18} />
-          </button>
-
-          {hasChanges && (
-            <span className="text-xs text-[#ffa500] ml-1">Unsaved changes</span>
-          )}
-        </div>
-      </div>
-
-      {/* Search bar */}
       {showSearch && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-[#2d2d2d] border-b border-[#484644]">
-          <Search size={16} className="text-[#888]" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.defaultPrevented) return;
-              const nextBindings = pdfShortcuts['pdf.search.next'];
-              const prevBindings = pdfShortcuts['pdf.search.prev'];
-              if (matchShortcut(e.nativeEvent, prevBindings)) {
-                e.preventDefault();
-                handleSearch('prev');
-                return;
-              }
-              if (matchShortcut(e.nativeEvent, nextBindings)) {
-                e.preventDefault();
-                handleSearch(searchQuery ? 'next' : 'initial');
-              }
-            }}
-            placeholder="Search in document..."
-            className="flex-1 bg-[#1f1f1f] text-[#d4d4d4] px-2 py-1 rounded border border-[#484644] outline-none focus:border-[#0078d4] text-sm min-w-[200px]"
-          />
-          <button
-            onClick={() => handleSearch('prev')}
-            className="p-1 rounded hover:bg-[#484644] text-[#d4d4d4]"
-            title={searchPrevShortcutLabel ? `Previous match (${searchPrevShortcutLabel})` : 'Previous match'}
-          >
-            <ChevronUp size={16} />
-          </button>
-          <button
-            onClick={() => handleSearch('next')}
-            className="p-1 rounded hover:bg-[#484644] text-[#d4d4d4]"
-            title={searchNextShortcutLabel ? `Next match (${searchNextShortcutLabel})` : 'Next match'}
-          >
-            <ChevronDown size={16} />
-          </button>
-          <button
-            onClick={() => { setShowSearch(false); setSearchQuery(''); }}
-            className="p-1 rounded hover:bg-[#484644] text-[#888]"
-            title="Close search"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <PdfSearchBar
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          searchInputRef={searchInputRef}
+          handleSearch={handleSearch}
+          onClose={closeSearch}
+          pdfShortcuts={pdfShortcuts}
+          shortcutLabels={{
+            searchNext: searchNextShortcutLabel,
+            searchPrev: searchPrevShortcutLabel,
+          }}
+        />
       )}
 
-      {/* PDF Viewer Container - structure required by pdf.js (container must be absolutely positioned) */}
+      {/* PDF Viewer Container - structure required by pdf.js */}
       <div className="flex-1 relative min-h-0">
         <div
           ref={containerRef}

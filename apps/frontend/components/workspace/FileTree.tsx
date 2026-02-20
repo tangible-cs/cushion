@@ -5,6 +5,7 @@ import type { FileTreeNode } from '@cushion/types';
 import { FileTreeItemActions } from './FileTreeItemActions';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface FileTreeProps {
   nodes: FileTreeNode[];
@@ -95,6 +96,13 @@ export function FileTree({
   creatingFolderAtRoot,
   onRootCreationDone,
 }: FileTreeProps) {
+  const showCushionFiles = useWorkspaceStore((s) => s.preferences.showCushionFiles);
+
+  // Filter out .cushion directories when the preference is off
+  const filteredNodes = showCushionFiles
+    ? nodes
+    : nodes.filter((n) => n.name !== '.cushion');
+
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [dirContents, setDirContents] = useState<Map<string, FileTreeNode[]>>(new Map());
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set());
@@ -347,7 +355,7 @@ export function FileTree({
         </div>
       )}
 
-      {nodes.map((node) => {
+      {filteredNodes.map((node) => {
         const isExpanded = expandedDirs.has(node.path);
         const isLoading = loadingDirs.has(node.path);
         const isActive = currentFile === node.path;

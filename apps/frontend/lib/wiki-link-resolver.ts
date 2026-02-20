@@ -138,6 +138,12 @@ export function resolveWikiLink(href: string, fileTree: FileTreeNode[]): Resolve
   const matches = allPaths.filter(path => matchesHref(path, href));
   
   if (matches.length === 0) {
+    // If the href looks like a direct relative path (has directory separators
+    // and a file extension), treat it as resolved even if it's not in the file
+    // tree.  This supports files inside hidden folders like `.cushion/images/`.
+    if (href.includes('/') && /\.[a-zA-Z0-9]+$/.test(href)) {
+      return { state: 'resolved', targets: [href] };
+    }
     return { state: 'empty', targets: [] };
   }
   

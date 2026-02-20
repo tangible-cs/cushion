@@ -10,7 +10,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { cursorInRange, isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
 import { resolveWikiLink } from '../wiki-link-resolver';
-import { fileTreeField } from './wiki-link-plugin';
+import { fileTreeField, setFileTreeEffect } from './wiki-link-plugin';
 import { embedResolverField } from './embed-resolver';
 import { ImageWidget } from './widgets/image-widget';
 import { EmbedWidget } from './widgets/embed-widget';
@@ -895,6 +895,9 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     }
     // Deferred rebuild when cursor has settled (rAF fired)
     if (tr.effects.some(e => e.is(cursorSettledEffect))) {
+      return buildWidgetDecorations(tr.state);
+    }
+    if (tr.effects.some(e => e.is(setFileTreeEffect))) {
       return buildWidgetDecorations(tr.state);
     }
     return value;

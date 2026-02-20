@@ -12,7 +12,7 @@ export type ShortcutScope =
   | 'chat-session'
   | 'pdf'
   | 'image'
-  | 'terminal';
+;
 
 export type ShortcutDefinitionInput = {
   id: string;
@@ -39,14 +39,6 @@ export const shortcutRegistry = [
     scope: 'app',
     category: 'App',
     defaultBindings: ['Mod+N'],
-  },
-  {
-    id: 'app.terminal.toggle',
-    label: 'Toggle terminal',
-    description: 'Show or hide the terminal panel.',
-    scope: 'app',
-    category: 'App',
-    defaultBindings: ['Ctrl+Backtick'],
   },
   {
     id: 'app.graph.toggle',
@@ -399,14 +391,6 @@ export const shortcutRegistry = [
     scope: 'image',
     category: 'Image Viewer',
     defaultBindings: ['Mod+0', 'Escape'],
-  },
-  {
-    id: 'terminal.clear',
-    label: 'Clear terminal',
-    description: 'Clear the terminal output.',
-    scope: 'terminal',
-    category: 'Terminal',
-    defaultBindings: ['Ctrl+K'],
   },
 ] as const satisfies readonly ShortcutDefinitionInput[];
 

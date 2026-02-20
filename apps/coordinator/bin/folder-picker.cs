@@ -7,6 +7,7 @@ class Program {
     [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
     [DllImport("kernel32.dll")] static extern IntPtr GetConsoleWindow();
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("shcore.dll")] static extern int SetProcessDpiAwareness(int value);
 
     [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")] class FOS_RCW {}
 
@@ -36,7 +37,11 @@ class Program {
 
     [STAThread]
     static int Main() {
+        // System DPI aware — crisp rendering without oversizing
+        try { SetProcessDpiAwareness(1); } catch {}
         AllowSetForegroundWindow(-1);
+        // Grab the foreground window (browser) BEFORE hiding the console
+        IntPtr owner = GetForegroundWindow();
         // Hide any console window
         IntPtr console = GetConsoleWindow();
         if (console != IntPtr.Zero) ShowWindow(console, 0);
@@ -44,7 +49,8 @@ class Program {
         var dlg = (IFileOpenDialog)new FOS_RCW();
         dlg.SetTitle("Select workspace folder");
         dlg.SetOptions(0x20); // FOS_PICKFOLDERS
-        if (dlg.Show(IntPtr.Zero) != 0) return 1;
+        // Pass the browser window as owner so the dialog appears on top of it
+        if (dlg.Show(owner) != 0) return 1;
         IShellItem item; dlg.GetResult(out item);
         string p; item.GetDisplayName(0x80058000, out p);
         // Write raw UTF-8 bytes to stdout (Console.Write uses OEM codepage,

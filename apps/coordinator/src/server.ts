@@ -1,5 +1,4 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import type { IPty } from '@lydell/node-pty';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -13,10 +12,6 @@ import type {
   JSONRPCResponse,
   JSONRPCNotification,
   DocumentState,
-  TerminalCommandParams,
-  TerminalCreateParams,
-  TerminalInputParams,
-  TerminalResizeParams,
 } from '@cushion/types';
 
 import { WorkspaceManager } from './workspace/manager.js';
@@ -41,16 +36,6 @@ import {
 } from './handlers/workspace.js';
 
 import {
-  handleTerminalCommand,
-  handleTerminalCreate,
-  handleTerminalInput,
-  handleTerminalResize,
-  handleTerminalDestroy,
-  cleanupTerminalSessions,
-  type TerminalSessionMap,
-} from './handlers/terminal.js';
-
-import {
   handleProviderList,
   handleProviderRefresh,
   handleProviderPopular,
@@ -69,8 +54,6 @@ export class CoordinatorServer {
   private wss: WebSocketServer;
   private clients = new Map<WebSocket, Map<string, DocumentState>>();
   private workspaceManager: WorkspaceManager;
-  private terminalSessions: TerminalSessionMap = new Map<WebSocket, IPty>();
-  private terminalProcesses: TerminalSessionMap = new Map<WebSocket, IPty>();
   private credentialStorage: CredentialStorage;
   private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private binDir: string;
@@ -106,7 +89,6 @@ export class CoordinatorServer {
 
       ws.on('close', () => {
         this.clients.delete(ws);
-        cleanupTerminalSessions(ws, this.terminalSessions, this.terminalProcesses);
       });
 
       ws.on('error', (error) => {
@@ -180,27 +162,6 @@ export class CoordinatorServer {
 
         case 'workspace/save-file-base64':
           result = await handleSaveFileBase64(this.workspaceManager, request.params as { filePath: string; base64: string });
-          break;
-
-        // Terminal handlers
-        case 'terminal/command':
-          result = await handleTerminalCommand(ws, this.terminalProcesses, request.params as TerminalCommandParams);
-          break;
-
-        case 'terminal/create':
-          result = await handleTerminalCreate(ws, this.terminalSessions, request.params as TerminalCreateParams);
-          break;
-
-        case 'terminal/input':
-          result = await handleTerminalInput(ws, this.terminalSessions, request.params as TerminalInputParams);
-          break;
-
-        case 'terminal/resize':
-          result = await handleTerminalResize(ws, this.terminalSessions, request.params as TerminalResizeParams);
-          break;
-
-        case 'terminal/destroy':
-          result = await handleTerminalDestroy(ws, this.terminalSessions);
           break;
 
         // Provider handlers
