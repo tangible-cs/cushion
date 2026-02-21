@@ -72,17 +72,39 @@ export function normalizePath(path: string) {
 }
 
 export function resolveAbsolutePath(directory: string, path: string) {
-  const basePath = normalizePath(path);
-  const root = normalizePath(directory);
-  return /^(?:[a-zA-Z]:\/|\/)/.test(basePath) ? basePath : `${root}/${basePath}`;
+  const normalizedPath = normalizePath(path);
+  if (/^[A-Za-z]:\//.test(normalizedPath) || /^[A-Za-z]:$/.test(normalizedPath)) {
+    return normalizedPath;
+  }
+  if (normalizedPath.startsWith('//')) return normalizedPath;
+  if (normalizedPath.startsWith('/')) return normalizedPath;
+
+  const root = normalizePath(directory).replace(/\/+$/, '');
+  return `${root}/${normalizedPath}`;
+}
+
+export function encodeFilePath(filepath: string) {
+  let normalized = normalizePath(filepath);
+  if (/^[A-Za-z]:/.test(normalized)) {
+    normalized = `/${normalized}`;
+  }
+
+  return normalized
+    .split('/')
+    .map((segment, index) => {
+      if (index === 1 && /^[A-Za-z]:$/.test(segment)) return segment;
+      return encodeURIComponent(segment);
+    })
+    .join('/');
 }
 
 export function buildFileUrl(directory: string, path: string, selection?: PromptSelection) {
   const absolute = resolveAbsolutePath(directory, path);
-  if (!selection) return `file://${absolute}`;
+  const encodedPath = encodeFilePath(absolute);
+  if (!selection) return `file://${encodedPath}`;
   const start = Math.min(selection.startLine, selection.endLine);
   const end = Math.max(selection.startLine, selection.endLine);
-  return `file://${absolute}?start=${start}&end=${end}`;
+  return `file://${encodedPath}?start=${start}&end=${end}`;
 }
 
 // ---------------------------------------------------------------------------

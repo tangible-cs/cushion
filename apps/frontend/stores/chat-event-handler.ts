@@ -198,6 +198,30 @@ export function handleApplyEvent(
       });
       break;
     }
+    case 'message.part.delta': {
+      const { messageID, partID, field, delta } = event.properties;
+      set((state) => {
+        const list = state.parts[messageID];
+        if (!list) return state;
+
+        const index = list.findIndex((item) => item.id === partID);
+        if (index < 0) return state;
+
+        const nextList = list.slice();
+        const nextPart = { ...nextList[index] } as Record<string, unknown>;
+        const existing = nextPart[field];
+        nextPart[field] = `${typeof existing === 'string' ? existing : ''}${delta}`;
+        nextList[index] = nextPart as (typeof nextList)[number];
+
+        return {
+          parts: {
+            ...state.parts,
+            [messageID]: nextList,
+          },
+        };
+      });
+      break;
+    }
     case 'message.part.removed': {
       const { messageID, partID } = event.properties;
       set((state) => {

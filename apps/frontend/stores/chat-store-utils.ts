@@ -308,7 +308,17 @@ export function unwrap<T>(result: T | ResultData<T>): T {
 export function normalizeBaseUrl(baseUrl: string) {
   const trimmed = baseUrl.trim();
   if (!trimmed) return getOpenCodeStatus().baseUrl;
-  return trimmed.replace(/\/+$/, '');
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  return withProtocol.replace(/\/+$/, '');
+}
+
+export function isValidBaseUrl(baseUrl: string) {
+  try {
+    const parsed = new URL(baseUrl);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function getDirectoryClient(directory: string, baseUrl?: string) {

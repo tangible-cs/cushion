@@ -156,6 +156,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       await ensureCoordinatorConnection();
       const client = getCoordinatorClient();
       await client.listProviders();
+      await useChatStore.getState().refreshProviders();
     } catch (error) {
       console.error('[ModelSelector] Failed to refresh providers:', error);
     }

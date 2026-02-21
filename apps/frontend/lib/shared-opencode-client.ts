@@ -25,6 +25,8 @@ const statusListeners = new Set<OpenCodeStatusListener>();
 
 const RETRY_MIN_MS = 3000;
 const RETRY_MAX_MS = 30000;
+const HEARTBEAT_TIMEOUT_MS = 15_000;
+const RECONNECT_DELAY_MS = 250;
 
 function setConnectionState(next: OpenCodeConnectionState) {
   connectionState = next;
@@ -114,55 +116,109 @@ function scheduleFlush() {
   flushTimer = setTimeout(flushQueue, Math.max(0, 16 - elapsed));
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 async function runEventLoop(client: OpenCodeClient, baseUrl: string, signal: AbortSignal) {
   let retryMs = RETRY_MIN_MS;
+  let attempt: AbortController | undefined;
+  let lastEventAt = Date.now();
+  let heartbeat: ReturnType<typeof setTimeout> | undefined;
 
-  while (!signal.aborted) {
-    setConnectionState({ status: connectionState.status === 'connected' ? 'reconnecting' : 'connecting', baseUrl });
+  const resetHeartbeat = () => {
+    lastEventAt = Date.now();
+    if (heartbeat) clearTimeout(heartbeat);
+    heartbeat = setTimeout(() => {
+      attempt?.abort();
+    }, HEARTBEAT_TIMEOUT_MS);
+  };
 
-    const healthOk = await client.global
-      .health({ signal, throwOnError: true })
-      .then(() => true)
-      .catch((error) => {
-        setConnectionState({ status: 'error', baseUrl, error: getErrorMessage(error) });
-        return false;
+  const clearHeartbeat = () => {
+    if (heartbeat) clearTimeout(heartbeat);
+    heartbeat = undefined;
+  };
+
+  const onVisibilityChange = () => {
+    if (typeof document === 'undefined') return;
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastEventAt < HEARTBEAT_TIMEOUT_MS) return;
+    attempt?.abort();
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+
+  try {
+    while (!signal.aborted) {
+      setConnectionState({
+        status: connectionState.status === 'connected' ? 'reconnecting' : 'connecting',
+        baseUrl,
       });
 
-    if (!healthOk) {
-      await sleep(retryMs, signal);
-      retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
-      continue;
-    }
+      const healthOk = await client.global
+        .health({ signal, throwOnError: true })
+        .then(() => true)
+        .catch((error) => {
+          if (signal.aborted) return false;
+          setConnectionState({ status: 'error', baseUrl, error: getErrorMessage(error) });
+          return false;
+        });
 
-    setConnectionState({ status: 'connected', baseUrl });
-    retryMs = RETRY_MIN_MS;
-
-    try {
-      const events = await client.global.event({ signal });
-      for await (const event of events.stream) {
-        const directory = event.directory ?? 'global';
-        const payload = event.payload;
-        if (!payload) continue;
-        const key = coalesceKey(directory, payload);
-        if (key) {
-          const index = coalesced.get(key);
-          if (index !== undefined) queue[index] = undefined;
-          coalesced.set(key, queue.length);
-        }
-        queue.push({ directory, payload });
-        scheduleFlush();
+      if (!healthOk) {
+        await sleep(retryMs, signal);
+        retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+        continue;
       }
-    } catch (error) {
-      if (signal.aborted) break;
-      setConnectionState({ status: 'error', baseUrl, error: getErrorMessage(error) });
-    }
 
+      setConnectionState({ status: 'connected', baseUrl });
+      retryMs = RETRY_MIN_MS;
+
+      attempt = new AbortController();
+      const onMainAbort = () => attempt?.abort();
+      signal.addEventListener('abort', onMainAbort);
+
+      try {
+        const events = await client.global.event({ signal: attempt.signal });
+        resetHeartbeat();
+
+        for await (const event of events.stream) {
+          resetHeartbeat();
+          const directory = event.directory ?? 'global';
+          const payload = event.payload;
+          if (!payload) continue;
+          const key = coalesceKey(directory, payload);
+          if (key) {
+            const index = coalesced.get(key);
+            if (index !== undefined) queue[index] = undefined;
+            coalesced.set(key, queue.length);
+          }
+          queue.push({ directory, payload });
+          scheduleFlush();
+        }
+      } catch (error) {
+        if (signal.aborted) break;
+        if (!isAbortError(error)) {
+          setConnectionState({ status: 'error', baseUrl, error: getErrorMessage(error) });
+        }
+      } finally {
+        signal.removeEventListener('abort', onMainAbort);
+        attempt = undefined;
+        clearHeartbeat();
+      }
+
+      flushQueue();
+
+      if (!signal.aborted) {
+        await sleep(RECONNECT_DELAY_MS, signal);
+      }
+    }
+  } finally {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    }
     flushQueue();
-
-    if (!signal.aborted) {
-      await sleep(retryMs, signal);
-      retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
-    }
   }
 }
 
@@ -221,5 +277,13 @@ export function disconnectSharedOpenCode() {
   sharedClient = null;
   sharedBaseUrl = null;
   connectionPromise = null;
+
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = undefined;
+  queue.length = 0;
+  buffer.length = 0;
+  coalesced.clear();
+  lastFlush = 0;
+
   setConnectionState({ status: 'idle', baseUrl: getOpenCodeBaseUrl() });
 }

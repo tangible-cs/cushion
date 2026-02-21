@@ -5,6 +5,7 @@ import { persist, subscribeWithSelector } from 'zustand/middleware';
 import {
   getOpenCodeStatus,
   getSharedOpenCodeClient,
+  disconnectSharedOpenCode,
   onOpenCodeEvent,
   onOpenCodeStatus,
 } from '@/lib/shared-opencode-client';
@@ -39,6 +40,7 @@ import {
   upsertMessage,
   unwrap,
   normalizeBaseUrl,
+  isValidBaseUrl,
   getDirectoryClient,
 } from './chat-store-utils';
 
@@ -51,6 +53,20 @@ export type { PromptAttachment, PromptSelection, PromptContextItem, PromptInputP
 let unsubscribeEvents: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
 let activeDirectory: OpenCodeDirectory | null = null;
+let connectRequestId = 0;
+
+function beginConnectRequest() {
+  connectRequestId += 1;
+  return connectRequestId;
+}
+
+function invalidateConnectRequests() {
+  connectRequestId += 1;
+}
+
+function isConnectRequestCurrent(requestId: number) {
+  return requestId === connectRequestId;
+}
 
 function cleanupSubscriptions() {
   if (unsubscribeEvents) unsubscribeEvents();
@@ -366,6 +382,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
 
     setBaseUrl: async (baseUrl: string) => {
       const next = normalizeBaseUrl(baseUrl);
+      if (!isValidBaseUrl(next)) {
+        throw new Error('OpenCode URL must be a valid http(s) URL.');
+      }
       if (next === get().baseUrl) return;
       set({ baseUrl: next });
       const directory = get().directory;
@@ -407,13 +426,17 @@ export const useChatStore = create<ChatState & ChatActions>()(
     },
 
     connect: async (directory: OpenCodeDirectory) => {
-      if (activeDirectory === directory && get().client) return;
+      const baseUrl = get().baseUrl;
+      if (activeDirectory === directory && get().client && getOpenCodeStatus().baseUrl === baseUrl) return;
+
+      const requestId = beginConnectRequest();
+      const isCurrent = () => isConnectRequestCurrent(requestId);
 
       cleanupSubscriptions();
       activeDirectory = directory;
 
-      const baseUrl = get().baseUrl;
       const client = await getSharedOpenCodeClient({ baseUrl });
+      if (!isCurrent()) return;
       const state = get();
       const activeSessionId = state.activeSessionByDirectory[directory] ?? null;
       const contextItems = getStoredContextItems(state, directory, activeSessionId);
@@ -435,15 +458,19 @@ export const useChatStore = create<ChatState & ChatActions>()(
 
       const localClient = getDirectoryClient(directory, baseUrl);
       const sessionResult = await localClient.session.list({ directory }).catch(() => undefined);
+      if (!isCurrent()) return;
       const sessionData = sessionResult ? unwrap(sessionResult) : undefined;
       const agentResult = await localClient.app.agents({ directory }).catch(() => undefined);
+      if (!isCurrent()) return;
       const agentData = agentResult ? unwrap(agentResult) : undefined;
       const agents = agentData ?? state.agents;
       const selectedAgentResolved = resolveAgentName(agents, selectedAgent);
       const commandResult = await localClient.command.list({ directory }).catch(() => undefined);
+      if (!isCurrent()) return;
       const commandData = commandResult ? unwrap(commandResult) : undefined;
       const commands = commandData ?? state.commands;
       const providerResult = await localClient.config.providers({ directory }).catch(() => undefined);
+      if (!isCurrent()) return;
       const providerData = providerResult ? unwrap(providerResult) : undefined;
       const providers = providerData?.providers ?? state.providers;
       const providerDefaults = providerData?.default ?? state.providerDefaults;
@@ -454,13 +481,13 @@ export const useChatStore = create<ChatState & ChatActions>()(
         selectedModelResolved,
         storedVariant ?? state.selectedVariant
       );
-      const hasSessions = sessionData !== undefined;
-      const sessions = hasSessions ? sessionData : [];
-      const ids = hasSessions ? new Set(sessions.map((item) => item.id)) : new Set<string>();
-      const nextActive = hasSessions && (!activeSessionId || !ids.has(activeSessionId))
+      const sessions = sessionData ?? [];
+      const ids = new Set(sessions.map((item) => item.id));
+      const nextActive = (!activeSessionId || !ids.has(activeSessionId))
         ? sessions[0]?.id ?? null
         : activeSessionId;
 
+      if (!isCurrent()) return;
       set((prev) => {
         const sessionKey = getPromptKey(directory, nextActive);
         const pruned = prunePromptSessions(
@@ -474,18 +501,14 @@ export const useChatStore = create<ChatState & ChatActions>()(
           contextBySession: pruned.contextBySession,
         };
         return {
-          ...(hasSessions
-            ? {
-                sessions,
-                activeSessionId: nextActive,
-                activeSessionByDirectory: {
-                  ...prev.activeSessionByDirectory,
-                  [directory]: nextActive,
-                },
-                contextItems: getStoredContextItems(storedState, directory, nextActive),
-                promptText: getStoredPromptText(storedState, directory, nextActive),
-              }
-            : {}),
+          sessions,
+          activeSessionId: nextActive,
+          activeSessionByDirectory: {
+            ...prev.activeSessionByDirectory,
+            [directory]: nextActive,
+          },
+          contextItems: getStoredContextItems(storedState, directory, nextActive),
+          promptText: getStoredPromptText(storedState, directory, nextActive),
           agents,
           selectedAgent: selectedAgentResolved,
           selectedAgentByDirectory: {
@@ -510,9 +533,11 @@ export const useChatStore = create<ChatState & ChatActions>()(
           contextBySession: pruned.contextBySession,
         };
       });
+      if (!isCurrent()) return;
 
-      if (hasSessions && nextActive) {
+      if (nextActive) {
         await get().loadSessionMessages(nextActive);
+        if (!isCurrent()) return;
       }
 
       unsubscribeStatus = onOpenCodeStatus((state) => {
@@ -525,7 +550,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
     },
 
     disconnect: () => {
+      invalidateConnectRequests();
       cleanupSubscriptions();
+      disconnectSharedOpenCode();
       set((state) => ({
         ...initialState,
         connection: getOpenCodeStatus(),
@@ -787,4 +814,3 @@ export const useChatStore = create<ChatState & ChatActions>()(
     )
   )
 );
-

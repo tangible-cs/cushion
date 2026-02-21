@@ -43,6 +43,33 @@ export async function handleSendPrompt(
   const contextItems = state.contextItems;
   if (!trimmed && attachments.length === 0 && contextItems.length === 0) return;
 
+  // Validate agent and model BEFORE creating a session (matches OpenCode reference).
+  // This prevents orphaned empty sessions when preconditions aren't met.
+  const resolvedAgent = resolveAgentName(state.agents, state.selectedAgent);
+  if (!resolvedAgent) {
+    throw new Error('No agent available. Configure an agent in OpenCode to send messages.');
+  }
+
+  let resolvedModel = state.selectedModel;
+  if (!resolvedModel) {
+    const storedSelection = state.selectedModelByDirectory[directory] ?? null;
+    const nextResolved = resolveModel(state.providers, state.providerDefaults, storedSelection);
+    if (nextResolved) {
+      resolvedModel = nextResolved;
+      set((prev) => ({
+        selectedModel: nextResolved,
+        selectedModelByDirectory: {
+          ...prev.selectedModelByDirectory,
+          [directory]: nextResolved,
+        },
+      }));
+    }
+  }
+
+  if (!resolvedModel && state.providers.length > 0) {
+    throw new Error('No model available. Configure a provider/model in OpenCode to send messages.');
+  }
+
   const client = getDirectoryClient(directory, state.baseUrl);
   const sessionId = state.activeSessionId ?? null;
   const created = sessionId ? undefined : unwrap(await client.session.create({ directory }));
@@ -68,45 +95,6 @@ export async function handleSendPrompt(
         [directory]: nextSessionId,
       },
     }));
-  }
-
-  const resolvedAgent = resolveAgentName(state.agents, state.selectedAgent);
-  if (!resolvedAgent) {
-    const message = 'No agent available. Configure an agent in OpenCode to send messages.';
-    set((prev) => ({
-      sessionErrors: {
-        ...prev.sessionErrors,
-        [nextSessionId]: message,
-      },
-    }));
-    throw new Error(message);
-  }
-
-  let resolvedModel = state.selectedModel;
-  if (!resolvedModel) {
-    const storedSelection = state.selectedModelByDirectory[directory] ?? null;
-    const nextResolved = resolveModel(state.providers, state.providerDefaults, storedSelection);
-    if (nextResolved) {
-      resolvedModel = nextResolved;
-      set((prev) => ({
-        selectedModel: nextResolved,
-        selectedModelByDirectory: {
-          ...prev.selectedModelByDirectory,
-          [directory]: nextResolved,
-        },
-      }));
-    }
-  }
-
-  if (!resolvedModel && state.providers.length > 0) {
-    const message = 'No model available. Configure a provider/model in OpenCode to send messages.';
-    set((prev) => ({
-      sessionErrors: {
-        ...prev.sessionErrors,
-        [nextSessionId]: message,
-      },
-    }));
-    throw new Error(message);
   }
 
   const storedVariant = state.selectedVariantByDirectory[directory] ?? state.selectedVariant;

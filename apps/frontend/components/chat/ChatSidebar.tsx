@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChatStore, type PromptInputPayload } from '@/stores/chatStore';
 import { MessageList } from './MessageList';
 import { PromptInput } from './PromptInput';
+import { useToast } from './Toast';
 import type { PermissionRequest, QuestionRequest } from '@opencode-ai/sdk/v2/client';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +12,8 @@ export function ChatSidebar() {
   const connection = useChatStore((state) => state.connection);
   const sendPrompt = useChatStore((state) => state.sendPrompt);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
+  const sessionErrors = useChatStore((state) => state.sessionErrors);
+  const providerAuthErrors = useChatStore((state) => state.providerAuthErrors);
   const permissions = useChatStore((state) => state.permissions);
   const questions = useChatStore((state) => state.questions);
   const respondToPermission = useChatStore((state) => state.respondToPermission);
@@ -21,12 +24,17 @@ export function ChatSidebar() {
   const pendingQuestions = activeSessionId ? questions[activeSessionId] ?? [] : [];
   const promptDockRef = useRef<HTMLDivElement | null>(null);
   const [promptDockHeight, setPromptDockHeight] = useState(0);
+  const { showToast } = useToast();
+
+  const sessionError = activeSessionId ? sessionErrors[activeSessionId] : undefined;
+  const hasProviderAuthError = Object.keys(providerAuthErrors).length > 0;
 
   const handleSubmit = useCallback((value: PromptInputPayload) => {
     sendPrompt(value).catch((error) => {
-      console.error('[ChatSidebar] Failed to send prompt:', error);
+      const message = error instanceof Error ? error.message : 'Failed to send message.';
+      showToast({ variant: 'error', description: message });
     });
-  }, [sendPrompt]);
+  }, [sendPrompt, showToast]);
 
   useEffect(() => {
     const node = promptDockRef.current;
@@ -49,6 +57,12 @@ export function ChatSidebar() {
 
       <div className="absolute inset-x-0 bottom-0 pt-10 pb-4 flex flex-col items-center z-30 px-4 bg-gradient-to-t from-background via-background to-transparent pointer-events-none chat-dock">
         <div ref={promptDockRef} className="w-full flex flex-col gap-3 pointer-events-auto">
+          {sessionError && (
+            <SessionErrorBanner
+              message={sessionError}
+              isAuthError={hasProviderAuthError}
+            />
+          )}
           {(pendingPermissions.length > 0 || pendingQuestions.length > 0) && (
             <div className="chat-dock-panel rounded-md border border-border bg-background/90 px-3 py-3 space-y-3">
               {pendingPermissions.length > 0 && (
@@ -260,6 +274,29 @@ function QuestionCard({ request, onReply, onReject }: QuestionCardProps) {
         >
           Submit
         </button>
+      </div>
+    </div>
+  );
+}
+
+type SessionErrorBannerProps = {
+  message: string;
+  isAuthError: boolean;
+};
+
+function SessionErrorBanner({ message, isAuthError }: SessionErrorBannerProps) {
+  return (
+    <div className="rounded-md border border-red-500/20 bg-red-950/20 px-3 py-2 text-xs text-red-400">
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 mt-0.5">!</span>
+        <div className="min-w-0">
+          <div className="break-words">{message}</div>
+          {isAuthError && (
+            <div className="mt-1 text-muted-foreground">
+              Check provider credentials in Settings.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
