@@ -32,7 +32,7 @@ export function ProgressCircle({ percentage, size = 16, strokeWidth = 3, classNa
         r={radius}
         data-slot="progress-circle-background"
         strokeWidth={strokeWidth}
-        className="stroke-gray-50 dark:stroke-gray-300 stroke-opacity-40 dark:stroke-opacity-30"
+        className="stroke-border-subtle stroke-opacity-60"
       />
       <circle
         cx={center}
@@ -42,7 +42,7 @@ export function ProgressCircle({ percentage, size = 16, strokeWidth = 3, classNa
         strokeWidth={strokeWidth}
         strokeDasharray={circumference.toString()}
         strokeDashoffset={offset}
-        className="stroke-[var(--md-accent)]"
+        className="stroke-accent"
         style={{ transition: 'stroke-dashoffset 0.35s cubic-bezier(0.65, 0, 0.35, 1)' }}
       />
     </svg>

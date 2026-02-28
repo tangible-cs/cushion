@@ -125,9 +125,11 @@ async function runEventLoop(client: OpenCodeClient, baseUrl: string, signal: Abo
   let attempt: AbortController | undefined;
   let lastEventAt = Date.now();
   let heartbeat: ReturnType<typeof setTimeout> | undefined;
+  let supportsHeartbeat = false;
 
   const resetHeartbeat = () => {
     lastEventAt = Date.now();
+    if (!supportsHeartbeat) return;
     if (heartbeat) clearTimeout(heartbeat);
     heartbeat = setTimeout(() => {
       attempt?.abort();
@@ -142,6 +144,7 @@ async function runEventLoop(client: OpenCodeClient, baseUrl: string, signal: Abo
   const onVisibilityChange = () => {
     if (typeof document === 'undefined') return;
     if (document.visibilityState !== 'visible') return;
+    if (!supportsHeartbeat) return;
     if (Date.now() - lastEventAt < HEARTBEAT_TIMEOUT_MS) return;
     attempt?.abort();
   };
@@ -184,10 +187,13 @@ async function runEventLoop(client: OpenCodeClient, baseUrl: string, signal: Abo
         resetHeartbeat();
 
         for await (const event of events.stream) {
-          resetHeartbeat();
           const directory = event.directory ?? 'global';
           const payload = event.payload;
           if (!payload) continue;
+          if ((payload as { type?: string }).type === 'server.heartbeat') {
+            supportsHeartbeat = true;
+          }
+          resetHeartbeat();
           const key = coalesceKey(directory, payload);
           if (key) {
             const index = coalesced.get(key);

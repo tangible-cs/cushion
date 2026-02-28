@@ -1,32 +1,17 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react';
 import { ArrowUp, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useChatStore,
   type PromptInputPayload,
 } from '@/stores/chatStore';
 import { getModelVariantOptions } from '@/lib/chat-helpers';
-import {
-  type PromptPart,
-  type InsertPart,
-  ZERO_WIDTH_SPACE,
-  buildPromptParts,
-  isPromptEqual,
-  createTextFragment,
-  createPill,
-  getCursorPosition,
-  setCursorPosition,
-  setRangeEdge,
-  parseFromDOM,
-  isNormalizedEditor,
-} from '@/lib/prompt-dom';
+import { getCursorPosition } from '@/lib/prompt-dom';
 import { Icon } from './Icon';
 import { SessionContextUsage } from './SessionContextUsage';
 import { ModelSelector } from './ModelSelector';
 import { LocalAIButton } from './LocalAIButton';
 import { AgentSelector } from './AgentSelector';
-import { useToast } from './Toast';
 import {
   SuggestionList,
   type SuggestionItem,
@@ -41,6 +26,8 @@ import {
   getCompactLabel,
 } from '@/hooks/usePromptCompact';
 import { usePromptHistory } from '@/hooks/usePromptHistory';
+import { useLocalCommands } from '@/hooks/useLocalCommands';
+import { usePromptEditor } from '@/hooks/usePromptEditor';
 import {
   usePromptAttachments,
   SUPPORTED_TYPES,
@@ -80,36 +67,25 @@ export function PromptInput({
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const editorRef = useRef<HTMLDivElement | null>(null);
-  const mirror = useRef({ input: false });
   const chatShortcuts = useShortcutBindings(CHAT_SHORTCUT_IDS);
   const contextItems = useChatStore((state) => state.contextItems);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const directory = useChatStore((state) => state.directory);
   const abortSession = useChatStore((state) => state.abortSession);
-  const undoSession = useChatStore((state) => state.undoSession);
-  const redoSession = useChatStore((state) => state.redoSession);
-  const compactSession = useChatStore((state) => state.compactSession);
-  const shareSession = useChatStore((state) => state.shareSession);
-  const unshareSession = useChatStore((state) => state.unshareSession);
   const removeContextItem = useChatStore((state) => state.removeContextItem);
-  const clearContextItems = useChatStore((state) => state.clearContextItems);
   const addContextItem = useChatStore((state) => state.addContextItem);
   const agents = useChatStore((state) => state.agents);
   const setSelectedAgent = useChatStore((state) => state.setSelectedAgent);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const providers = useChatStore((state) => state.providers);
   const selectedModel = useChatStore((state) => state.selectedModel);
-  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
   const selectedVariant = useChatStore((state) => state.selectedVariant);
   const setSelectedVariant = useChatStore((state) => state.setSelectedVariant);
-  const { showToast } = useToast();
   const [composing, setComposing] = useState(false);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
   const working = status?.type === 'busy' || status?.type === 'retry';
 
-  // Extracted hooks
   const { attachments, dragging, handleFiles, removeAttachment, clearAttachments } =
     usePromptAttachments(activeSessionId, directory, disabled);
 
@@ -123,6 +99,11 @@ export function PromptInput({
   } = usePromptSuggestions();
 
   const { navigateUp, navigateDown, pushHistory } = usePromptHistory();
+
+  const { runLocalCommand } = useLocalCommands({ clearAttachments, setTriggerState });
+
+  const { editorRef, handleInput, addPart, refreshTriggerFromSelection, focusEditorAt } =
+    usePromptEditor({ disabled, trigger, setTriggerState, updateTrigger });
 
   const shellMode = promptText.startsWith('!');
 
@@ -157,277 +138,6 @@ export function PromptInput({
   const showPlaceholder = Boolean(placeholder) && isEmptyPrompt && attachments.length === 0;
   const submitDisabled = Boolean(disabled)
     || (!working && isEmptyPrompt && attachments.length === 0 && contextItems.length === 0);
-
-  const renderEditor = (parts: PromptPart[]) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.innerHTML = '';
-    for (const part of parts) {
-      if (part.type === 'text') {
-        editor.appendChild(createTextFragment(part.content));
-        continue;
-      }
-      if (part.type === 'file' || part.type === 'agent') {
-        editor.appendChild(createPill(part));
-      }
-    }
-  };
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const parts = buildPromptParts(promptText, contextItems, agents);
-    const domParts = parseFromDOM(editor);
-
-    if (mirror.current.input) {
-      mirror.current.input = false;
-      if (isNormalizedEditor(editor) && isPromptEqual(parts, domParts)) return;
-    }
-
-    const selection = window.getSelection();
-    let cursorPosition: number | null = null;
-    if (selection && selection.rangeCount > 0 && editor.contains(selection.anchorNode)) {
-      cursorPosition = getCursorPosition(editor);
-    }
-
-    renderEditor(parts);
-
-    if (cursorPosition !== null) {
-      setCursorPosition(editor, cursorPosition);
-    }
-  }, [promptText, contextItems, agents]);
-
-  const getErrorMessage = (error: unknown, fallback: string) => {
-    if (!error) return fallback;
-    if (typeof error === 'string') return error;
-    if (error instanceof Error && error.message) return error.message;
-    if (typeof error === 'object' && 'message' in error) {
-      const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string') return message;
-    }
-    return fallback;
-  };
-
-  const runLocalCommand = useCallback((id: string) => {
-    if (id === 'clear') {
-      setPromptText('');
-      setTriggerState(null);
-      return true;
-    }
-    if (id === 'reset') {
-      setPromptText('');
-      clearAttachments();
-      clearContextItems();
-      setTriggerState(null);
-      return true;
-    }
-    if (id === 'undo') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await undoSession();
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to undo.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'redo') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await redoSession();
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to redo.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'compact' || id === 'summarize') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await compactSession();
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to compact session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'share') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          const url = await shareSession();
-          if (!url) {
-            showToast({
-              variant: 'error',
-              description: 'Share link unavailable.',
-            });
-            return;
-          }
-          await navigator.clipboard.writeText(url);
-          showToast({
-            variant: 'success',
-            description: 'Share link copied to clipboard.',
-          });
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to share session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'unshare') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await unshareSession();
-          showToast({
-            variant: 'success',
-            description: 'Session unshared.',
-          });
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to unshare session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    return false;
-  }, [
-    clearAttachments,
-    clearContextItems,
-    compactSession,
-    redoSession,
-    setPromptText,
-    setTriggerState,
-    shareSession,
-    showToast,
-    undoSession,
-    unshareSession,
-  ]);
-
-  const handleInput = () => {
-    const editor = editorRef.current;
-    if (!editor || disabled) return;
-    const rawParts = parseFromDOM(editor);
-    const rawText = rawParts.map((p) => p.content).join('');
-    const trimmed = rawText.replace(/\u200B/g, '').trim();
-    const hasNonText = rawParts.some((part) => part.type !== 'text');
-    const shouldReset = trimmed.length === 0 && !hasNonText;
-
-    if (shouldReset) {
-      setTriggerState(null);
-      if (promptText !== '') {
-        mirror.current.input = true;
-        setPromptText('');
-      }
-      return;
-    }
-
-    const cursorPosition = getCursorPosition(editor);
-    updateTrigger(rawText, cursorPosition);
-
-    if (rawText !== promptText) {
-      mirror.current.input = true;
-      setPromptText(rawText);
-    }
-  };
-
-  const refreshTriggerFromSelection = () => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const parts = parseFromDOM(editor);
-    const rawText = parts.map((p) => p.content).join('');
-    const cursorPosition = getCursorPosition(editor);
-    updateTrigger(rawText, cursorPosition);
-  };
-
-  const addPart = (part: InsertPart) => {
-    const editor = editorRef.current;
-    const selection = window.getSelection();
-    if (!editor || !selection || selection.rangeCount === 0) return;
-
-    const cursorPosition = getCursorPosition(editor);
-    const range = selection.getRangeAt(0);
-
-    if (part.type === 'file' || part.type === 'agent') {
-      const pill = createPill(part);
-      const gap = document.createTextNode(' ');
-      const textBeforeCursor = parseFromDOM(editor)
-        .map((p) => p.content)
-        .join('')
-        .substring(0, cursorPosition);
-      const atMatch = textBeforeCursor.match(/@(\S*)$/);
-
-      if (trigger?.type === 'mention') {
-        setRangeEdge(editor, range, 'start', trigger.start);
-        setRangeEdge(editor, range, 'end', cursorPosition);
-      } else if (atMatch) {
-        const start = atMatch.index ?? cursorPosition - atMatch[0].length;
-        setRangeEdge(editor, range, 'start', start);
-        setRangeEdge(editor, range, 'end', cursorPosition);
-      }
-
-      range.deleteContents();
-      range.insertNode(gap);
-      range.insertNode(pill);
-      range.setStartAfter(gap);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      handleInput();
-      return;
-    }
-
-    const fragment = createTextFragment(part.content);
-    const last = fragment.lastChild;
-
-    if (trigger?.type === 'command') {
-      setRangeEdge(editor, range, 'start', trigger.start);
-      setRangeEdge(editor, range, 'end', cursorPosition);
-    }
-
-    range.deleteContents();
-    range.insertNode(fragment);
-    if (last) {
-      if (last.nodeType === Node.TEXT_NODE) {
-        const text = last.textContent ?? '';
-        if (text === ZERO_WIDTH_SPACE) {
-          range.setStart(last, 0);
-        }
-        if (text !== ZERO_WIDTH_SPACE) {
-          range.setStart(last, text.length);
-        }
-      }
-      if (last.nodeType !== Node.TEXT_NODE) {
-        range.setStartAfter(last);
-      }
-    }
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    handleInput();
-  };
 
   const handleSubmit = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -472,16 +182,6 @@ export function PromptInput({
   const handleCommandSelect = (item: SuggestionItem) => {
     if (runLocalCommand(item.id)) return;
     applySuggestion(item);
-  };
-
-  const focusEditorAt = (position: number) => {
-    requestAnimationFrame(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      editor.focus();
-      setCursorPosition(editor, position);
-      refreshTriggerFromSelection();
-    });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -769,7 +469,7 @@ export function PromptInput({
             <button
               type="submit"
               disabled={submitDisabled}
-              className="size-7 flex items-center justify-center rounded-[10px] text-white bg-[var(--md-accent)] shadow-sm ring-1 ring-white/25 hover:brightness-95 active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="size-7 flex items-center justify-center rounded-[10px] text-[var(--background-primary-alt)] bg-[var(--md-accent)] shadow-sm ring-1 ring-[color-mix(in_srgb,var(--background-primary-alt)_25%,transparent)] hover:brightness-95 active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               aria-label={working ? 'Stop' : 'Send'}
             >
               {working ? <StopCircle className="size-4.5" /> : <ArrowUp className="size-4.5" />}

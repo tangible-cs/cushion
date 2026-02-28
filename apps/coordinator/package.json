@@ -5,9 +5,12 @@
   "type": "module",
   "main": "./dist/server.js",
   "scripts": {
-    "dev": "bun --watch run src/server.ts",
+    "dev": "bun run scripts/dev.ts",
+    "dev:bun-watch": "bun --watch run src/server.ts",
     "build": "tsc",
-    "type-check": "tsc -b"
+    "type-check": "tsc -b",
+    "lint": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@cushion/types": "workspace:*",

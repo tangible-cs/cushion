@@ -44,3 +44,8 @@ export const HIGHLIGHT_COLORS = [
 ];
 
 export type EditorMode = 'none' | 'freetext' | 'ink' | 'highlight' | 'stamp';
+
+// Default annotation tool colors (functional values passed to pdf.js, not UI chrome)
+export const DEFAULT_FREETEXT_COLOR = '#000000';
+export const DEFAULT_INK_COLOR = '#000000';
+export const DEFAULT_HIGHLIGHT_COLOR = '#FFFF00';

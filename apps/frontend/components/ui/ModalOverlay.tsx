@@ -39,7 +39,7 @@ export function ModalOverlay({
     >
       <div
         className={cn(
-          'w-full h-full max-h-[90vh] bg-surface rounded-xl overflow-hidden shadow-[var(--shadow-lg)] border border-border',
+          'w-full h-full max-h-[90vh] bg-modal-bg rounded-xl overflow-hidden shadow-[var(--shadow-lg)] border border-modal-border',
           MAX_WIDTH_CLASSES[maxWidth],
           className
         )}

@@ -10,32 +10,14 @@ import type {
   FileTreeNode,
   FileChange,
   Provider,
+  Model,
+  AuthMethod,
   ConnectionState,
+  JSONRPCRequest,
+  JSONRPCResponse,
+  JSONRPCNotification,
+  RPCServerNotificationParams,
 } from '@cushion/types';
-
-interface JSONRPCRequest {
-  jsonrpc: '2.0';
-  id: string | number;
-  method: string;
-  params: unknown;
-}
-
-interface JSONRPCResponse {
-  jsonrpc: '2.0';
-  id: string | number;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
-
-interface JSONRPCNotification {
-  jsonrpc: '2.0';
-  method: string;
-  params: unknown;
-}
 
 const INITIAL_RECONNECT_DELAY = 1_000;
 const MAX_RECONNECT_DELAY = 30_000;
@@ -343,12 +325,12 @@ export class CoordinatorClient {
 
     switch (data.method) {
       case 'workspace/filesChanged': {
-        const { changes } = data.params as { changes: FileChange[] };
+        const { changes } = data.params as RPCServerNotificationParams<'workspace/filesChanged'>;
         safeForEach(this.filesChangedCallbacks, changes);
         break;
       }
       case 'workspace/fileChangedOnDisk': {
-        const { filePath, mtime } = data.params as { filePath: string; mtime: number };
+        const { filePath, mtime } = data.params as RPCServerNotificationParams<'workspace/fileChangedOnDisk'>;
         safeForEach(this.fileChangedOnDiskCallbacks, filePath, mtime);
         break;
       }
@@ -455,8 +437,8 @@ export class CoordinatorClient {
     return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/list', {});
   }
 
-  async listProviderAuthMethods(): Promise<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>> {
-    return this.sendRequest<Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>>('provider/auth/methods', {});
+  async listProviderAuthMethods(): Promise<Record<string, AuthMethod[]>> {
+    return this.sendRequest<Record<string, AuthMethod[]>>('provider/auth/methods', {});
   }
 
   async refreshProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
@@ -475,6 +457,10 @@ export class CoordinatorClient {
     return this.sendRequest<{ success: boolean }>('provider/auth/remove', params);
   }
 
+  async syncProviders(): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('provider/sync', {});
+  }
+
   async authorizeOAuth(params: { providerID: string; method: number }): Promise<{ url: string; method: 'auto' | 'code'; instructions: string }> {
     return this.sendRequest<{ url: string; method: 'auto' | 'code'; instructions: string }>('provider/oauth/authorize', params);
   }
@@ -487,8 +473,8 @@ export class CoordinatorClient {
   // Ollama RPCs
   // ---------------------------------------------------------------------------
 
-  async listOllamaModels(): Promise<{ models: any[]; running: boolean }> {
-    return this.sendRequest<{ models: any[]; running: boolean }>('provider/ollama/list', {});
+  async listOllamaModels(): Promise<{ models: Model[]; running: boolean }> {
+    return this.sendRequest<{ models: Model[]; running: boolean }>('provider/ollama/list', {});
   }
 
   async pullOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
@@ -499,29 +485,7 @@ export class CoordinatorClient {
     return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/delete', { model });
   }
 
-  async writeOllamaConfig(params: { baseUrl?: string; models?: any[] }): Promise<{ success: boolean; message: string }> {
+  async writeOllamaConfig(params: { baseUrl?: string; models?: unknown[] }): Promise<{ success: boolean; message: string }> {
     return this.sendRequest<{ success: boolean; message: string }>('provider/ollama/write-config', params);
   }
-}
-
-let clientInstance: CoordinatorClient | null = null;
-let connectionPromise: Promise<void> | null = null;
-
-export function getCoordinatorClient(): CoordinatorClient {
-  if (!clientInstance) {
-    clientInstance = new CoordinatorClient();
-  }
-  return clientInstance;
-}
-
-export async function ensureCoordinatorConnection(): Promise<void> {
-  const client = getCoordinatorClient();
-  if (client.isConnected()) return;
-
-  if (!connectionPromise) {
-    connectionPromise = client.connect().finally(() => {
-      connectionPromise = null;
-    });
-  }
-  return connectionPromise;
 }

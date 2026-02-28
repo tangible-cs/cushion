@@ -147,6 +147,6 @@ export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps
 const toolBtn = cn(
   "h-7 w-7 rounded flex items-center justify-center",
   "text-muted-foreground hover:text-foreground",
-  "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+  "hover:bg-muted/40",
   "transition-colors duration-150"
 );

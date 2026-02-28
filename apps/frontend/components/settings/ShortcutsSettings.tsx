@@ -173,7 +173,7 @@ export function ShortcutsSettings() {
                         </div>
                       )}
                       {conflicts.length > 0 && (
-                        <div className="mt-1 text-xs text-red-400 flex items-start gap-1.5">
+                        <div className="mt-1 text-xs text-accent-red flex items-start gap-1.5">
                           <AlertTriangle size={12} className="mt-0.5" />
                           <span>
                             Conflicts with {conflictLabels.length === 1 ? 'shortcut' : 'shortcuts'}: {' '}

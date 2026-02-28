@@ -447,7 +447,7 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
       </div>
 
       {/* Info */}
-      <div className="absolute bottom-4 left-4 z-20 text-xs text-foreground-faint">
+      <div className="absolute bottom-4 left-4 z-20 text-xs text-graph-node-unresolved">
         {linkIndex.nodes.length} notes · {linkIndex.edges.length} connections
       </div>
 
@@ -474,9 +474,9 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
                 key={i}
                 d={edge.path}
                 fill="none"
-                stroke={highlighted ? 'var(--accent-primary)' : 'var(--foreground-muted)'}
+                stroke={highlighted ? 'var(--graph-node-focused)' : 'var(--graph-line)'}
                 strokeWidth={highlighted ? 3 : 2}
-                strokeOpacity={highlighted ? 1 : 0.4}
+                strokeOpacity={highlighted ? 1 : 0.6}
                 className="transition-all duration-200"
               />
             );
@@ -499,11 +499,11 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
                 "text-sm font-medium leading-tight",
                 "max-w-[200px] truncate",
                 "transition-all duration-200",
-                isCurrent && "bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]",
-                !isCurrent && isHovered && "bg-surface-tertiary border-[var(--accent-primary)] text-foreground",
-                !isCurrent && !isHovered && isConnected && "bg-surface-elevated border-[var(--accent-primary-12)] text-foreground",
-                !isCurrent && !isHovered && !isConnected && node.exists && "bg-surface-elevated border-surface-elevated text-foreground",
-                !isCurrent && !isHovered && !isConnected && !node.exists && "bg-surface border-dashed border-accent-red text-foreground-muted",
+                isCurrent && "bg-graph-node-focused text-[var(--background-primary-alt)] border-graph-node-focused",
+                !isCurrent && isHovered && "bg-surface-tertiary border-graph-node-focused text-graph-text",
+                !isCurrent && !isHovered && isConnected && "bg-surface-elevated border-[var(--accent-primary-12)] text-graph-text",
+                !isCurrent && !isHovered && !isConnected && node.exists && "bg-surface-elevated border-surface-elevated text-graph-node",
+                !isCurrent && !isHovered && !isConnected && !node.exists && "bg-surface border-dashed border-accent-red text-graph-node-unresolved",
                 !isCurrent && !isHovered && !isConnected && "opacity-80 hover:opacity-100"
               )}
               style={{

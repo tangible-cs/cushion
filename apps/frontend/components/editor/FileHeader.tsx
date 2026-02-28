@@ -166,6 +166,10 @@ export function FileHeader({
 
   // Tangent uses --headerFontSizeFactor of ~2.5, we use 3 for bigger title
   const fontSizeFactor = 3;
+  const contentPaddingX = 'var(--md-content-padding-x, 1.25em)';
+  const horizontalPadding = `calc(${contentPaddingX} / ${fontSizeFactor})`;
+  const headerMaxWidth =
+    `calc(var(--md-content-max-width, 900px) + (2 * (${contentPaddingX} / ${fontSizeFactor})))`;
 
   return (
     <header
@@ -175,24 +179,27 @@ export function FileHeader({
         isEditing && "file-header-editing"
       )}
       style={{
-        /* Centering - like Tangent */
-        maxWidth: 'var(--md-content-max-width, 800px)',
+        /*
+         * Match CodeMirror's layout model:
+         * - content column width = --md-content-max-width
+         * - horizontal inset lives outside the content column
+         *
+         * Header text aligns with body text by using the same inset and
+         * increasing max-width by 2x inset.
+         */
+        maxWidth: headerMaxWidth,
         margin: '0 auto',
         boxSizing: 'border-box',
-        /* 
-         * Padding - Tangent divides by font factor so pixels match content:
-         * padding: calc(1.5em / factor) calc(2em / factor) 
-         * At 3x font, 0.67em horizontal = 2em at 1x = same pixel width as content
-         */
+        /* Scale padding from body text space to title space */
         paddingTop: `calc(4em / ${fontSizeFactor})`,
         paddingBottom: `calc(0.8em / ${fontSizeFactor})`,
-        paddingLeft: `calc(1.25em / ${fontSizeFactor})`,
-        paddingRight: `calc(1.25em / ${fontSizeFactor})`,
+        paddingLeft: horizontalPadding,
+        paddingRight: horizontalPadding,
         /* Typography - like Tangent but bigger */
         fontFamily: 'var(--md-font-family, inherit)',
         fontSize: `calc(var(--md-font-size, 16px) * ${fontSizeFactor})`,
         fontWeight: 500,
-        color: 'var(--md-text, #e0e0e0)',
+        color: 'var(--md-text, var(--foreground))',
         lineHeight: 1.2,
         whiteSpace: 'pre-wrap',
         wordWrap: 'break-word',
@@ -200,7 +207,7 @@ export function FileHeader({
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          background: 'linear-gradient(var(--md-bg, #1a1a1a) 92%, transparent)',
+          background: 'linear-gradient(var(--md-bg, var(--background)) 92%, transparent)',
         } : {}),
       }}
     >

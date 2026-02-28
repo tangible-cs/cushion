@@ -1,70 +1,30 @@
-/**
- * Workspace Manager
- *
- * Handles file system operations for the current workspace
- */
-
 import fs from 'fs/promises';
 import path from 'path';
-import writeFileAtomic from 'write-file-atomic';
-import { watch, type FSWatcher } from 'chokidar';
 import type { FileTreeNode, FileChange } from '@cushion/types';
+import { IGNORED_PATTERNS } from './constants.js';
+import { WorkspaceWatcher } from './watcher.js';
+import { writeFileAtomicWithRetry, throwSaveFileError } from './atomic-write.js';
 
-/**
- * Workspace context (lightweight, local to coordinator)
- */
 interface WorkspaceContext {
   projectPath: string;
 }
 
-/** Patterns ignored by both file listing and the file watcher */
-const IGNORED_PATTERNS = [
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  'coverage',
-  '.nyc_output',
-  '.cushion-trash',
-];
-
-/** Extra patterns only ignored by the file watcher (not file listing) */
-const WATCHER_ONLY_IGNORED = ['.cushion'];
-
-/**
- * Workspace Manager class
- */
 export class WorkspaceManager {
   private currentWorkspace: WorkspaceContext | null = null;
-  private watcher: FSWatcher | null = null;
-  private pendingChanges: FileChange[] = [];
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private onFilesChanged: ((changes: FileChange[]) => void) | null = null;
-  private onFileChangedOnDisk: ((filePath: string, mtime: number) => void) | null = null;
+  private watcher = new WorkspaceWatcher();
 
-  /**
-   * Register a callback for batched file-system changes (tree updates).
-   */
   setOnFilesChanged(cb: (changes: FileChange[]) => void) {
-    this.onFilesChanged = cb;
+    this.watcher.setOnFilesChanged(cb);
   }
 
-  /**
-   * Register a callback for when an individual open file is modified externally.
-   */
   setOnFileChangedOnDisk(cb: (filePath: string, mtime: number) => void) {
-    this.onFileChangedOnDisk = cb;
+    this.watcher.setOnFileChangedOnDisk(cb);
   }
 
-  /**
-   * Open a workspace
-   */
   async openWorkspace(projectPath: string): Promise<{
     projectName: string;
     gitRoot: string | null;
   }> {
-    // Validate path exists
     try {
       const stats = await fs.stat(projectPath);
       if (!stats.isDirectory()) {
@@ -74,22 +34,16 @@ export class WorkspaceManager {
       throw new Error(`Invalid path: ${projectPath}`);
     }
 
-    // Clean up previous workspace watcher if any
-    await this.stopWatcher();
+    await this.watcher.stop();
 
-    // Extract project name from path
     const projectName = path.basename(projectPath);
-
-    // Check for git root
     const gitRoot = await this.findGitRoot(projectPath);
 
-    // Set current workspace
     this.currentWorkspace = {
       projectPath,
     };
 
-    // Start file watcher
-    this.startWatcher(projectPath);
+    this.watcher.start(projectPath);
 
     return {
       projectName,
@@ -97,37 +51,27 @@ export class WorkspaceManager {
     };
   }
 
-  /**
-   * Get current workspace
-   */
   getWorkspace(): WorkspaceContext | null {
     return this.currentWorkspace;
   }
 
-  /**
-   * Close workspace
-   */
   async closeWorkspace(): Promise<void> {
-    await this.stopWatcher();
+    await this.watcher.stop();
     this.currentWorkspace = null;
   }
 
-  /**
-   * List files in a directory
-   */
   async listFiles(relativePath: string = '.'): Promise<FileTreeNode[]> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
+    const fullPath = this.resolvePath(relativePath);
 
     try {
       const entries = await fs.readdir(fullPath, { withFileTypes: true });
       const nodes: FileTreeNode[] = [];
 
       for (const entry of entries) {
-        // Skip ignored patterns
         if (IGNORED_PATTERNS.includes(entry.name)) {
           continue;
         }
@@ -157,7 +101,6 @@ export class WorkspaceManager {
         }
       }
 
-      // Sort: directories first, then alphabetically
       nodes.sort((a, b) => {
         if (a.type !== b.type) {
           return a.type === 'directory' ? -1 : 1;
@@ -173,9 +116,6 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Read a file
-   */
   async readFile(
     relativePath: string
   ): Promise<{ content: string; encoding: string; lineEnding: string }> {
@@ -183,16 +123,10 @@ export class WorkspaceManager {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-
-    // Validate path is within workspace
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
 
     try {
-      // Read file
       const content = await fs.readFile(fullPath, 'utf-8');
-
-      // Detect line ending
       const lineEnding = this.detectLineEnding(content);
 
       return {
@@ -212,9 +146,6 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Save a file
-   */
   async saveFile(
     relativePath: string,
     content: string,
@@ -227,14 +158,10 @@ export class WorkspaceManager {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-
-    // Validate path is within workspace
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
 
     const { encoding = 'utf-8', lineEnding = 'LF' } = options || {};
 
-    // Normalize line endings if needed
     let finalContent = content;
     if (lineEnding === 'CRLF' && !content.includes('\r\n')) {
       finalContent = content.replace(/\n/g, '\r\n');
@@ -243,46 +170,40 @@ export class WorkspaceManager {
     }
 
     try {
-      // Write atomically
-      await writeFileAtomic(fullPath, finalContent, { encoding });
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        // Create parent directories if they don't exist
-        const dir = path.dirname(fullPath);
-        await fs.mkdir(dir, { recursive: true });
-        // Retry write
-        await writeFileAtomic(fullPath, finalContent, { encoding });
-      } else if (error.code === 'EACCES') {
-        throw new Error(`Permission denied: ${relativePath}`);
-      } else if (error.code === 'ENOSPC') {
-        throw new Error('Disk full');
+      await writeFileAtomicWithRetry(fullPath, finalContent, encoding);
+      return;
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code !== 'ENOENT') {
+        throwSaveFileError(error, relativePath);
       }
-      throw error;
+    }
+
+    const dir = path.dirname(fullPath);
+    await fs.mkdir(dir, { recursive: true });
+
+    try {
+      await writeFileAtomicWithRetry(fullPath, finalContent, encoding);
+    } catch (error) {
+      throwSaveFileError(error, relativePath);
     }
   }
 
-  /**
-   * Create a directory
-   */
   async createFolder(relativePath: string): Promise<void> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
     await fs.mkdir(fullPath, { recursive: true });
   }
 
-  /**
-   * Check if a file exists
-   */
   async fileExists(relativePath: string): Promise<boolean> {
     if (!this.currentWorkspace) {
       return false;
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
+    const fullPath = this.resolvePath(relativePath);
 
     try {
       await fs.access(fullPath);
@@ -292,26 +213,17 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Rename a file or directory
-   */
   async renameFile(oldPath: string, newPath: string): Promise<void> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullOldPath = this.resolveFilePath(oldPath);
-    const fullNewPath = this.resolveFilePath(newPath);
-
-    // Validate both paths are within workspace
-    this.validatePath(fullOldPath);
-    this.validatePath(fullNewPath);
+    const fullOldPath = this.resolvePath(oldPath);
+    const fullNewPath = this.resolvePath(newPath);
 
     try {
-      // Check if old path exists
       await fs.access(fullOldPath);
 
-      // Check if new path already exists
       try {
         await fs.access(fullNewPath);
         throw new Error(`Destination already exists: ${newPath}`);
@@ -321,7 +233,6 @@ export class WorkspaceManager {
         }
       }
 
-      // Rename the file/directory
       await fs.rename(fullOldPath, fullNewPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -333,27 +244,19 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Delete a file or directory
-   */
   async deleteFile(relativePath: string): Promise<void> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-
-    // Validate path is within workspace
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
 
     try {
       const stats = await fs.stat(fullPath);
 
       if (stats.isDirectory()) {
-        // Remove directory recursively
         await fs.rm(fullPath, { recursive: true, force: true });
       } else {
-        // Remove file
         await fs.unlink(fullPath);
       }
     } catch (error: any) {
@@ -366,25 +269,17 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Duplicate a file or directory
-   */
   async duplicateFile(sourcePath: string, destPath: string): Promise<void> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullSourcePath = this.resolveFilePath(sourcePath);
-    const fullDestPath = this.resolveFilePath(destPath);
-
-    // Validate both paths are within workspace
-    this.validatePath(fullSourcePath);
-    this.validatePath(fullDestPath);
+    const fullSourcePath = this.resolvePath(sourcePath);
+    const fullDestPath = this.resolvePath(destPath);
 
     try {
       const stats = await fs.stat(fullSourcePath);
 
-      // Check if destination already exists
       try {
         await fs.access(fullDestPath);
         throw new Error(`Destination already exists: ${destPath}`);
@@ -395,10 +290,8 @@ export class WorkspaceManager {
       }
 
       if (stats.isDirectory()) {
-        // Copy directory recursively
         await fs.cp(fullSourcePath, fullDestPath, { recursive: true });
       } else {
-        // Copy file
         await fs.copyFile(fullSourcePath, fullDestPath);
       }
     } catch (error: any) {
@@ -411,16 +304,12 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Read a file as base64 (for binary files like PDFs)
-   */
   async readFileBase64(relativePath: string): Promise<{ base64: string; mimeType: string }> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
 
     const buffer = await fs.readFile(fullPath);
     const base64 = buffer.toString('base64');
@@ -439,172 +328,59 @@ export class WorkspaceManager {
     return { base64, mimeType: mimeMap[ext] || 'application/octet-stream' };
   }
 
-  /**
-   * Save a file from base64 data (for binary files like PDFs)
-   */
   async saveFileBase64(relativePath: string, base64: string): Promise<void> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    const fullPath = this.resolveFilePath(relativePath);
-    this.validatePath(fullPath);
+    const fullPath = this.resolvePath(relativePath);
 
     const buffer = Buffer.from(base64, 'base64');
     await fs.writeFile(fullPath, buffer);
   }
 
-  // ===========================================================================
-  // File watcher (chokidar)
-  // ===========================================================================
-
-  /**
-   * Start watching the workspace for file-system changes.
-   */
-  private startWatcher(projectPath: string) {
-    // Build ignored glob patterns from IGNORED_PATTERNS + watcher-only patterns
-    const ignored = [...IGNORED_PATTERNS, ...WATCHER_ONLY_IGNORED].flatMap((p) => [`**/${p}`, `**/${p}/**`]);
-
-    this.watcher = watch(projectPath, {
-      ignored,
-      ignoreInitial: true,
-      // Small polling interval helps reliability on Windows/network drives
-      awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
-    });
-
-    const enqueue = (type: FileChange['type'], absPath: string) => {
-      if (!this.watcher) return; // Watcher closing — discard late events
-      const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
-      this.pendingChanges.push({ type, path: relative });
-      this.scheduleFlush();
-    };
-
-    this.watcher
-      .on('add', (p) => enqueue('created', p))
-      .on('addDir', (p) => enqueue('created', p))
-      .on('change', (p) => this.handleExternalChange(projectPath, p))
-      .on('unlink', (p) => enqueue('deleted', p))
-      .on('unlinkDir', (p) => enqueue('deleted', p))
-      .on('error', (err) => console.error('[Watcher] Error:', err));
-
-  }
-
-  /**
-   * Handle an external file modification.
-   * Enqueues a 'modified' change for the tree AND fires onFileChangedOnDisk
-   * so the server can notify the client about open-file conflicts.
-   */
-  private async handleExternalChange(projectPath: string, absPath: string) {
-    if (!this.watcher) return; // Watcher closing — discard late events
-    const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
-
-    // Enqueue for tree-level batch notification
-    this.pendingChanges.push({ type: 'modified', path: relative });
-    this.scheduleFlush();
-
-    // Fire individual open-file notification
-    if (this.onFileChangedOnDisk) {
-      try {
-        const stat = await fs.stat(absPath);
-        this.onFileChangedOnDisk(relative, stat.mtimeMs);
-      } catch {
-        // File may have been deleted between change and stat
-      }
-    }
-  }
-
-  /**
-   * Schedule a debounced flush of pending changes (300 ms).
-   */
-  private scheduleFlush() {
-    if (this.debounceTimer) return;
-    this.debounceTimer = setTimeout(() => {
-      this.flushChanges();
-    }, 300);
-  }
-
-  /**
-   * Flush accumulated changes to the callback.
-   */
-  private flushChanges() {
-    this.debounceTimer = null;
-    if (this.pendingChanges.length === 0) return;
-
-    const changes = this.pendingChanges;
-    this.pendingChanges = [];
-
-    if (this.onFilesChanged) {
-      this.onFilesChanged(changes);
-    }
-  }
-
-  /**
-   * Stop the file watcher and flush any pending changes.
-   */
   async stopWatcher(): Promise<void> {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-    this.flushChanges();
-
-    if (this.watcher) {
-      const w = this.watcher;
-      this.watcher = null; // Null out synchronously so late events are discarded
-      await w.close();
-    }
+    await this.watcher.stop();
   }
 
   /**
-   * Resolve relative path to absolute path
+   * Resolve a relative path to an absolute path and validate it stays
+   * inside the workspace boundary.  Every file-system operation MUST go
+   * through this method so traversal checks cannot be accidentally skipped.
    */
-  private resolveFilePath(relativePath: string): string {
+  private resolvePath(relativePath: string): string {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
 
-    return path.join(this.currentWorkspace.projectPath, relativePath);
-  }
-
-  /**
-   * Validate path is within workspace (prevent directory traversal)
-   */
-  private validatePath(fullPath: string): void {
-    if (!this.currentWorkspace) {
-      throw new Error('No workspace open');
-    }
+    const fullPath = path.resolve(
+      this.currentWorkspace.projectPath,
+      relativePath
+    );
 
     let normalized = path.normalize(fullPath);
     let workspacePath = path.normalize(this.currentWorkspace.projectPath);
 
-    // Windows paths are case-insensitive
     if (process.platform === 'win32') {
       normalized = normalized.toLowerCase();
       workspacePath = workspacePath.toLowerCase();
     }
 
-    if (!normalized.startsWith(workspacePath)) {
+    const boundary = workspacePath.endsWith(path.sep)
+      ? workspacePath
+      : workspacePath + path.sep;
+
+    if (normalized !== workspacePath && !normalized.startsWith(boundary)) {
       throw new Error('Path outside workspace');
     }
+
+    return fullPath;
   }
 
-  /**
-   * Detect line ending type
-   */
   private detectLineEnding(content: string): 'LF' | 'CRLF' {
-    const hasCRLF = content.includes('\r\n');
-
-    if (hasCRLF) {
-      return 'CRLF';
-    }
-
-    // Default to LF
-    return 'LF';
+    return content.includes('\r\n') ? 'CRLF' : 'LF';
   }
 
-  /**
-   * Find git root directory
-   */
   private async findGitRoot(startPath: string): Promise<string | null> {
     let currentPath = startPath;
 
@@ -620,10 +396,8 @@ export class WorkspaceManager {
         // .git not found, continue
       }
 
-      // Move up one directory
       const parentPath = path.dirname(currentPath);
 
-      // Reached root without finding .git
       if (parentPath === currentPath) {
         return null;
       }

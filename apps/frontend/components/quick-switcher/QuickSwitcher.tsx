@@ -261,11 +261,11 @@ export function QuickSwitcher({
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg bg-background rounded-xl shadow-[var(--shadow-lg)] border border-border overflow-hidden"
+        className="relative w-full max-w-lg bg-modal-bg rounded-xl shadow-[var(--shadow-lg)] border border-modal-border overflow-hidden"
         style={{ maxHeight: '60vh' }}
       >
         {/* Search input */}
-        <div className="p-3 border-b border-border">
+        <div className="p-3 border-b border-modal-border">
           <input
             ref={inputRef}
             type="text"
@@ -273,7 +273,7 @@ export function QuickSwitcher({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type to search for a file..."
-            className="w-full px-3 py-2 bg-background rounded-lg border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
+            className="w-full px-3 py-2 bg-modal-bg rounded-lg border border-modal-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -341,7 +341,7 @@ export function QuickSwitcher({
         </div>
 
         {/* Footer with shortcuts */}
-        <div className="px-4 py-2 border-t border-border flex gap-4 text-xs text-foreground-muted">
+        <div className="px-4 py-2 border-t border-modal-border flex gap-4 text-xs text-foreground-muted">
           {(prevLabel || nextLabel) && (
             <span>
               {prevLabel && <kbd className="px-1 py-0.5 bg-surface-elevated rounded">{prevLabel}</kbd>}

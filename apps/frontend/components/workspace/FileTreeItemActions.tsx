@@ -96,7 +96,7 @@ export function FileTreeItemActions({
     "flex items-center justify-center w-5 h-5 rounded",
     "bg-transparent border-none cursor-pointer",
     "text-muted-foreground hover:text-foreground",
-    "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+    "hover:bg-muted/40",
     "transition-colors duration-150"
   );
 

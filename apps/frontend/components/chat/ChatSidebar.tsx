@@ -19,7 +19,7 @@ export function ChatSidebar() {
   const respondToPermission = useChatStore((state) => state.respondToPermission);
   const replyToQuestion = useChatStore((state) => state.replyToQuestion);
   const rejectQuestion = useChatStore((state) => state.rejectQuestion);
-  const isConnected = connection.status === 'connected';
+  const isConnected = connection.status === 'connected' || connection.status === 'reconnecting';
   const pendingPermissions = activeSessionId ? permissions[activeSessionId] ?? [] : [];
   const pendingQuestions = activeSessionId ? questions[activeSessionId] ?? [] : [];
   const promptDockRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +55,7 @@ export function ChatSidebar() {
     >
       <MessageList className="flex-1 min-h-0" />
 
-      <div className="absolute inset-x-0 bottom-0 pt-10 pb-4 flex flex-col items-center z-30 px-4 bg-gradient-to-t from-background via-background to-transparent pointer-events-none chat-dock">
+      <div className="absolute inset-x-0 bottom-0 pt-10 pb-4 flex flex-col items-center z-30 px-4 bg-gradient-to-t from-sidebar-bg via-sidebar-bg to-transparent pointer-events-none chat-dock">
         <div ref={promptDockRef} className="w-full flex flex-col gap-3 pointer-events-auto">
           {sessionError && (
             <SessionErrorBanner
@@ -286,7 +286,7 @@ type SessionErrorBannerProps = {
 
 function SessionErrorBanner({ message, isAuthError }: SessionErrorBannerProps) {
   return (
-    <div className="rounded-md border border-red-500/20 bg-red-950/20 px-3 py-2 text-xs text-red-400">
+    <div className="rounded-md border border-[color-mix(in_srgb,var(--accent-red)_20%,var(--border))] bg-[var(--accent-red-12)] px-3 py-2 text-xs text-accent-red">
       <div className="flex items-start gap-2">
         <span className="shrink-0 mt-0.5">!</span>
         <div className="min-w-0">

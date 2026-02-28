@@ -160,6 +160,14 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       decorations.push(
         Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(closeBracketStart, end),
       );
+    } else {
+      // When revealed, keep bracket glyphs muted for better visual hierarchy.
+      decorations.push(
+        Decoration.mark({ class: 'cm-wiki-link-bracket' }).range(start, openBracketEnd),
+      );
+      decorations.push(
+        Decoration.mark({ class: 'cm-wiki-link-bracket' }).range(closeBracketStart, end),
+      );
     }
 
     // Style the link content - this is always shown, not hidden

@@ -22,6 +22,12 @@ type ModelEntry = {
   modelName: string;
 };
 
+type ProviderGroup = {
+  providerID: string;
+  providerName: string;
+  models: ModelEntry[];
+};
+
 const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
@@ -75,21 +81,41 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
   }, [providers, searchQuery]);
 
   const groupedModels = useMemo(() => {
-    const groups: Record<string, ModelEntry[]> = {};
+    const groups: ProviderGroup[] = [];
+    const byProvider = new Map<string, ProviderGroup>();
+
     for (const model of allModels) {
-      if (!groups[model.providerName]) {
-        groups[model.providerName] = [];
+      const existing = byProvider.get(model.providerID);
+      if (existing) {
+        existing.models.push(model);
+        continue;
       }
-      groups[model.providerName].push(model);
+
+      const nextGroup: ProviderGroup = {
+        providerID: model.providerID,
+        providerName: model.providerName,
+        models: [model],
+      };
+
+      byProvider.set(model.providerID, nextGroup);
+      groups.push(nextGroup);
     }
+
     return groups;
   }, [allModels]);
 
-  const providerEntries = Object.entries(groupedModels);
-  const firstProvider = providerEntries[0]?.[0];
-
   const handleToggle = (model: SelectedModel, next: boolean) => {
     setModelVisibility(model, next);
+  };
+
+  const isProviderVisible = (group: ProviderGroup) => {
+    return group.models.every((model) => isModelVisible({ providerID: group.providerID, modelID: model.modelID }));
+  };
+
+  const handleProviderToggle = (group: ProviderGroup, next: boolean) => {
+    for (const model of group.models) {
+      setModelVisibility({ providerID: group.providerID, modelID: model.modelID }, next);
+    }
   };
 
   const isModelVisible = (model: SelectedModel) => {
@@ -106,30 +132,33 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]">
-      <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-2xl w-full max-h-[80vh] flex flex-col">
-        <div className="flex items-start justify-between gap-4 p-4 border-b border-border">
-          <div>
-            <h2 className="text-lg font-semibold">Manage Models</h2>
-            <p className="text-xs text-muted-foreground mt-1">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)] p-4" onClick={onClose}>
+      <div
+        className="flex max-h-[600px] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[var(--shadow-lg)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-medium text-foreground">Manage models</h2>
+            <p className="mt-0.5 text-xs text-[var(--foreground-subtle)]">
               Customize which models appear in the model selector.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors disabled:opacity-50"
+              className="size-6 flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--overlay-10)] hover:text-foreground disabled:opacity-50"
               title="Refresh models"
               aria-label="Refresh models"
             >
-              <RefreshCw className={cn("size-5", refreshing && "animate-spin")} />
+              <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />
             </button>
             <button
               type="button"
               onClick={onConnectProvider}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
+              className="flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-[var(--overlay-10)] hover:text-foreground"
             >
               <Icon name="plus-small" size="normal" />
               Connect provider
@@ -137,45 +166,62 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
+              className="size-6 flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--overlay-10)] hover:text-foreground"
               aria-label="Close"
             >
-              <X className="size-5" />
+              <X className="size-4" />
             </button>
           </div>
         </div>
-        <div className="p-4 border-b border-border">
-          <input
-            type="text"
-            placeholder="Search models"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-            autoFocus
-          />
+        <div className="px-4 pb-3">
+          <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
+            <Icon name="magnifying-glass-menu" size="small" className="shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search models"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="h-full w-full border-none bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+              autoFocus
+            />
+            {searchQuery.trim().length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="size-5 flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <Icon name="close" size="small" />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto thin-scrollbar">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
           {allModels.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
+            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
               {searchQuery ? 'No model results' : 'No models available'}
             </div>
           ) : (
-            providerEntries.map(([providerName, models]) => (
-              <div key={providerName}>
-                <div
-                  className={cn(
-                    "px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background flex items-center gap-2",
-                    providerName !== firstProvider && "border-t border-border"
-                  )}
-                >
-                  <ProviderIcon
-                    id={resolveProviderIcon(models[0]?.providerID ?? 'synthetic')}
-                    className="size-4 text-muted-foreground shrink-0"
-                  />
-                  <span>{providerName}</span>
+            groupedModels.map((group) => (
+              <div key={group.providerID}>
+                <div className="sticky top-0 z-10 relative flex items-center gap-3 px-2 py-2 text-[13px] font-medium text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-[var(--surface-elevated)] after:to-transparent">
+                  <div className="min-w-0 flex flex-1 items-center gap-2">
+                    <ProviderIcon
+                      id={resolveProviderIcon(group.providerID)}
+                      className="size-4 text-muted-foreground shrink-0"
+                    />
+                    <span className="truncate">{group.providerName}</span>
+                  </div>
+                  <div className="flex w-9 shrink-0 justify-end" onClick={(event) => event.stopPropagation()}>
+                    <VisibilityToggle
+                      checked={isProviderVisible(group)}
+                      label={`Toggle all ${group.providerName} models`}
+                      onChange={(next) => handleProviderToggle(group, next)}
+                    />
+                  </div>
                 </div>
-                <div className="px-4">
-                  {models.map((model) => {
+                <div className="pb-2 space-y-1">
+                  {group.models.map((model) => {
                     const key = { providerID: model.providerID, modelID: model.modelID };
                     const visible = isModelVisible(key);
                     const label = `${visible ? 'Hide' : 'Show'} ${model.modelName}`;
@@ -183,11 +229,20 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
                     return (
                       <div
                         key={`${model.providerID}:${model.modelID}`}
-                        className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-b-0"
+                        className="flex w-full cursor-pointer items-center gap-4 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--overlay-10)]"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handleToggle(key, !visible)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return;
+                          event.preventDefault();
+                          handleToggle(key, !visible);
+                        }}
                       >
-                        <span className="text-sm text-foreground truncate">{model.modelName}</span>
-                        <VisibilityToggle checked={visible} label={label} onChange={(next) => handleToggle(key, next)} />
+                        <span className="min-w-0 flex-1 truncate text-[14px] text-foreground">{model.modelName}</span>
+                        <div className="flex w-9 shrink-0 justify-end" onClick={(event) => event.stopPropagation()}>
+                          <VisibilityToggle checked={visible} label={label} onChange={(next) => handleToggle(key, next)} />
+                        </div>
                       </div>
                     );
                   })}
@@ -220,14 +275,14 @@ function VisibilityToggle({ checked, label, onChange }: VisibilityToggleProps) {
         onChange(!checked);
       }}
       className={cn(
-        "relative inline-flex h-5 w-9 items-center rounded-full border border-border transition-colors",
-        checked ? "bg-[var(--accent-primary)]" : "bg-[var(--border-subtle)]"
+        'relative inline-flex h-5 w-9 items-center rounded-full border border-border transition-colors',
+        checked ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]'
       )}
     >
       <span
         className={cn(
-          "inline-block size-4 rounded-full bg-background shadow transition-transform",
-          checked ? "translate-x-4" : "translate-x-0.5"
+          'inline-block size-4 rounded-full bg-background shadow transition-transform',
+          checked ? 'translate-x-4' : 'translate-x-0.5'
         )}
       />
     </button>

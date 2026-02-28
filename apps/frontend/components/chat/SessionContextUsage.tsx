@@ -61,7 +61,7 @@ export function SessionContextUsage({ variant = 'button' }: SessionContextUsageP
 
   return (
     <div className="group relative">
-      <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-50">
+      <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-foreground text-surface text-xs rounded whitespace-nowrap z-50">
         {context && (
           <>
             <div className="flex items-center gap-2">

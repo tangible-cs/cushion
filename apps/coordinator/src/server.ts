@@ -12,6 +12,8 @@ import type {
   JSONRPCResponse,
   JSONRPCNotification,
   DocumentState,
+  RPCParams,
+  RPCNotificationParams,
 } from '@cushion/types';
 
 import { WorkspaceManager } from './workspace/manager.js';
@@ -44,26 +46,41 @@ import {
   handleProviderAuthRemove,
   handleProviderOAuthAuthorize,
   handleProviderOAuthCallback,
+  handleProviderSync,
   handleOllamaList,
   handleOllamaPull,
   handleOllamaDelete,
   handleOllamaWriteConfig,
 } from './handlers/provider.js';
 
+function parseAllowedOrigins(): string[] | null {
+  const env = process.env.COORDINATOR_ALLOWED_ORIGINS;
+  if (!env) return null;
+  return env.split(',').map((o) => o.trim());
+}
+
 export class CoordinatorServer {
-  private wss: WebSocketServer;
+  private wss!: WebSocketServer;
   private clients = new Map<WebSocket, Map<string, DocumentState>>();
   private workspaceManager: WorkspaceManager;
   private credentialStorage: CredentialStorage;
   private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private binDir: string;
+  private origins: string[] | null;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private bindRetryCount = 0;
+  private readonly maxBindRetries = 30;
+  private isShuttingDown = false;
 
-  constructor(private port: number = 3001) {
+  constructor(private port: number = 3001, private allowedOrigins?: string[]) {
     this.workspaceManager = new WorkspaceManager();
     this.credentialStorage = new CredentialStorage();
     this.binDir = path.join(__dirname, '..', 'bin');
-    this.wss = new WebSocketServer({ port });
-    this.setupHandlers();
+
+    const origins = this.allowedOrigins ?? parseAllowedOrigins();
+    this.origins = origins;
+
+    this.createWebSocketServer();
     this.setupWatcherCallbacks();
 
     // Cleanup expired OAuth states every 5 minutes
@@ -73,8 +90,77 @@ export class CoordinatorServer {
     }, 5 * 60 * 1000);
   }
 
-  private setupHandlers() {
-    this.wss.on('connection', (ws: WebSocket) => {
+  private createWebSocketServer() {
+    this.wss = new WebSocketServer({
+      port: this.port,
+      ...(this.origins && {
+        verifyClient: (info: { origin: string; secure: boolean; req: import('http').IncomingMessage }) => {
+          const origin = info.origin || info.req.headers.origin;
+          if (!origin) return false;
+          return this.origins!.includes(origin);
+        },
+      }),
+    });
+
+    this.wss.on('listening', () => {
+      this.bindRetryCount = 0;
+    });
+
+    this.wss.on('error', (error) => {
+      this.handleWebSocketServerError(error as NodeJS.ErrnoException);
+    });
+
+    this.setupHandlers(this.wss);
+  }
+
+  private handleWebSocketServerError(error: NodeJS.ErrnoException) {
+    if (this.isShuttingDown) {
+      return;
+    }
+
+    if (error.code !== 'EADDRINUSE') {
+      console.error('[Coordinator] WebSocket server error:', error);
+      return;
+    }
+
+    this.bindRetryCount += 1;
+
+    if (this.bindRetryCount > this.maxBindRetries) {
+      console.error(
+        `[Coordinator] Failed to bind port ${this.port} after ${this.maxBindRetries} retries. Is another coordinator process running?`
+      );
+      return;
+    }
+
+    if (this.restartTimer) {
+      return;
+    }
+
+    console.error(
+      `[Coordinator] Port ${this.port} is in use. Retrying in 1s (${this.bindRetryCount}/${this.maxBindRetries})...`
+    );
+
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+
+      if (this.isShuttingDown) {
+        return;
+      }
+
+      this.clients.clear();
+
+      try {
+        this.wss.close();
+      } catch {
+        // Ignore close errors while rebinding.
+      }
+
+      this.createWebSocketServer();
+    }, 1000);
+  }
+
+  private setupHandlers(wss: WebSocketServer) {
+    wss.on('connection', (ws: WebSocket) => {
       this.clients.set(ws, new Map());
 
       ws.on('message', async (data: Buffer) => {
@@ -113,7 +199,7 @@ export class CoordinatorServer {
       switch (method) {
         // Workspace handlers
         case 'workspace/open':
-          result = await handleOpenWorkspace(this.workspaceManager, request.params as { projectPath: string });
+          result = await handleOpenWorkspace(this.workspaceManager, request.params as RPCParams<'workspace/open'>);
           break;
 
         case 'workspace/select-folder':
@@ -125,43 +211,43 @@ export class CoordinatorServer {
           break;
 
         case 'fs/list-dirs':
-          result = await handleFsListDirs(request.params as { path: string });
+          result = await handleFsListDirs(request.params as RPCParams<'fs/list-dirs'>);
           break;
 
         case 'workspace/files':
-          result = await handleListFiles(this.workspaceManager, request.params as { relativePath?: string });
+          result = await handleListFiles(this.workspaceManager, request.params as RPCParams<'workspace/files'>);
           break;
 
         case 'workspace/file':
-          result = await handleReadFile(this.workspaceManager, request.params as { filePath: string });
+          result = await handleReadFile(this.workspaceManager, request.params as RPCParams<'workspace/file'>);
           break;
 
         case 'workspace/save-file':
-          result = await handleSaveFile(this.workspaceManager, request.params as { filePath: string; content: string; encoding?: string; lineEnding?: 'LF' | 'CRLF' });
+          result = await handleSaveFile(this.workspaceManager, request.params as RPCParams<'workspace/save-file'>);
           break;
 
         case 'workspace/rename':
-          result = await handleRenameFile(this.workspaceManager, request.params as { oldPath: string; newPath: string });
+          result = await handleRenameFile(this.workspaceManager, request.params as RPCParams<'workspace/rename'>);
           break;
 
         case 'workspace/delete':
-          result = await handleDeleteFile(this.workspaceManager, request.params as { path: string });
+          result = await handleDeleteFile(this.workspaceManager, request.params as RPCParams<'workspace/delete'>);
           break;
 
         case 'workspace/duplicate':
-          result = await handleDuplicateFile(this.workspaceManager, request.params as { path: string; newPath: string });
+          result = await handleDuplicateFile(this.workspaceManager, request.params as RPCParams<'workspace/duplicate'>);
           break;
 
         case 'workspace/create-folder':
-          result = await handleCreateFolder(this.workspaceManager, request.params as { path: string });
+          result = await handleCreateFolder(this.workspaceManager, request.params as RPCParams<'workspace/create-folder'>);
           break;
 
         case 'workspace/file-base64':
-          result = await handleReadFileBase64(this.workspaceManager, request.params as { filePath: string });
+          result = await handleReadFileBase64(this.workspaceManager, request.params as RPCParams<'workspace/file-base64'>);
           break;
 
         case 'workspace/save-file-base64':
-          result = await handleSaveFileBase64(this.workspaceManager, request.params as { filePath: string; base64: string });
+          result = await handleSaveFileBase64(this.workspaceManager, request.params as RPCParams<'workspace/save-file-base64'>);
           break;
 
         // Provider handlers
@@ -182,19 +268,32 @@ export class CoordinatorServer {
           break;
 
         case 'provider/auth/set':
-          result = await handleProviderAuthSet(this.credentialStorage, request.params as { providerID: string; apiKey: string });
+          result = await handleProviderAuthSet(this.credentialStorage, request.params as RPCParams<'provider/auth/set'>);
+          await handleProviderSync(this.credentialStorage).catch((err) =>
+            console.error('[Coordinator] Auto-sync after auth/set failed:', err)
+          );
           break;
 
         case 'provider/auth/remove':
-          result = await handleProviderAuthRemove(this.credentialStorage, request.params as { providerID: string });
+          result = await handleProviderAuthRemove(this.credentialStorage, request.params as RPCParams<'provider/auth/remove'>);
+          await handleProviderSync(this.credentialStorage).catch((err) =>
+            console.error('[Coordinator] Auto-sync after auth/remove failed:', err)
+          );
           break;
 
         case 'provider/oauth/authorize':
-          result = await handleProviderOAuthAuthorize(request.params as { providerID: string; method: number });
+          result = await handleProviderOAuthAuthorize(request.params as RPCParams<'provider/oauth/authorize'>);
           break;
 
         case 'provider/oauth/callback':
-          result = await handleProviderOAuthCallback(this.credentialStorage, request.params as { providerID: string; method: number; code?: string });
+          result = await handleProviderOAuthCallback(this.credentialStorage, request.params as RPCParams<'provider/oauth/callback'>);
+          await handleProviderSync(this.credentialStorage).catch((err) =>
+            console.error('[Coordinator] Auto-sync after oauth/callback failed:', err)
+          );
+          break;
+
+        case 'provider/sync':
+          result = await handleProviderSync(this.credentialStorage);
           break;
 
         case 'provider/ollama/list':
@@ -202,15 +301,15 @@ export class CoordinatorServer {
           break;
 
         case 'provider/ollama/pull':
-          result = await handleOllamaPull(this.credentialStorage, request.params as { model: string });
+          result = await handleOllamaPull(this.credentialStorage, request.params as RPCParams<'provider/ollama/pull'>);
           break;
 
         case 'provider/ollama/delete':
-          result = await handleOllamaDelete(this.credentialStorage, request.params as { model: string });
+          result = await handleOllamaDelete(this.credentialStorage, request.params as RPCParams<'provider/ollama/delete'>);
           break;
 
         case 'provider/ollama/write-config':
-          result = await handleOllamaWriteConfig(this.credentialStorage, request.params as { baseUrl?: string; models?: any[] });
+          result = await handleOllamaWriteConfig(this.credentialStorage, request.params as RPCParams<'provider/ollama/write-config'>);
           break;
 
         default:
@@ -234,11 +333,11 @@ export class CoordinatorServer {
 
     switch (method) {
       case 'textDocument/didOpen':
-        this.handleDidOpen(ws, params as DidOpenTextDocumentParams);
+        this.handleDidOpen(ws, params as RPCNotificationParams<'textDocument/didOpen'>);
         break;
 
       case 'textDocument/didChange':
-        this.handleDidChange(ws, params as DidChangeTextDocumentParams);
+        this.handleDidChange(ws, params as RPCNotificationParams<'textDocument/didChange'>);
         break;
 
       default:
@@ -322,31 +421,42 @@ export class CoordinatorServer {
   }
 
   close() {
+    this.isShuttingDown = true;
+
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+
     if (this.oauthCleanupInterval) {
       clearInterval(this.oauthCleanupInterval);
       this.oauthCleanupInterval = null;
     }
+
+    this.clients.clear();
     getModelsDevCache().stopAutoRefresh();
     this.workspaceManager.stopWatcher();
     this.wss.close();
   }
 }
 
-const PORT = process.env.COORDINATOR_PORT ? parseInt(process.env.COORDINATOR_PORT) : 3001;
+if (import.meta.main) {
+  const PORT = process.env.COORDINATOR_PORT ? parseInt(process.env.COORDINATOR_PORT) : 3001;
 
-console.log('=== Cushion Coordinator ===');
-console.log(`Starting server on port ${PORT}...`);
+  console.log('=== Cushion Coordinator ===');
+  console.log(`Starting server on port ${PORT}...`);
 
-const server = new CoordinatorServer(PORT);
+  const server = new CoordinatorServer(PORT);
 
-process.on('SIGINT', () => {
-  console.log('\nShutting down gracefully...');
-  server.close();
-  process.exit(0);
-});
+  process.on('SIGINT', () => {
+    console.log('\nShutting down gracefully...');
+    server.close();
+    process.exit(0);
+  });
 
-process.on('SIGTERM', () => {
-  console.log('\nShutting down gracefully...');
-  server.close();
-  process.exit(0);
-});
+  process.on('SIGTERM', () => {
+    console.log('\nShutting down gracefully...');
+    server.close();
+    process.exit(0);
+  });
+}

@@ -1,5 +1,5 @@
 import type { Event } from '@opencode-ai/sdk/v2/client';
-import { getSessionErrorMessage, getProviderAuthError } from '@/lib/chat-helpers';
+import { mapSdkError } from '@/lib/sdk-result';
 import {
   type OpenCodeDirectory,
   type ChatStoreGet,
@@ -132,17 +132,16 @@ export function handleApplyEvent(
     case 'session.error': {
       const sessionID = event.properties.sessionID;
       if (!sessionID) break;
-      const message = getSessionErrorMessage(event.properties.error);
-      const authError = getProviderAuthError(event.properties.error);
+      const sdkError = mapSdkError(event.properties.error);
       set((state) => ({
         sessionErrors: {
           ...state.sessionErrors,
-          [sessionID]: message,
+          [sessionID]: sdkError.message,
         },
-        providerAuthErrors: authError
+        providerAuthErrors: sdkError.isAuthError && sdkError.providerID
           ? {
               ...state.providerAuthErrors,
-              [authError.data.providerID]: authError.data.message,
+              [sdkError.providerID]: sdkError.message,
             }
           : state.providerAuthErrors,
       }));

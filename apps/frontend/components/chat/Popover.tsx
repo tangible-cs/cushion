@@ -10,6 +10,7 @@ type PopoverContextValue = {
   setIsOpen: (open: boolean) => void;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   contentRef: React.RefObject<HTMLDivElement | null>;
+  minWidth: number;
 };
 
 const PopoverContext = createContext<PopoverContextValue | null>(null);
@@ -28,9 +29,10 @@ export type PopoverProps = {
   onOpenChange?: (open: boolean) => void;
   placement?: 'top' | 'top-start' | 'top-end' | 'bottom' | 'bottom-start' | 'bottom-end';
   offset?: number;
+  minWidth?: number;
 };
 
-export function Popover({ children, open: controlledOpen, onOpenChange, placement = 'top-start', offset = 8 }: PopoverProps) {
+export function Popover({ children, open: controlledOpen, onOpenChange, placement = 'top-start', offset = 8, minWidth = 288 }: PopoverProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -52,7 +54,7 @@ export function Popover({ children, open: controlledOpen, onOpenChange, placemen
   });
 
   return (
-    <PopoverContext.Provider value={{ isOpen, setIsOpen, triggerRef, contentRef }}>
+    <PopoverContext.Provider value={{ isOpen, setIsOpen, triggerRef, contentRef, minWidth }}>
       {children}
     </PopoverContext.Provider>
   );
@@ -98,7 +100,7 @@ export type PopoverContentProps = {
 };
 
 export function PopoverContent({ children, className = '' }: PopoverContentProps) {
-  const { isOpen, triggerRef, contentRef } = usePopover();
+  const { isOpen, triggerRef, contentRef, minWidth } = usePopover();
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => {
@@ -113,7 +115,7 @@ export function PopoverContent({ children, className = '' }: PopoverContentProps
 
     const top = triggerRect.top - contentRect.height - 8;
     const left = triggerRect.left;
-    const width = Math.max(triggerRect.width, 288); // w-72 = 18rem = 288px
+    const width = Math.max(triggerRect.width, minWidth);
 
     setPosition({ top, left, width });
 
@@ -142,7 +144,7 @@ export function PopoverContent({ children, className = '' }: PopoverContentProps
   return (
     <div
       ref={contentRef}
-      className={cn("fixed z-popover w-72 max-h-80 overflow-auto rounded-md border border-border bg-background shadow-md outline-none thin-scrollbar", className)}
+      className={cn("fixed z-popover w-72 max-h-80 overflow-auto rounded-md border border-menu-border bg-menu-bg shadow-md outline-none thin-scrollbar", className)}
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,

@@ -24,13 +24,13 @@ export class ImageWidget extends WidgetType {
     const placeholder = document.createElement('div');
     placeholder.className = 'cm-image-placeholder';
     placeholder.style.cssText = `
-      background: var(--md-bg-secondary, #242424);
-      border-radius: var(--md-border-radius, 6px);
+      background: var(--md-bg-secondary);
+      border-radius: var(--md-border-radius);
       min-height: 100px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--md-text-muted, #666);
+      color: var(--md-text-muted);
       font-size: 0.85em;
     `;
     placeholder.textContent = 'Loading image...';
@@ -44,9 +44,9 @@ export class ImageWidget extends WidgetType {
     img.style.cssText = `
       max-width: 100%;
       max-height: 500px;
-      border-radius: var(--md-border-radius, 6px);
+      border-radius: var(--md-border-radius);
       display: none;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--md-image-shadow);
       transition: box-shadow 0.2s ease, transform 0.2s ease;
     `;
     
@@ -59,7 +59,7 @@ export class ImageWidget extends WidgetType {
     // Show error state
     img.onerror = () => {
       placeholder.textContent = `Failed to load: ${this.alt || this.src}`;
-      placeholder.style.color = 'var(--md-link-empty, #d97c7c)';
+      placeholder.style.color = 'var(--md-link-empty)';
     };
     
     wrapper.appendChild(img);
@@ -70,7 +70,7 @@ export class ImageWidget extends WidgetType {
       caption.textContent = this.alt;
       caption.style.cssText = `
         font-size: 0.85em;
-        color: var(--md-text-muted, #a0a0a0);
+        color: var(--md-text-muted);
         text-align: center;
         margin-top: 8px;
         font-style: italic;

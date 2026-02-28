@@ -8,37 +8,119 @@
 
 /* Design System */
 :root {
-  --background: #fafafa;
-  --sidebar-bg: #f0f0f0;
-  --surface: #ffffff;
+  /* Layer 1: Foundation (Obsidian-aligned) */
+  --color-base-00: #ffffff;
+  --color-base-05: #fcfcfc;
+  --color-base-10: #fafafa;
+  --color-base-20: #f6f6f6;
+  --color-base-25: #e3e3e3;
+  --color-base-30: #e0e0e0;
+  --color-base-35: #d4d4d4;
+  --color-base-40: #bdbdbd;
+  --color-base-50: #ababab;
+  --color-base-60: #707070;
+  --color-base-70: #5c5c5c;
+  --color-base-100: #222222;
+
+  --color-red: #e93147;
+  --color-orange: #ec7500;
+  --color-yellow: #e0ac00;
+  --color-green: #08b94e;
+  --color-cyan: #00bfbc;
+  --color-blue: #086ddd;
+  --color-purple: #7852ee;
+  --color-pink: #d53984;
+
+  --font-family-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --accent-h: 258;
+  --accent-s: 88%;
+  --accent-l: 66%;
+  --color-accent: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
+  --color-accent-1: hsl(var(--accent-h) 83% 53%);
+  --color-accent-2: hsl(var(--accent-h) 78% 46%);
+
+  /* Layer 2: Semantic UI tokens */
+  --background-primary: var(--color-base-00);
+  --background-primary-alt: var(--color-base-10);
+  --background-secondary: var(--color-base-20);
+  --background-secondary-alt: var(--color-base-05);
+  --background-subtle: var(--background-secondary);
+
+  --text-normal: var(--color-base-100);
+  --text-muted: var(--color-base-70);
+  --text-faint: var(--color-base-50);
+  --text-accent: var(--color-accent);
+  --text-accent-hover: var(--color-accent-2);
+
+  --interactive-normal: var(--color-base-00);
+  --interactive-hover: var(--color-base-10);
+  --interactive-accent: var(--color-accent-1);
+  --interactive-accent-hover: var(--color-accent-2);
+
+  --background-modifier-hover: rgba(0, 0, 0, 0.067);
+  --background-modifier-border: var(--color-base-30);
+  --background-modifier-border-hover: var(--color-base-35);
+  --background-modifier-border-focus: var(--color-base-40);
+
+  /* Layer 3: Cushion compatibility aliases (bridge) */
+  --background: var(--background-primary);
+  --sidebar-bg: var(--background-secondary);
+  --surface: var(--background-primary-alt);
   --surface-rgb: 255, 255, 255;
-  --surface-elevated: #ffffff;
-  --foreground: #333333;
-  --foreground-muted: #6b6b6b;
-  --foreground-subtle: #8a8a8a;
-  --border: #e0e0e0;
-  --border-subtle: #f0f0f0;
+  --surface-elevated: var(--background-primary);
+  --surface-tertiary: var(--background-secondary);
 
-  /* Accent colors */
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
-  --accent-green: #22c55e;
-  --accent-green-hover: #16a34a;
-  --accent-red: #ef4444;
-  --accent-red-hover: #dc2626;
-  --accent-green-12: rgba(34, 197, 94, 0.12);
-  --accent-red-12: rgba(239, 68, 68, 0.12);
+  --foreground: var(--text-normal);
+  --foreground-muted: var(--text-muted);
+  --foreground-subtle: var(--text-faint);
+  --foreground-faint: var(--text-faint);
 
-  /* Overlays and tints */
-  --overlay-10: rgba(0, 0, 0, 0.1);
+  --border: var(--background-modifier-border);
+  --border-subtle: var(--background-modifier-border-hover);
+
+  --accent-primary: var(--interactive-accent);
+  --accent-primary-hover: var(--interactive-accent-hover);
+  --accent-green: var(--color-green);
+  --accent-green-hover: #069a41;
+  --accent-red: var(--color-red);
+  --accent-red-hover: #c92a3d;
+  --accent-green-12: rgba(8, 185, 78, 0.12);
+  --accent-red-12: rgba(233, 49, 71, 0.12);
+  --accent-primary-12: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.12);
+
+  --overlay-10: var(--background-modifier-hover);
   --overlay-20: rgba(0, 0, 0, 0.2);
   --overlay-50: rgba(0, 0, 0, 0.5);
   --overlay-white-08: rgba(255, 255, 255, 0.08);
-  --accent-primary-12: rgba(59, 130, 246, 0.12);
 
-  /* Additional surface & text tokens */
-  --surface-tertiary: #f0f0f0;
-  --foreground-faint: #8a8a8a;
+  /* Component tokens: menus/modals/prompts (Obsidian-aligned) */
+  --menu-background: var(--color-base-20);
+  --menu-border-color: var(--color-base-35);
+  --modal-background: var(--color-base-00);
+  --modal-border-color: var(--color-base-40);
+  --prompt-background: var(--color-base-00);
+  --prompt-border-color: var(--color-base-40);
+
+  /* Component tokens: navigation/file tree (Obsidian-aligned) */
+  --nav-item-color: var(--text-muted);
+  --nav-item-color-hover: var(--text-normal);
+  --nav-item-color-active: var(--text-normal);
+  --nav-item-background-hover: var(--background-modifier-hover);
+  --nav-item-background-selected: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15);
+
+  /* Component tokens: tabs (Obsidian-aligned) */
+  --tab-container-background: var(--color-base-20);
+  --tab-background-active: var(--color-base-00);
+  --tab-text-color: var(--text-faint);
+  --tab-text-color-active: var(--text-muted);
+
+  /* Component tokens: graph (Obsidian-aligned) */
+  --graph-text: var(--text-normal);
+  --graph-line: var(--color-base-35);
+  --graph-node: var(--text-muted);
+  --graph-node-unresolved: var(--text-faint);
+  --graph-node-focused: var(--color-accent);
 
   /* Shadows and elevation */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -56,6 +138,50 @@
   --z-workspace-modal: 1000;
 }
 
+.dark {
+  /* Layer 1: Foundation (Obsidian dark) */
+  --color-base-00: #1e1e1e;
+  --color-base-05: #212121;
+  --color-base-10: #242424;
+  --color-base-20: #262626;
+  --color-base-25: #2a2a2a;
+  --color-base-30: #363636;
+  --color-base-35: #3f3f3f;
+  --color-base-40: #555555;
+  --color-base-50: #666666;
+  --color-base-60: #999999;
+  --color-base-70: #b3b3b3;
+  --color-base-100: #dadada;
+
+  --color-red: #fb464c;
+  --color-orange: #e9973f;
+  --color-yellow: #e0de71;
+  --color-green: #44cf6e;
+  --color-cyan: #53dfdd;
+  --color-blue: #027aff;
+  --color-purple: #a882ff;
+  --color-pink: #fa99cd;
+
+  /* Layer 2: Semantic overrides (tokens that differ from light var() chain) */
+  --background-secondary-alt: var(--color-base-30);
+  --text-accent-hover: var(--color-accent-2);
+  --interactive-normal: var(--color-base-30);
+  --interactive-hover: var(--color-base-35);
+  --interactive-accent: var(--color-accent);
+  --interactive-accent-hover: var(--color-accent-1);
+  --background-modifier-hover: rgba(255, 255, 255, 0.067);
+
+  /* Layer 3: Compatibility overrides */
+  --surface-rgb: 30, 30, 30;
+  --accent-green-hover: #38b85e;
+  --accent-red-hover: #e03a40;
+  --accent-green-12: rgba(68, 207, 110, 0.12);
+  --accent-red-12: rgba(251, 70, 76, 0.12);
+  --overlay-10: rgba(255, 255, 255, 0.067);
+  --overlay-20: rgba(255, 255, 255, 0.15);
+  --overlay-white-08: rgba(0, 0, 0, 0.08);
+}
+
 html {
   color-scheme: light;
   margin: 0;
@@ -69,11 +195,15 @@ html.light {
   color-scheme: light;
 }
 
+html.dark {
+  color-scheme: dark;
+}
+
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-family-ui);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -683,7 +813,7 @@ html, body {
 
 .chat-dock [data-slot="prompt-input-form"],
 .chat-dock .chat-dock-panel {
-  border-color: color-mix(in srgb, var(--border) 75%, #000);
+  border-color: var(--background-modifier-border-focus);
 }
 
 [data-slot="session-turn-sticky"]::before {
@@ -879,7 +1009,7 @@ html, body {
 }
 
 [data-slot="session-turn-accordion-trigger"]:hover {
-  background: rgba(var(--surface-rgb), 0.7);
+  background: var(--background-modifier-hover);
 }
 
 [data-slot="session-turn-accordion-trigger-content"] {
@@ -950,11 +1080,11 @@ html, body {
 }
 
 [data-slot="session-turn-diff-block"][data-type="before"] [data-slot="session-turn-diff-label"] {
-  color: var(--accent-red, #ef4444);
+  color: var(--accent-red);
 }
 
 [data-slot="session-turn-diff-block"][data-type="after"] [data-slot="session-turn-diff-label"] {
-  color: var(--accent-green, #22c55e);
+  color: var(--accent-green);
 }
 
 [data-slot="session-turn-diff-block"] pre {
@@ -968,13 +1098,13 @@ html, body {
 }
 
 [data-slot="session-turn-diff-block"][data-type="before"] pre {
-  border-color: color-mix(in srgb, var(--accent-red, #ef4444) 35%, var(--border));
-  background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, var(--surface-elevated));
+  border-color: color-mix(in srgb, var(--accent-red) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-red) 12%, var(--surface-elevated));
 }
 
 [data-slot="session-turn-diff-block"][data-type="after"] pre {
-  border-color: color-mix(in srgb, var(--accent-green, #22c55e) 35%, var(--border));
-  background: color-mix(in srgb, var(--accent-green, #22c55e) 12%, var(--surface-elevated));
+  border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-green) 12%, var(--surface-elevated));
 }
 
 [data-slot="session-turn-diff-label"] {
@@ -1000,8 +1130,8 @@ html, body {
 [data-diffs] {
   --diffs-bg: var(--surface-elevated);
   --diffs-bg-context: color-mix(in lab, var(--surface-elevated) 96%, var(--foreground));
-  --diffs-deletion-base: var(--accent-red, #ef4444);
-  --diffs-addition-base: var(--accent-green, #22c55e);
+  --diffs-deletion-base: var(--accent-red);
+  --diffs-addition-base: var(--accent-green);
   --diffs-bg-deletion: color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-deletion-base));
   --diffs-bg-addition: color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-addition-base));
   --diffs-bg-deletion-number: color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base));
@@ -1190,14 +1320,14 @@ html, body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 12px;
   font-weight: 500;
-  color: var(--accent-green, #22c55e) !important;
+  color: var(--accent-green) !important;
 }
 
 [data-component="diff-changes"] [data-slot="diff-changes-deletions"] {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 12px;
   font-weight: 500;
-  color: var(--accent-red, #ef4444) !important;
+  color: var(--accent-red) !important;
 }
 
 [data-component="diff-changes"][data-variant="bars"] {

@@ -19,11 +19,11 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
 };
 
 const STATUS_DOT_CLASS: Record<ConnectionStatus, string> = {
-  idle: 'bg-[var(--foreground-faint)]',
-  connecting: 'bg-amber-400',
-  connected: 'bg-emerald-400',
-  reconnecting: 'bg-amber-400',
-  error: 'bg-red-500',
+  idle: 'bg-foreground-faint',
+  connecting: 'bg-accent',
+  connected: 'bg-accent-green',
+  reconnecting: 'bg-accent',
+  error: 'bg-accent-red',
 };
 
 function normalizeInput(value: string) {
@@ -132,9 +132,9 @@ export function OpenCodeSettings({ embedded = false }: OpenCodeSettingsProps) {
         </button>
       </div>
 
-      {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
+      {error && <div className="mt-2 text-xs text-accent-red">{error}</div>}
       {!error && connection.status === 'error' && connection.error && (
-        <div className="mt-2 text-xs text-red-400">{connection.error}</div>
+        <div className="mt-2 text-xs text-accent-red">{connection.error}</div>
       )}
 
       <div className="mt-3 flex items-center gap-2 text-xs text-foreground-muted">

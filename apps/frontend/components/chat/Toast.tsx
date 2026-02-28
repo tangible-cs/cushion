@@ -98,11 +98,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     if (toast.icon) return toast.icon;
     switch (toast.variant) {
       case 'success':
-        return <CheckCircle className="size-5 text-green-500" />;
+        return <CheckCircle className="size-5 text-accent-green" />;
       case 'error':
-        return <AlertCircle className="size-5 text-red-500" />;
+        return <AlertCircle className="size-5 text-accent-red" />;
       case 'loading':
-        return <Loader2 className="size-5 text-blue-500 animate-spin" />;
+        return <Loader2 className="size-5 text-accent animate-spin" />;
       default:
         return null;
     }
@@ -111,11 +111,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   const getVariantStyles = () => {
     switch (toast.variant) {
       case 'success':
-        return 'border-green-500/20 bg-green-50 dark:bg-green-950/20';
+        return 'border-[color-mix(in_srgb,var(--accent-green)_20%,var(--border))] bg-[var(--accent-green-12)]';
       case 'error':
-        return 'border-red-500/20 bg-red-50 dark:bg-red-950/20';
+        return 'border-[color-mix(in_srgb,var(--accent-red)_20%,var(--border))] bg-[var(--accent-red-12)]';
       case 'loading':
-        return 'border-blue-500/20 bg-blue-50 dark:bg-blue-950/20';
+        return 'border-[color-mix(in_srgb,var(--accent-primary)_20%,var(--border))] bg-[var(--accent-primary-12)]';
       default:
         return 'border-border bg-background';
     }

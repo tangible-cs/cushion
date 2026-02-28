@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsc -b",
     "type-check": "tsc -b",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "lint": "tsc --noEmit"
   }
 }

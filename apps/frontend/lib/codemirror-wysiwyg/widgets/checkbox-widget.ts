@@ -43,10 +43,10 @@ export class CheckboxWidget extends WidgetType {
     rect.setAttribute('height', '14');
     rect.setAttribute('rx', '2');
     const isChecked = this.state === 'checked';
-    const accent = 'var(--md-accent, #6fb3d2)';
+    const accent = 'var(--md-accent)';
 
     rect.setAttribute('fill', isChecked ? accent : 'transparent');
-    rect.setAttribute('stroke', isChecked ? accent : 'var(--md-text-muted, #666)');
+    rect.setAttribute('stroke', isChecked ? accent : 'var(--md-text-muted)');
     rect.setAttribute('stroke-width', '1.5');
     svg.appendChild(rect);
     
@@ -54,7 +54,7 @@ export class CheckboxWidget extends WidgetType {
     if (isChecked) {
       const check = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       check.setAttribute('d', 'M4 8l2.5 2.5L12 5');
-      check.setAttribute('stroke', 'white');
+      check.setAttribute('stroke', 'var(--color-base-00)');
       check.setAttribute('stroke-width', '2');
       check.setAttribute('stroke-linecap', 'round');
       check.setAttribute('stroke-linejoin', 'round');

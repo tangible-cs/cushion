@@ -10,7 +10,10 @@
     "dev:coordinator": "bun run --filter coordinator dev",
     "build": "bun run --filter @cushion/types build && bun run --filter frontend build && bun run --filter coordinator build",
     "type-check": "bun run --filter '*' type-check",
-    "lint": "bun run --filter '*' lint",
+    "lint": "bun run --filter '*' lint && bun run lint:colors",
+    "lint:colors": "bun run scripts/color-guardrails.mjs",
+    "test": "bun run --filter '*' test",
+    "ci": "bun run lint && bun run type-check && bun run test",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next apps/*/dist"
   },
   "devDependencies": {

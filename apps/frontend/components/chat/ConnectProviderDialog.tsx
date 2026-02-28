@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
-import { getCoordinatorClient } from '@/lib/coordinator-client';
+import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { useToast } from './Toast';
 
 type AuthMethod = {
@@ -41,7 +41,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   useEffect(() => {
     async function loadAuthMethods() {
       try {
-        const client = getCoordinatorClient();
+        const client = await getSharedCoordinatorClient();
         const methods = await client.listProviderAuthMethods();
         const providerMethods = methods[providerId] || [{ type: 'api', label: 'API Key' }];
         setAuthMethods(providerMethods);
@@ -68,7 +68,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     setError('');
 
     try {
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       
       // Try to list models as a health check
       const result = await client.listOllamaModels();
@@ -100,7 +100,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     setError('');
 
     try {
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       
       // For Ollama, the "API key" is actually the base URL
       await client.setProviderAuth({ providerID: providerId, apiKey: ollamaBaseUrl });
@@ -139,7 +139,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
       setConfirmationCode('');
 
       try {
-        const client = getCoordinatorClient();
+        const client = await getSharedCoordinatorClient();
         const result = await client.authorizeOAuth({ providerID: providerId, method: index });
         setOAuthUrl(result.url);
         setOAuthMethod(result.method === 'code' ? 'code' : 'auto');
@@ -203,13 +203,13 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   const handleOAuthCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedMethodIndex) return;
+    if (selectedMethodIndex === undefined) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       await client.oauthCallback({ providerID: providerId, method: selectedMethodIndex, code: oauthCode });
 
       setOAuthState('complete');
@@ -243,7 +243,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     setError('');
 
     try {
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
 
       // Set the API key (coordinator validates it with provider API)
       await client.setProviderAuth({ providerID: providerId, apiKey });
@@ -283,7 +283,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   return createPortal(
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)]">
       <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-md w-full">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
             {onBack && !isOllama && (
               <button
@@ -366,7 +366,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-[var(--background-primary-alt)] rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                   disabled={loading || healthStatus !== 'running'}
                 >
                   {loading && <Loader2 className="size-4 animate-spin" />}
@@ -431,7 +431,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-[var(--background-primary-alt)] rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                   disabled={!apiKey || loading}
                 >
                   {loading && <Loader2 className="size-4 animate-spin" />}
@@ -499,7 +499,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-white rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                          className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-[var(--background-primary-alt)] rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                           disabled={!oauthCode || loading}
                         >
                           {loading && <Loader2 className="size-4 animate-spin" />}

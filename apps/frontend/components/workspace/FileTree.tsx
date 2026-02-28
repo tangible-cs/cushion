@@ -369,8 +369,8 @@ export function FileTree({
             <div
               className={cn(
                 "group/item relative flex items-center min-h-[30px] px-1.5 rounded cursor-pointer transition-colors duration-150",
-                "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
-                isActive && "bg-black/[0.04] dark:bg-white/[0.06]"
+                "hover:bg-nav-bg-hover hover:text-nav-item-hover",
+                isActive ? "bg-nav-bg-selected text-nav-item-active" : "text-nav-item"
               )}
               style={{ paddingLeft: `${indentPx + 6}px` }}
               onMouseEnter={() => setHoveredItem(node.path)}
@@ -437,7 +437,7 @@ export function FileTree({
                 ) : (
                   <span
                     className={cn(
-                      "truncate text-foreground",
+                      "truncate",
                       isFolder && "font-medium"
                     )}
                   >
@@ -471,6 +471,7 @@ export function FileTree({
                       level={level + 1}
                       onLoadDirectory={onLoadDirectory}
                       onAddFile={onAddFile}
+                      onAddFolder={onAddFolder}
                       onRename={onRename}
                       onDelete={onDelete}
                       onDuplicate={onDuplicate}

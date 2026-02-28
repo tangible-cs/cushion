@@ -180,7 +180,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           className={cn(
             "h-8 w-8 rounded flex items-center justify-center cursor-pointer",
             "text-muted-foreground hover:text-foreground",
-            "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+            "hover:bg-muted/40",
             "transition-colors duration-150"
           )}
           title="Open workspace"
@@ -225,7 +225,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             className={cn(
               "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
               "text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+              "hover:bg-muted/40",
               "transition-colors duration-150"
             )}
             title="Switch workspace"
@@ -249,7 +249,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               className={cn(
                 "h-8 w-8 rounded flex items-center justify-center cursor-pointer",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
               title="Close sidebar"
@@ -267,7 +267,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
             >
@@ -284,7 +284,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
             >
@@ -299,7 +299,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 "h-8 w-8 rounded flex items-center justify-center",
                 "bg-transparent border-none",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
             >
@@ -316,7 +316,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             className={cn(
               "w-full flex items-center gap-3 px-2 h-8 rounded-md",
               "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+              "hover:bg-muted/30",
               "transition-colors duration-150"
             )}
           >
@@ -330,7 +330,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             className={cn(
               "w-full flex items-center gap-3 px-2 h-8 rounded-md",
               "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+              "hover:bg-muted/30",
               "transition-colors duration-150"
             )}
           >
@@ -350,7 +350,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             className={cn(
               "w-full flex items-center gap-1.5 px-1 h-[26px] rounded text-xs font-semibold uppercase tracking-wide",
               "text-muted-foreground hover:text-foreground",
-              "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+              "hover:bg-muted/30",
               "transition-colors duration-150"
             )}
           >

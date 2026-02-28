@@ -36,6 +36,7 @@ interface WorkspaceActions {
   updateFileContent: (filePath: string, content: string) => void;
   markFileDirty: (filePath: string) => void;
   markFileSaved: (filePath: string, content: string) => void;
+  replaceOpenFileContent: (filePath: string, content: string) => void;
   setCurrentFile: (filePath: string | null) => void;
 
   // Tab management
@@ -187,6 +188,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ isLoading: true, error: null });
 
           try {
+            const previousProjectPath = get().metadata?.projectPath;
             const { projectName, gitRoot } = await coordinatorClient.openWorkspace(projectPath);
 
             const metadata: WorkspaceMetadata = {
@@ -196,10 +198,26 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
               gitRoot: gitRoot || undefined,
             };
 
-            set({
+            const isWorkspaceSwitch = previousProjectPath !== projectPath;
+
+            set((state) => ({
               metadata,
               isLoading: false,
-            });
+              error: null,
+              ...(isWorkspaceSwitch
+                ? {
+                    openFiles: new Map(),
+                    tabs: [],
+                    currentFile: null,
+                    fileTree: [],
+                    fileWatcher: {
+                      ...state.fileWatcher,
+                      watchedPaths: [],
+                      hasExternalChanges: new Map(),
+                    },
+                  }
+                : {}),
+            }));
 
             get().addRecentProject();
           } catch (error) {
@@ -369,6 +387,32 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const newOpenFiles = new Map(openFiles);
           newOpenFiles.set(filePath, updatedFile);
 
+          set({ openFiles: newOpenFiles });
+        },
+
+        /**
+         * Replace content of an already-open file (e.g. after external disk change).
+         * Atomically updates both content and savedContent so the editor refreshes
+         * without a transient dirty state.
+         */
+        replaceOpenFileContent: (filePath: string, content: string) => {
+          const { openFiles } = get();
+          const file = openFiles.get(filePath);
+          if (!file) return;
+
+          const frontmatter = extractFrontmatter(filePath, content);
+          const updatedFile: FileState = {
+            ...file,
+            content,
+            savedContent: content,
+            isDirty: false,
+            version: file.version + 1,
+            lastSaved: Date.now(),
+            frontmatter,
+          };
+
+          const newOpenFiles = new Map(openFiles);
+          newOpenFiles.set(filePath, updatedFile);
           set({ openFiles: newOpenFiles });
         },
 

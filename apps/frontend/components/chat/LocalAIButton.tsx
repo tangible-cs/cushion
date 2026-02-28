@@ -5,7 +5,7 @@ import { Monitor } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
-import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
+import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { cn } from '@/lib/utils';
 
 type LocalAIModel = {
@@ -39,8 +39,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
     const fetchModels = async () => {
       setIsLoading(true);
       try {
-        await ensureCoordinatorConnection();
-        const client = getCoordinatorClient();
+        const client = await getSharedCoordinatorClient();
         const result = await client.listOllamaModels();
 
         setIsRunning(result.running);
@@ -80,10 +79,8 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
     if (!model) return;
 
     try {
-      await ensureCoordinatorConnection();
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
 
-      // Write to OpenCode config with enabled models
       await client.writeOllamaConfig({
         models: newModels.filter((m) => m.enabled).map((m) => ({
           id: m.id,
@@ -108,8 +105,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
   const handleRefresh = async () => {
     setIsLoading(true);
     try {
-      await ensureCoordinatorConnection();
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       const result = await client.listOllamaModels();
       setIsRunning(result.running);
     } catch (error) {
@@ -198,7 +194,7 @@ export function LocalAIButton({ disabled = false }: LocalAIButtonProps) {
                     >
                       {model.enabled && (
                         <div className="flex items-center justify-center h-full">
-                          <div className="size-1.5 rounded-full bg-white" />
+                          <div className="size-1.5 rounded-full bg-[var(--background-primary-alt)]" />
                         </div>
                       )}
                     </div>
@@ -333,8 +329,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
     setError(null);
 
     try {
-      await ensureCoordinatorConnection();
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       const result = await client.pullOllamaModel(modelName);
 
       if (result.success) {
@@ -413,7 +408,7 @@ function PullModelDialog({ onClose, onSuccess }: PullModelDialogProps) {
               type="button"
               onClick={handlePull}
               disabled={!modelInput.trim() || isPulling}
-              className="px-3 py-1.5 text-xs text-white bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+              className="px-3 py-1.5 text-xs text-[var(--background-primary-alt)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
             >
               {isPulling ? 'Pulling...' : 'Pull'}
             </button>

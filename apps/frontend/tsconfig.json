@@ -5,12 +5,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@cushion/types": [
-        "../../packages/types/src/index.ts"
-      ],
-      "@cushion/types/*": [
-        "../../packages/types/src/*"
       ]
     },
     "isolatedModules": true

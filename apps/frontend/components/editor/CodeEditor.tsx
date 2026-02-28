@@ -314,69 +314,70 @@ export function CodeEditor({
     if (!containerRef.current) return;
 
     const container = containerRef.current;
-    container.style.setProperty('--md-code-gutter-width', '0px');
     let cancelled = false;
 
     // Theme that adapts via CSS variables (supports light/dark)
     const adaptiveTheme = EditorView.theme({
       '&': {
-        backgroundColor: 'var(--md-bg, #1a1a1a)',
-        color: 'var(--md-text, #e0e0e0)',
+        backgroundColor: 'var(--md-bg)',
+        color: 'var(--md-text)',
         outline: 'none',
       },
       '&.cm-focused': {
         outline: 'none',
       },
       '.cm-content': {
-        caretColor: 'var(--md-text, #e0e0e0)',
+        caretColor: 'var(--md-text)',
       },
       '.cm-cursor, .cm-dropCursor': {
-        borderLeftColor: 'var(--md-text, #e0e0e0)',
+        borderLeftColor: 'var(--md-text)',
       },
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-        backgroundColor: 'var(--md-selection-bg, rgba(100, 153, 255, 0.25)) !important',
+        backgroundColor: 'var(--md-selection-bg) !important',
       },
       '.cm-panels': {
-        backgroundColor: 'var(--md-bg-secondary, #242424)',
-        color: 'var(--md-text, #e0e0e0)',
+        backgroundColor: 'var(--md-bg-secondary)',
+        color: 'var(--md-text)',
       },
-      '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--md-border, #3a3a3a)' },
-      '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--md-border, #3a3a3a)' },
+      '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--md-border)' },
+      '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--md-border)' },
       '.cm-searchMatch': {
-        backgroundColor: 'var(--md-highlight-yellow, rgba(255, 235, 59, 0.3))',
+        backgroundColor: 'var(--md-highlight-yellow)',
       },
       '.cm-activeLine': {
-        backgroundColor: 'rgba(128, 128, 128, 0.05)',
+        backgroundColor: 'var(--md-active-line-bg)',
       },
       '.cm-gutters': {
-        backgroundColor: 'var(--md-bg, #1a1a1a)',
-        color: 'var(--md-text-faint, #666)',
+        backgroundColor: 'var(--md-bg)',
+        color: 'var(--md-text-faint)',
         border: 'none',
       },
       '.cm-activeLineGutter': {
-        backgroundColor: 'rgba(128, 128, 128, 0.08)',
+        backgroundColor: 'var(--md-active-line-gutter-bg)',
       },
     });
 
     const adaptiveHighlight = HighlightStyle.define([
-      { tag: tags.keyword, color: 'var(--md-code-keyword, #c678dd)' },
-      { tag: [tags.name, tags.deleted, tags.character, tags.macroName], color: 'var(--md-code-text, #e06c75)' },
-      { tag: [tags.function(tags.variableName)], color: 'var(--md-link-color, #61afef)' },
-      { tag: [tags.labelName], color: 'var(--md-text, #e0e0e0)' },
-      { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: '#d19a66' },
-      { tag: [tags.definition(tags.name), tags.separator], color: 'var(--md-text, #e0e0e0)' },
-      { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: '#e5c07b' },
-      { tag: [tags.operator, tags.operatorKeyword, tags.url, tags.escape, tags.regexp, tags.special(tags.string)], color: '#56b6c2' },
-      { tag: [tags.meta, tags.comment], color: 'var(--md-text-faint, #5c6370)', fontStyle: 'italic' },
+      { tag: tags.keyword, color: 'var(--md-code-keyword)' },
+      { tag: [tags.name, tags.deleted, tags.character, tags.macroName], color: 'var(--md-code-variable)' },
+      { tag: [tags.function(tags.variableName)], color: 'var(--md-code-function)' },
+      { tag: [tags.labelName], color: 'var(--md-text)' },
+      { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: 'var(--md-code-number)' },
+      { tag: [tags.definition(tags.name), tags.separator], color: 'var(--md-text)' },
+      { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: 'var(--md-code-type)' },
+      { tag: [tags.operator, tags.operatorKeyword, tags.escape, tags.regexp, tags.special(tags.string)], color: 'var(--md-code-operator)' },
+      { tag: tags.url, color: 'var(--md-link-color)' },
+      { tag: [tags.meta, tags.comment], color: 'var(--md-code-comment)', fontStyle: 'italic' },
       { tag: tags.strong, fontWeight: 'bold' },
       { tag: tags.emphasis, fontStyle: 'italic' },
       { tag: tags.strikethrough, textDecoration: 'line-through' },
       // Note: tags.link removed - we use .cm-link decoration for links with actual URLs
       // This prevents [0,1,2] from being styled as a link by the syntax highlighter
-      { tag: tags.heading, fontWeight: 'bold', color: 'var(--md-code-text, #e06c75)' },
-      { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: '#d19a66' },
-      { tag: [tags.processingInstruction, tags.string, tags.inserted], color: '#98c379' },
-      { tag: tags.invalid, color: 'var(--md-text-faint, #5c6370)' },
+      { tag: tags.heading, fontWeight: 'bold', color: 'var(--md-text)' },
+      { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: 'var(--md-code-boolean)' },
+      { tag: tags.processingInstruction, color: 'var(--md-text)' },
+      { tag: [tags.string, tags.inserted], color: 'var(--md-code-string)' },
+      { tag: tags.invalid, color: 'var(--md-text-faint)' },
     ]);
 
     // --- Explicit setup (replaces opaque `basicSetup` bundle) ---
@@ -437,6 +438,7 @@ export function CodeEditor({
       crosshairCursor(),
       highlightActiveLine(),
       highlightSelectionMatches(),
+      EditorView.lineWrapping,
       // -- Keymaps (CM-internal, explicitly listed) --
       keymap.of([
         ...closeBracketsKeymap,
@@ -506,18 +508,19 @@ export function CodeEditor({
         Prec.high(keymap.of(editorKeymap))
       ),
       EditorView.theme({
-        '&': { width: '100%' },
+        '&': { width: '100%', maxWidth: '100%', overflow: 'visible' },
         /* Let the editor grow with content, parent handles scrolling */
         '.cm-scroller': {
           overflow: 'visible',
-          marginLeft: 'calc(-1 * var(--md-code-gutter-width, 0px))',
-          width: 'calc(100% + var(--md-code-gutter-width, 0px))',
           paddingLeft: 'var(--md-content-padding-x, 1.25em)',
           paddingRight: 'var(--md-content-padding-x, 1.25em)',
+          minWidth: '0',
         },
         /* Content area — match markdown layout padding for all file types */
         '.cm-content': {
           maxWidth: 'var(--md-content-max-width, 900px)',
+          minWidth: '0',
+          ...(isMarkdownFile ? { width: '100%' } : {}),
           paddingTop: '1em',
           paddingBottom: '40vh',
           paddingLeft: '0',
@@ -525,9 +528,6 @@ export function CodeEditor({
         },
       }),
     ];
-
-    let gutterObserver: ResizeObserver | null = null;
-    let destroyed = false;
 
     const initEditor = async () => {
       const langExt = await getLanguageExtension(filePath, language);
@@ -559,33 +559,6 @@ export function CodeEditor({
         scheduleTypewriterCentering(view);
       }
 
-      if (!isMarkdownFile) {
-        const gutterEl = view.dom.querySelector('.cm-gutters') as HTMLElement | null;
-        const updateGutterWidth = () => {
-          if (destroyed || !gutterEl) return;
-          const width = gutterEl.getBoundingClientRect().width;
-          if (!Number.isFinite(width)) return;
-          let shift = width;
-          const parent = container.parentElement;
-          if (parent) {
-            const parentRect = parent.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            const availableLeft = Math.max(0, containerRect.left - parentRect.left);
-            shift = Math.min(width, availableLeft);
-          }
-          container.style.setProperty('--md-code-gutter-width', `${Math.ceil(shift)}px`);
-        };
-
-        if (gutterEl) {
-          requestAnimationFrame(updateGutterWidth);
-          if (typeof ResizeObserver !== 'undefined') {
-            gutterObserver = new ResizeObserver(updateGutterWidth);
-            gutterObserver.observe(gutterEl);
-            gutterObserver.observe(container);
-          }
-        }
-      }
-
       if (fileTree && fileTree.length > 0) {
         updateWikiLinkFileTree(view, fileTree);
       }
@@ -609,8 +582,6 @@ export function CodeEditor({
 
     return () => {
       cancelled = true;
-      destroyed = true;
-      gutterObserver?.disconnect();
       if (typewriterRafRef.current !== null) {
         cancelAnimationFrame(typewriterRafRef.current);
         typewriterRafRef.current = null;

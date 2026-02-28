@@ -117,7 +117,7 @@ export function ToolPartView({ part }: ToolPartViewProps) {
           <div className="space-y-0.5">
             {loadedFiles.map((filepath, index) => (
               <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="text-green-500">→</span>
+                <span className="text-accent-green">→</span>
                 <span>Loaded {filepath}</span>
               </div>
             ))}
@@ -130,7 +130,7 @@ export function ToolPartView({ part }: ToolPartViewProps) {
         )}
         {attachments && attachments.length > 0 && <AttachmentList parts={attachments} />}
         {error && (
-          <div className="text-xs text-red-400 py-1">{error}</div>
+          <div className="text-xs text-accent-red py-1">{error}</div>
         )}
       </Collapsible.Content>
     </Collapsible>

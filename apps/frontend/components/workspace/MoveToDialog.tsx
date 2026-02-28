@@ -118,11 +118,11 @@ export function MoveToDialog({
       onClick={onClose}
     >
       <div
-        className="bg-surface rounded-lg w-[480px] max-h-[600px] flex flex-col shadow-lg"
+        className="bg-modal-bg rounded-lg w-[480px] max-h-[600px] flex flex-col shadow-lg border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-modal-border">
           <div className="text-base font-semibold text-foreground">Move to folder</div>
           <button
             className="p-1 rounded cursor-pointer flex items-center justify-center text-foreground-muted hover:bg-[var(--overlay-10)] hover:text-foreground transition-all bg-transparent border-none"
@@ -166,13 +166,13 @@ export function MoveToDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border gap-3">
+        <div className="flex items-center justify-between px-5 py-4 border-t border-modal-border gap-3">
           <div className="flex-1 text-[13px] text-foreground-muted overflow-hidden text-ellipsis whitespace-nowrap" title={selectedPath}>
             Moving to: {selectedPath === '.' ? 'Project Root' : selectedPath}
           </div>
           <div className="flex gap-2">
             <button
-              className="px-4 py-2 rounded text-sm font-medium cursor-pointer border border-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all"
+              className="px-4 py-2 rounded text-sm font-medium cursor-pointer border border-modal-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all"
               onClick={onClose}
             >
               Cancel

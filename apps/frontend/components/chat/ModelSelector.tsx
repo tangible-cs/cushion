@@ -11,7 +11,7 @@ import { iconNames, type IconName } from './provider-icons/types';
 import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
-import { getCoordinatorClient, ensureCoordinatorConnection } from '@/lib/coordinator-client';
+import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { POPULAR_PROVIDERS } from '@/lib/model-constants';
 
 const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
@@ -23,10 +23,10 @@ type ModelSelectorProps = {
 
 const COMPACT_LABEL_LENGTHS = [0, 12, 8, 3] as const;
 const COMPACT_SIZE_CLASSES = [
-  'gap-1.5 px-2.5 max-w-[160px]',
-  'gap-1.5 px-2.5 max-w-[16ch]',
-  'gap-1 px-2 max-w-[12ch]',
-  'gap-1 px-2 max-w-[7ch]',
+  'gap-1.5 pl-2 pr-1 max-w-[160px]',
+  'gap-1.5 pl-2 pr-1 max-w-[16ch]',
+  'gap-1 pl-2 pr-1 max-w-[12ch]',
+  'gap-1 pl-2 pr-1 max-w-[7ch]',
 ] as const;
 
 function resolveCompactLevel(level?: number): number {
@@ -77,12 +77,10 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       providerName: string;
       modelID: string;
       modelName: string;
-      isPopular: boolean;
     }> = [];
 
     for (const prov of providers) {
       const entries = Object.entries(prov.models || {});
-      const isPopular = POPULAR_PROVIDERS.includes(prov.id);
       for (const [modelID, model] of entries) {
         if (!isModelVisible({ providerID: prov.id, modelID })) continue;
         const modelName = typeof model?.name === 'string' && model.name.trim().length > 0
@@ -93,16 +91,18 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
           providerName: prov.name,
           modelID,
           modelName,
-          isPopular,
         });
       }
     }
 
-    const filtered = models.filter(
-      (model) =>
-        model.modelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        model.providerName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const query = searchQuery.trim().toLowerCase();
+    const filtered = query
+      ? models.filter(
+        (model) =>
+          model.modelName.toLowerCase().includes(query)
+          || model.providerName.toLowerCase().includes(query)
+      )
+      : models;
 
     return filtered.sort((a, b) => {
       const aIndex = POPULAR_PROVIDERS.indexOf(a.providerID);
@@ -153,8 +153,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const handleConnectSuccess = async () => {
     setShowConnectDialog(null);
     try {
-      await ensureCoordinatorConnection();
-      const client = getCoordinatorClient();
+      const client = await getSharedCoordinatorClient();
       await client.listProviders();
       await useChatStore.getState().refreshProviders();
     } catch (error) {
@@ -180,33 +179,61 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
             type="button"
             disabled={disabled}
             title={displayText}
-            className={cn("h-7 min-w-0 rounded-md border border-transparent bg-transparent text-sm text-muted-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors", sizeClass)}
+            className={cn(
+              'group h-7 min-w-0 rounded-md border border-transparent bg-transparent text-[14px] font-normal text-muted-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors',
+              isOpen && 'bg-[var(--overlay-10)]',
+              sizeClass
+            )}
             aria-label={displayText}
           >
             {providerIcon ? (
-              <ProviderIcon id={providerIcon} className="size-4 shrink-0" />
+              <ProviderIcon
+                id={providerIcon}
+                className={cn(
+                  'size-4 shrink-0 transition-opacity duration-150',
+                  isOpen ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'
+                )}
+              />
             ) : (
-              <Icon name="providers" size="small" className="text-muted-foreground shrink-0" />
+              <Icon
+                name="providers"
+                size="small"
+                className={cn(
+                  'text-muted-foreground shrink-0 transition-opacity duration-150',
+                  isOpen ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+                )}
+              />
             )}
-            {showLabel && <span className="text-foreground truncate min-w-0">{compactLabel}</span>}
-            <ChevronDown className="size-4 shrink-0" />
+            {showLabel && <span className="text-foreground truncate min-w-0 text-[14px] font-normal">{compactLabel}</span>}
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="p-0 flex flex-col">
-          <div className="p-2 border-b border-border">
-            <input
-              type="text"
-              placeholder="Search models..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--md-accent)]"
-              autoFocus
-            />
-          </div>
-          <div className="flex items-center justify-end gap-1 p-1 border-b border-border">
+        <PopoverContent className="h-80 overflow-hidden p-2 flex flex-col !bg-surface-elevated !border-border">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-8 flex-1 items-center gap-2 rounded-md bg-surface px-2">
+              <Icon name="magnifying-glass-menu" size="small" className="text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                placeholder="Search models"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-full w-full border-none bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+                autoFocus
+              />
+              {searchQuery.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="size-5 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear search"
+                >
+                  <Icon name="close" size="small" />
+                </button>
+              )}
+            </div>
             <button
               type="button"
-              onClick={() => handleConnectProvider()}
+              onClick={handleConnectProvider}
               className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
               aria-label="Connect provider"
               title="Add new provider"
@@ -223,22 +250,13 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
               <Icon name="sliders" size="normal" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto max-h-56 thin-scrollbar">
-            {Object.entries(groupedModels).map(([providerName, models]) => {
-              const isFirstProvider = providerName === Object.keys(groupedModels)[0];
-
-              return (
-                <div key={providerName}>
-                  {isFirstProvider && (
-                    <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background">
-                      {providerName}
-                    </div>
-                  )}
-                  {!isFirstProvider && (
-                    <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-background border-t border-border">
-                      {providerName}
-                    </div>
-                  )}
+          <div className="flex-1 overflow-y-auto no-scrollbar">
+            {Object.entries(groupedModels).map(([providerName, models]) => (
+              <div key={providerName}>
+                <div className="sticky top-0 z-10 relative px-2 py-2 text-[13px] font-medium text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-[var(--surface-elevated)] after:to-transparent">
+                  {providerName}
+                </div>
+                <div className="space-y-0.5 pb-1">
                   {models.map((model) => {
                     const isSelected = selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID;
                     const isOllama = model.providerID === 'ollama';
@@ -248,25 +266,25 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
                         key={`${model.providerID}:${model.modelID}`}
                         type="button"
                         onClick={() => handleSelect(model.providerID, model.modelID)}
-                        className="w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
+                        className="w-full rounded-md px-2 py-1.5 text-left text-[14px] font-normal text-foreground hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus-visible:outline-none transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <div className="truncate flex-1">{model.modelName}</div>
                           {isOllama && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-500/10 text-green-500 whitespace-nowrap">
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-[var(--accent-green-12)] text-accent-green whitespace-nowrap">
                               Local
                             </span>
                           )}
-                          {isSelected && <Check className="size-3 text-muted-foreground shrink-0" />}
+                          {isSelected && <Check className="size-3.5 text-foreground shrink-0" />}
                         </div>
                       </button>
                     );
                   })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
             {allModels.length === 0 && (
-              <div className="px-3 py-8 text-xs text-muted-foreground text-center">No models found</div>
+              <div className="px-3 py-8 text-sm text-muted-foreground text-center">No models found</div>
             )}
           </div>
         </PopoverContent>

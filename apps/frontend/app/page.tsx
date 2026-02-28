@@ -404,7 +404,7 @@ export default function Home() {
 
        {/* RIGHT: Chat panel - also uses negative margin for smooth transition */}
         <aside
-          className="relative h-screen flex-shrink-0 border-l border-border bg-background transition-[margin] duration-300 ease-in-out"
+          className="relative h-screen flex-shrink-0 border-l border-border bg-sidebar-bg transition-[margin] duration-300 ease-in-out"
           style={{
             width: resolvedRightPanelWidth,
             marginRight: isRightPanelHidden ? -resolvedRightPanelWidth : 0,

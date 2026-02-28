@@ -297,10 +297,10 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-[#1f1f1f] text-[#888] gap-4">
+      <div className="flex flex-col items-center justify-center h-full bg-background text-foreground-faint gap-4">
         <FileText className="w-16 h-16 opacity-50" />
         <div className="text-center">
-          <p className="text-red-400 font-medium">Failed to load PDF</p>
+          <p className="text-accent-red font-medium">Failed to load PDF</p>
           <p className="text-sm mt-1">{error}</p>
         </div>
       </div>
@@ -308,7 +308,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#1f1f1f]">
+    <div className="flex flex-col h-full bg-background">
       <PdfToolbar
         editorMode={editorMode}
         setEditorMode={setEditorMode}
@@ -360,13 +360,13 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
       <div className="flex-1 relative min-h-0">
         <div
           ref={containerRef}
-          className="absolute inset-0 overflow-auto bg-[#525659] thin-scrollbar"
+          className="absolute inset-0 overflow-auto bg-[var(--color-base-40)] thin-scrollbar"
         >
           <div ref={viewerRef} className="pdfViewer" />
 
           {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#525659] text-[#888] gap-3">
-              <div className="w-8 h-8 border-2 border-[#555] border-t-[#0078d4] rounded-full animate-spin" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--color-base-40)] text-foreground-faint gap-3">
+              <div className="w-8 h-8 border-2 border-[var(--color-base-50)] border-t-accent rounded-full animate-spin" />
               <span className="text-sm">Loading PDF...</span>
             </div>
           )}
@@ -375,13 +375,13 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
       {/* Mode indicator */}
       {editorMode !== 'none' && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#323130] text-[#d4d4d4] px-4 py-2 rounded-full text-sm shadow-lg border border-[#484644] flex items-center gap-2 z-50">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-tab-container text-foreground px-4 py-2 rounded-full text-sm shadow-lg border border-border flex items-center gap-2 z-50">
           {editorMode === 'freetext' && <><Type size={16} /> Click to add text</>}
           {editorMode === 'ink' && <><Pencil size={16} /> Draw on the page</>}
           {editorMode === 'highlight' && <><Highlighter size={16} /> Select text to highlight</>}
           {editorMode === 'stamp' && <><ImageIcon size={16} /> Click to add image</>}
           {cancelShortcutLabel && (
-            <span className="text-[#888] ml-1 text-xs">({cancelShortcutLabel} to exit)</span>
+            <span className="text-foreground-faint ml-1 text-xs">({cancelShortcutLabel} to exit)</span>
           )}
         </div>
       )}

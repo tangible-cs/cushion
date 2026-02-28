@@ -153,6 +153,46 @@ export const WORKSPACE_SESSION_KEY = '__workspace__';
 export const MAX_PROMPT_SESSIONS = 20;
 
 // ---------------------------------------------------------------------------
+// Initial state
+// ---------------------------------------------------------------------------
+
+export const initialState: ChatState = {
+  baseUrl: getOpenCodeStatus().baseUrl,
+  directory: null,
+  client: null,
+  connection: getOpenCodeStatus(),
+  activeSessionId: null,
+  promptText: '',
+  contextItems: [],
+  contextBySession: {},
+  promptBySession: {},
+  promptSessionOrder: [],
+  activeSessionByDirectory: {},
+  agents: [],
+  selectedAgent: null,
+  selectedAgentByDirectory: {},
+  commands: [],
+  providers: [],
+  providerDefaults: {},
+  modelVisibility: {},
+  selectedModel: null,
+  selectedModelByDirectory: {},
+  selectedVariant: null,
+  selectedVariantByDirectory: {},
+  providerAuthErrors: {},
+  messageMeta: {},
+  sessions: [],
+  messages: {},
+  parts: {},
+  sessionStatus: {},
+  sessionDiffs: {},
+  todos: {},
+  permissions: {},
+  questions: {},
+  sessionErrors: {},
+};
+
+// ---------------------------------------------------------------------------
 // List utilities
 // ---------------------------------------------------------------------------
 

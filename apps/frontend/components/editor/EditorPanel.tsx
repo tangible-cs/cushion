@@ -87,6 +87,7 @@ export function EditorPanel({
   rightPanelOpen,
   onToggleRightPanel,
 }: EditorPanelProps) {
+  const workspacePath = useWorkspaceStore((s) => s.metadata?.projectPath ?? null);
   const currentFile = useWorkspaceStore((s) => s.currentFile);
   const tabs = useWorkspaceStore((s) => s.tabs);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
@@ -147,6 +148,19 @@ export function EditorPanel({
   const [pdfData, setPdfData] = useState<{ filePath: string; base64: string } | null>(null);
   const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
   const embedCacheRef = useRef(new Map<string, Promise<EmbedResolverResult | null>>());
+
+  useEffect(() => {
+    historyRef.current = {
+      entries: [],
+      index: -1,
+      navigating: false,
+    };
+    openedUrisRef.current.clear();
+    embedCacheRef.current.clear();
+    setPdfData(null);
+    setImageData(null);
+    forceUpdate((n) => n + 1);
+  }, [workspacePath]);
 
   const fileState = currentFile ? openFiles.get(currentFile) : null;
   const isPdf = currentFile?.toLowerCase().endsWith('.pdf') ?? false;
@@ -454,10 +468,10 @@ export function EditorPanel({
   );
 
   return (
-    <div className="flex flex-col w-full h-full bg-sidebar-bg">
+    <div className="flex flex-col w-full h-full bg-background">
       {/* Top bar: sidebar toggle, nav arrows, tabs */}
       {!focusModeEnabled && (
-        <div className="flex items-center bg-sidebar-bg min-h-[40px] flex-shrink-0">
+        <div className="flex items-center bg-background min-h-[40px] flex-shrink-0">
           {/* Sidebar toggle button (Affine-style) */}
           {sidebarCollapsed && (
             <button
@@ -465,7 +479,7 @@ export function EditorPanel({
               className={cn(
                 "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
               title="Open sidebar"
@@ -523,8 +537,8 @@ export function EditorPanel({
                   focusModeEnabled ? "text-foreground" : "text-muted-foreground",
                   "hover:text-foreground",
                   focusModeEnabled
-                    ? "bg-black/[0.06] dark:bg-white/[0.08]"
-                    : "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                    ? "bg-muted/40"
+                    : "hover:bg-muted/40",
                   "transition-colors duration-150"
                 )}
                 title={focusModeEnabled ? "Exit focus mode" : "Enter focus mode"}
@@ -538,7 +552,7 @@ export function EditorPanel({
               className={cn(
                 "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
                 "text-muted-foreground hover:text-foreground",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                "hover:bg-muted/40",
                 "transition-colors duration-150"
               )}
               title="Share"
@@ -552,7 +566,7 @@ export function EditorPanel({
                   "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
                   rightPanelOpen ? "text-foreground" : "text-muted-foreground",
                   "hover:text-foreground",
-                  "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                  "hover:bg-muted/40",
                   "transition-colors duration-150"
                 )}
                 title={rightPanelOpen ? "Close right sidebar" : "Open right sidebar"}
@@ -568,7 +582,7 @@ export function EditorPanel({
 
       {/* Editor content with rounded top corners */}
       <div
-        className="flex-1 min-h-0 overflow-auto rounded-tl-lg thin-scrollbar"
+        className="flex-1 min-h-0 min-w-0 overflow-auto rounded-tl-lg thin-scrollbar"
         ref={editorContainerRef}
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
@@ -623,7 +637,7 @@ export function EditorPanel({
             />
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Open a file from the sidebar
           </div>
         )}

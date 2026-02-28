@@ -23,23 +23,33 @@ export function useFileTree({
   onFilesChanged,
 }: UseFileTreeOptions): UseFileTreeReturn {
   const [fileTree, setFileTreeLocal] = useState<FileTreeNode[]>([]);
+  const [fileTreeWorkspacePath, setFileTreeWorkspacePath] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const workspacePath = metadata?.projectPath ?? null;
   const setStoreFileTree = useWorkspaceStore((state) => state.setFileTree);
   const onFilesChangedRef = useRef(onFilesChanged);
+  const fetchRunIdRef = useRef(0);
   onFilesChangedRef.current = onFilesChanged;
 
-  const setFileTree = useCallback((tree: FileTreeNode[]) => {
+  const setFileTree = useCallback((tree: FileTreeNode[], sourceWorkspacePath: string | null) => {
     setFileTreeLocal(tree);
+    setFileTreeWorkspacePath(sourceWorkspacePath);
     setStoreFileTree(tree);
   }, [setStoreFileTree]);
 
   const fetchFileTree = useCallback(async () => {
-    if (!client || !metadata) {
-      setFileTree([]);
+    const runId = ++fetchRunIdRef.current;
+
+    if (!client || !workspacePath) {
+      setFileTree([], workspacePath);
       return;
     }
 
     const buildTree = async (relativePath: string): Promise<FileTreeNode[]> => {
+      if (runId !== fetchRunIdRef.current) {
+        return [];
+      }
+
       const { files } = await client.listFiles(relativePath);
       const resolved = await Promise.all(
         files.map(async (node) => {
@@ -52,6 +62,9 @@ export function useFileTree({
             const children = await buildTree(childPath);
             return { ...node, children };
           } catch (error) {
+            if (runId !== fetchRunIdRef.current) {
+              return { ...node, children: [] };
+            }
             console.error('[useFileTree] Failed to list directory:', childPath, error);
             return { ...node, children: [] };
           }
@@ -63,11 +76,30 @@ export function useFileTree({
 
     try {
       const fullTree = await buildTree('.');
-      setFileTree(fullTree);
+
+      if (runId !== fetchRunIdRef.current) {
+        return;
+      }
+
+      const activeWorkspacePath = useWorkspaceStore.getState().metadata?.projectPath ?? null;
+      if (activeWorkspacePath !== workspacePath) {
+        return;
+      }
+
+      setFileTree(fullTree, workspacePath);
     } catch (err) {
+      if (runId !== fetchRunIdRef.current) {
+        return;
+      }
       console.error('[useFileTree] Failed to fetch file tree:', err);
     }
-  }, [client, metadata, setFileTree]);
+  }, [client, workspacePath, setFileTree]);
+
+  // Invalidate in-flight tree requests and clear visible tree on workspace switch
+  useEffect(() => {
+    fetchRunIdRef.current += 1;
+    setFileTree([], workspacePath);
+  }, [workspacePath, setFileTree]);
 
   // Fetch tree on mount/dependencies change
   useEffect(() => {
@@ -105,7 +137,7 @@ export function useFileTree({
 
   // Subscribe to file system watcher notifications
   useEffect(() => {
-    if (!client || !metadata) return;
+    if (!client || !workspacePath) return;
 
     const unsubTree = client.onFilesChanged(() => {
       onFilesChangedRef.current?.();
@@ -124,8 +156,7 @@ export function useFileTree({
           const freshState = useWorkspaceStore.getState();
           const freshFile = freshState.openFiles.get(filePath);
           if (freshFile && !freshFile.isDirty) {
-            freshState.openFile(filePath, content);
-            freshState.markFileSaved(filePath, content);
+            freshState.replaceOpenFileContent(filePath, content);
           }
         } catch {
           // File may have been deleted
@@ -140,7 +171,9 @@ export function useFileTree({
       unsubTree();
       unsubFile();
     };
-  }, [client, metadata, fetchFileTree]);
+  }, [client, workspacePath, fetchFileTree]);
 
-  return { fileTree, connectionState, fetchFileTree };
+  const resolvedFileTree = fileTreeWorkspacePath === workspacePath ? fileTree : [];
+
+  return { fileTree: resolvedFileTree, connectionState, fetchFileTree };
 }

@@ -16,6 +16,7 @@ interface Config {
     connected?: boolean;
     lastConnected?: number;
   };
+  syncedProviders?: string[];
 }
 
 const DEFAULT_CONFIG: Config = {
@@ -24,9 +25,14 @@ const DEFAULT_CONFIG: Config = {
 
 export class CredentialStorage {
   private config: Config = DEFAULT_CONFIG;
+  private ready: Promise<void>;
 
   constructor() {
-    this.loadConfig();
+    this.ready = this.loadConfig();
+  }
+
+  private async ensureReady(): Promise<void> {
+    await this.ready;
   }
 
   private async ensureConfigDir(): Promise<void> {
@@ -55,6 +61,7 @@ export class CredentialStorage {
   }
 
   async setCredential(providerID: string, apiKey: string): Promise<void> {
+    await this.ensureReady();
     this.config.credentials[providerID] = {
       providerID,
       auth: {
@@ -71,6 +78,7 @@ export class CredentialStorage {
     expires?: number;
     accountId?: string;
   }): Promise<void> {
+    await this.ensureReady();
     this.config.credentials[providerID] = {
       providerID,
       auth: {
@@ -82,29 +90,34 @@ export class CredentialStorage {
   }
 
   async getCredential(providerID: string): Promise<Credential | undefined> {
+    await this.ensureReady();
     return this.config.credentials[providerID];
   }
 
   async removeCredential(providerID: string): Promise<void> {
+    await this.ensureReady();
     delete this.config.credentials[providerID];
     await this.saveConfig();
   }
 
   async getAllCredentials(): Promise<Credential[]> {
+    await this.ensureReady();
     return Object.values(this.config.credentials);
   }
 
   async getConnectedProviderIDs(): Promise<string[]> {
+    await this.ensureReady();
     const providerIDs = Object.keys(this.config.credentials);
-    if (this.isOllamaConnected()) {
+    if (this.config.ollamaConfig?.connected === true) {
       providerIDs.push(OLLAMA_PROVIDER_ID);
     }
     return providerIDs;
   }
 
-  hasCredential(providerID: string): boolean {
+  async hasCredential(providerID: string): Promise<boolean> {
+    await this.ensureReady();
     if (providerID === OLLAMA_PROVIDER_ID) {
-      return this.isOllamaConnected();
+      return this.config.ollamaConfig?.connected === true;
     }
     return providerID in this.config.credentials;
   }
@@ -112,6 +125,7 @@ export class CredentialStorage {
   // --- Ollama-specific methods ---
 
   async connectOllama(baseUrl?: string): Promise<void> {
+    await this.ensureReady();
     this.config.ollamaConfig = {
       baseUrl: baseUrl || OLLAMA_DEFAULT_URL,
       connected: true,
@@ -121,19 +135,34 @@ export class CredentialStorage {
   }
 
   async disconnectOllama(): Promise<void> {
+    await this.ensureReady();
     delete this.config.ollamaConfig;
     await this.saveConfig();
   }
 
-  isOllamaConnected(): boolean {
+  async isOllamaConnected(): Promise<boolean> {
+    await this.ensureReady();
     return this.config.ollamaConfig?.connected === true;
   }
 
-  getOllamaBaseUrl(): string {
+  async getOllamaBaseUrl(): Promise<string> {
+    await this.ensureReady();
     return this.config.ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
   }
 
   async getOllamaConfig(): Promise<{ baseUrl?: string; connected?: boolean } | undefined> {
+    await this.ensureReady();
     return this.config.ollamaConfig;
+  }
+
+  async getSyncedProviders(): Promise<string[]> {
+    await this.ensureReady();
+    return this.config.syncedProviders ?? [];
+  }
+
+  async setSyncedProviders(ids: string[]): Promise<void> {
+    await this.ensureReady();
+    this.config.syncedProviders = ids;
+    await this.saveConfig();
   }
 }

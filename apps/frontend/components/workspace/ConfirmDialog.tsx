@@ -37,7 +37,7 @@ export function ConfirmDialog({
       onClick={onClose}
     >
       <div
-        className="bg-surface rounded-lg w-[400px] max-w-[90%] flex flex-col shadow-lg animate-slide-in"
+        className="bg-modal-bg rounded-lg w-[400px] max-w-[90%] flex flex-col shadow-lg animate-slide-in border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -68,7 +68,7 @@ export function ConfirmDialog({
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 pt-4 pb-5">
           <button
-            className="px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent-primary-12)]"
+            className="px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-modal-border bg-transparent text-foreground hover:bg-[var(--overlay-10)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent-primary-12)]"
             onClick={onClose}
           >
             {cancelText}

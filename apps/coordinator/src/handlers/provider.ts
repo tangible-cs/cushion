@@ -1,3 +1,4 @@
+import type { Provider, Model, AuthMethod } from '@cushion/types';
 import { CredentialStorage, OLLAMA_PROVIDER_ID } from '../providers/storage.js';
 import { getAllProviders, getProviderByID, getPopularProviderIDs } from '../providers/registry.js';
 import { getModelsDevCache } from '../providers/models-dev.js';
@@ -9,20 +10,28 @@ import {
   pullOllamaModel,
   deleteOllamaModel,
 } from '../providers/ollama.js';
-import { discoverModels, estimateContextWindow } from '../providers/ollama-discover.js';
+import { type DiscoveredModel, discoverModels, estimateContextWindow } from '../providers/ollama-discover.js';
 import { writeOllamaToConfig } from '../providers/ollama-config.js';
+import { syncCredentialsToOpenCode } from '../providers/credential-sync.js';
 
 export async function handleProviderList(
   credentialStorage: CredentialStorage
-): Promise<{ providers: any[]; connected: string[] }> {
+): Promise<{ providers: Provider[]; connected: string[] }> {
   const providers = await getAllProviders();
   const connected = await credentialStorage.getConnectedProviderIDs();
   return { providers, connected };
 }
 
+export async function handleProviderSync(
+  credentialStorage: CredentialStorage
+): Promise<{ success: boolean }> {
+  await syncCredentialsToOpenCode(credentialStorage);
+  return { success: true };
+}
+
 export async function handleProviderRefresh(
   credentialStorage: CredentialStorage
-): Promise<{ providers: any[]; connected: string[] }> {
+): Promise<{ providers: Provider[]; connected: string[] }> {
   const cache = getModelsDevCache();
   await cache.refresh();
 
@@ -36,20 +45,13 @@ export function handleProviderPopular(): { ids: string[] } {
 }
 
 export async function handleProviderAuthMethods(): Promise<
-  Record<string, Array<{ type: string; label: string }>>
+  Record<string, AuthMethod[]>
 > {
   const providers = await getAllProviders();
-  const authMethods: Record<string, Array<{ type: string; label: string }>> = {};
+  const authMethods: Record<string, AuthMethod[]> = {};
 
   for (const provider of providers) {
-    if (provider.authMethods) {
-      authMethods[provider.id] = provider.authMethods.map((m) => ({
-        type: m.type,
-        label: m.label,
-      }));
-    } else {
-      authMethods[provider.id] = [{ type: 'api', label: 'API Key' }];
-    }
+    authMethods[provider.id] = provider.authMethods ?? [{ type: 'api', label: 'API Key' }];
   }
 
   return authMethods;
@@ -160,8 +162,8 @@ export async function handleProviderOAuthCallback(
 
 export async function handleOllamaList(
   credentialStorage: CredentialStorage
-): Promise<{ models: any[]; running: boolean }> {
-  const baseUrl = credentialStorage.getOllamaBaseUrl();
+): Promise<{ models: Model[]; running: boolean }> {
+  const baseUrl = await credentialStorage.getOllamaBaseUrl();
   const running = await checkOllamaHealth(baseUrl);
   if (!running) {
     return { models: [], running: false };
@@ -175,7 +177,7 @@ export async function handleOllamaPull(
   credentialStorage: CredentialStorage,
   params: { model: string }
 ): Promise<{ success: boolean; error?: string }> {
-  const baseUrl = credentialStorage.getOllamaBaseUrl();
+  const baseUrl = await credentialStorage.getOllamaBaseUrl();
   return pullOllamaModel(params.model, baseUrl);
 }
 
@@ -183,15 +185,15 @@ export async function handleOllamaDelete(
   credentialStorage: CredentialStorage,
   params: { model: string }
 ): Promise<{ success: boolean; error?: string }> {
-  const baseUrl = credentialStorage.getOllamaBaseUrl();
+  const baseUrl = await credentialStorage.getOllamaBaseUrl();
   return deleteOllamaModel(params.model, baseUrl);
 }
 
 export async function handleOllamaWriteConfig(
   credentialStorage: CredentialStorage,
-  params: { baseUrl?: string; models?: any[] }
+  params: { baseUrl?: string; models?: unknown[] }
 ): Promise<{ success: boolean; message: string }> {
-  const baseUrl = params.baseUrl || credentialStorage.getOllamaBaseUrl();
+  const baseUrl = params.baseUrl || await credentialStorage.getOllamaBaseUrl();
 
   const discovery = await discoverModels(baseUrl);
 
@@ -202,13 +204,17 @@ export async function handleOllamaWriteConfig(
     };
   }
 
-  // If partial models passed from frontend (just id/name), enrich with discovery data
-  let models = params.models || discovery.models;
-  if (params.models && params.models.length > 0 && !params.models[0].family) {
-    const discoveryMap = new Map(discovery.models.map((m: any) => [m.id, m]));
-    models = params.models
-      .map((m: any) => discoveryMap.get(m.id) || m)
-      .filter((m: any) => m.family);
+  let models: DiscoveredModel[] = discovery.models;
+  if (params.models && params.models.length > 0) {
+    const partials = params.models as Array<Record<string, unknown>>;
+    if (!partials[0].family) {
+      const discoveryMap = new Map(discovery.models.map((m) => [m.id, m]));
+      models = partials
+        .map((m) => discoveryMap.get(m.id as string))
+        .filter((m): m is DiscoveredModel => m != null);
+    } else {
+      models = partials as unknown as DiscoveredModel[];
+    }
   }
 
   const contextWindows: Record<string, number> = {};

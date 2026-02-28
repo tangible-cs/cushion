@@ -171,9 +171,9 @@ function DiffChanges({ changes, variant = 'default', className }: DiffChangesPro
   };
 
   const blocks = computeBlocks();
-  const ADD_COLOR = 'var(--accent-green, #22c55e)';
-  const DELETE_COLOR = 'var(--accent-red, #ef4444)';
-  const NEUTRAL_COLOR = 'var(--foreground-subtle, #8a8a8a)';
+  const ADD_COLOR = 'var(--accent-green)';
+  const DELETE_COLOR = 'var(--accent-red)';
+  const NEUTRAL_COLOR = 'var(--foreground-subtle)';
   const visibleBlocks = [
     ...Array(blocks.added).fill(ADD_COLOR),
     ...Array(blocks.deleted).fill(DELETE_COLOR),

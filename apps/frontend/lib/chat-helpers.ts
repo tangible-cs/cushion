@@ -1,4 +1,4 @@
-import type { Agent, Message, Provider, ProviderAuthError, Session } from '@opencode-ai/sdk/v2/client';
+import type { Agent, Message, Provider, Session } from '@opencode-ai/sdk/v2/client';
 import type { PromptContextItem, PromptSelection, SelectedModel } from '@/stores/chat-store-utils';
 
 // ---------------------------------------------------------------------------
@@ -360,28 +360,3 @@ export function findNextUserMessage(messages: Message[], afterId: string) {
   return messages.find((message) => message.role === 'user' && message.id > afterId);
 }
 
-// ---------------------------------------------------------------------------
-// Error helpers
-// ---------------------------------------------------------------------------
-
-export function getProviderAuthError(error: unknown) {
-  if (!error || typeof error !== 'object') return null;
-  if (!('name' in error)) return null;
-  if ((error as { name?: string }).name !== 'ProviderAuthError') return null;
-  return error as ProviderAuthError;
-}
-
-export function getSessionErrorMessage(error: unknown) {
-  if (!error) return 'Unknown error';
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string') return message;
-  }
-  if (typeof error === 'object' && 'type' in error) {
-    const typeValue = (error as { type?: unknown }).type;
-    if (typeof typeValue === 'string') return typeValue;
-  }
-  return 'Unknown error';
-}

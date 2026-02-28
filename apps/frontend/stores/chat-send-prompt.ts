@@ -8,9 +8,8 @@ import {
   resolveInlineReferences,
   resolveAbsolutePath,
   buildFileUrl,
-  getSessionErrorMessage,
-  getProviderAuthError,
 } from '@/lib/chat-helpers';
+import { wrapSdk, mapSdkError } from '@/lib/sdk-result';
 import {
   type PromptInputPayload,
   type PromptContextItem,
@@ -139,7 +138,7 @@ export async function handleSendPrompt(
         ...(resolvedVariant ? { variant: resolvedVariant } : {}),
       });
     } catch (error) {
-      const message = getSessionErrorMessage(error);
+      const sdkError = mapSdkError(error);
       set((prev) => {
         const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
         const nextPromptBySession = {
@@ -159,7 +158,7 @@ export async function handleSendPrompt(
           promptSessionOrder: pruned.promptSessionOrder,
           sessionErrors: {
             ...prev.sessionErrors,
-            [nextSessionId]: message,
+            [nextSessionId]: sdkError.message,
           },
         };
       });
@@ -210,7 +209,7 @@ export async function handleSendPrompt(
           ...(resolvedVariant ? { variant: resolvedVariant } : {}),
         });
       } catch (error) {
-        const message = getSessionErrorMessage(error);
+        const sdkError = mapSdkError(error);
         set((prev) => {
           const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
           const nextPromptBySession = {
@@ -230,7 +229,7 @@ export async function handleSendPrompt(
             promptSessionOrder: pruned.promptSessionOrder,
             sessionErrors: {
               ...prev.sessionErrors,
-              [nextSessionId]: message,
+              [nextSessionId]: sdkError.message,
             },
           };
         });
@@ -414,8 +413,7 @@ export async function handleSendPrompt(
         ...(resolvedVariant ? { variant: resolvedVariant } : {}),
       });
     } catch (error) {
-      const message = getSessionErrorMessage(error);
-      const authError = getProviderAuthError(error);
+      const sdkError = mapSdkError(error);
       set((prev) => {
         const list = prev.messages[nextSessionId] ?? [];
         const nextMessages = {
@@ -451,12 +449,12 @@ export async function handleSendPrompt(
           promptSessionOrder: pruned.promptSessionOrder,
           sessionErrors: {
             ...prev.sessionErrors,
-            [nextSessionId]: message,
+            [nextSessionId]: sdkError.message,
           },
-          providerAuthErrors: authError
+          providerAuthErrors: sdkError.isAuthError && sdkError.providerID
             ? {
                 ...prev.providerAuthErrors,
-                [authError.data.providerID]: authError.data.message,
+                [sdkError.providerID]: sdkError.message,
               }
             : prev.providerAuthErrors,
         };

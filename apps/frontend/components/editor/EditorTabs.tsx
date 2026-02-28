@@ -35,8 +35,8 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
               "group flex items-center gap-1.5 h-7 px-3 rounded text-sm cursor-pointer select-none min-w-0 min-w-[60px]",
               "transition-colors duration-150",
               isActive
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                ? "bg-tab-active text-tab-text-active shadow-sm"
+                : "text-tab-text hover:bg-tab-active/60 hover:text-tab-text-active"
             )}
             title={getFileName(tab.filePath)}
             onClick={() => onSelectTab(tab.filePath)}
@@ -45,14 +45,14 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
               {getFileName(tab.filePath)}
             </span>
             {isDirty && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
             )}
             {/* Close button - visible on hover or when active */}
             <button
               className={cn(
                 "w-4 h-4 flex items-center justify-center rounded",
                 "transition-opacity duration-150",
-                "hover:bg-black/10 dark:hover:bg-white/10",
+                "hover:bg-muted/60",
                 isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 group-hover:hover:opacity-100"
               )}
               onClick={(e) => {

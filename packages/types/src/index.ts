@@ -252,3 +252,5 @@ export interface FileChangedOnDiskNotification {
 }
 
 export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
+
+export * from './rpc.js';

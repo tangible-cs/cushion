@@ -335,7 +335,7 @@ export function combinedAutocomplete(): Extension {
       override: [combinedCompletions],
       activateOnTyping: true,
       defaultKeymap: true,
-      icons: true,
+      icons: false,
       optionClass: (completion) => {
         if (completion.type === 'keyword') return 'cm-wiki-link-create';
         return 'cm-wiki-link-option';

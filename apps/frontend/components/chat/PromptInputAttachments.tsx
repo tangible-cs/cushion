@@ -138,7 +138,7 @@ export function AttachmentPreview({ attachments, onRemove }: AttachmentPreviewPr
               <Icon name="close" size="small" className="text-muted-foreground" />
             </button>
             <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-[var(--overlay-50)] rounded-b-md">
-              <span className="text-[10px] text-white truncate block">{attachment.filename}</span>
+              <span className="text-[10px] text-surface truncate block">{attachment.filename}</span>
             </div>
           </div>
         );

@@ -67,7 +67,7 @@ export function ContextMenu({ items, isOpen, onClose, position }: ContextMenuPro
         left: `${adjustedPosition.x}px`,
         top: `${adjustedPosition.y}px`,
       }}
-      className="z-context-menu bg-surface border border-border rounded-lg shadow-md p-1 min-w-[220px] animate-menu-fade-in"
+      className="z-context-menu bg-menu-bg border border-menu-border rounded-lg shadow-md p-1 min-w-[220px] animate-menu-fade-in"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {items.map((item, index) => (
