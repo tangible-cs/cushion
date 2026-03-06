@@ -9,6 +9,20 @@ interface WorkspaceContext {
   projectPath: string;
 }
 
+const MAX_BASE64_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
+
+const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+};
+
 export class WorkspaceManager {
   private currentWorkspace: WorkspaceContext | null = null;
   private watcher = new WorkspaceWatcher();
@@ -313,19 +327,79 @@ export class WorkspaceManager {
 
     const buffer = await fs.readFile(fullPath);
     const base64 = buffer.toString('base64');
-    const ext = path.extname(relativePath).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      '.pdf': 'application/pdf',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.webp': 'image/webp',
-      '.bmp': 'image/bmp',
-      '.ico': 'image/x-icon',
-    };
-    return { base64, mimeType: mimeMap[ext] || 'application/octet-stream' };
+    return { base64, mimeType: this.getMimeType(relativePath) };
+  }
+
+  async readFileBase64Chunk(
+    relativePath: string,
+    offset: number,
+    length: number,
+  ): Promise<{
+    base64: string;
+    mimeType: string;
+    offset: number;
+    bytesRead: number;
+    totalBytes: number;
+  }> {
+    if (!this.currentWorkspace) {
+      throw new Error('No workspace open');
+    }
+
+    if (!Number.isInteger(offset) || offset < 0) {
+      throw new Error('Invalid chunk offset');
+    }
+
+    if (!Number.isInteger(length) || length <= 0) {
+      throw new Error('Invalid chunk length');
+    }
+
+    const fullPath = this.resolvePath(relativePath);
+
+    try {
+      const stats = await fs.stat(fullPath);
+
+      if (!stats.isFile()) {
+        throw new Error(`Cannot read directory as file: ${relativePath}`);
+      }
+
+      if (offset >= stats.size) {
+        return {
+          base64: '',
+          mimeType: this.getMimeType(relativePath),
+          offset,
+          bytesRead: 0,
+          totalBytes: stats.size,
+        };
+      }
+
+      const boundedLength = Math.min(length, MAX_BASE64_CHUNK_SIZE_BYTES);
+      const bytesToRead = Math.min(boundedLength, stats.size - offset);
+      const handle = await fs.open(fullPath, 'r');
+
+      try {
+        const buffer = Buffer.allocUnsafe(bytesToRead);
+        const { bytesRead } = await handle.read(buffer, 0, bytesToRead, offset);
+        const chunk = bytesRead === buffer.length ? buffer : buffer.subarray(0, bytesRead);
+
+        return {
+          base64: chunk.toString('base64'),
+          mimeType: this.getMimeType(relativePath),
+          offset,
+          bytesRead,
+          totalBytes: stats.size,
+        };
+      } finally {
+        await handle.close();
+      }
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`File not found: ${relativePath}`);
+      }
+      if (error.code === 'EACCES') {
+        throw new Error(`Permission denied: ${relativePath}`);
+      }
+      throw error;
+    }
   }
 
   async saveFileBase64(relativePath: string, base64: string): Promise<void> {
@@ -379,6 +453,11 @@ export class WorkspaceManager {
 
   private detectLineEnding(content: string): 'LF' | 'CRLF' {
     return content.includes('\r\n') ? 'CRLF' : 'LF';
+  }
+
+  private getMimeType(relativePath: string): string {
+    const ext = path.extname(relativePath).toLowerCase();
+    return MIME_TYPES_BY_EXTENSION[ext] || 'application/octet-stream';
   }
 
   private async findGitRoot(startPath: string): Promise<string | null> {

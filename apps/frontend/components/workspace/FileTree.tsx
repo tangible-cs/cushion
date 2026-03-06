@@ -307,7 +307,7 @@ export function FileTree({
             <FileIcon />
           </div>
           <input
-            className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+            className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
             type="text"
             value={newFileName}
             onChange={(e) => setNewFileName(e.target.value)}
@@ -336,7 +336,7 @@ export function FileTree({
             <FolderIcon open={false} />
           </div>
           <input
-            className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+            className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
             type="text"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
@@ -419,7 +419,7 @@ export function FileTree({
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 {renamingItem === node.path ? (
                   <input
-                    className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+                    className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
@@ -490,7 +490,7 @@ export function FileTree({
                       <FileIcon />
                     </div>
                     <input
-                      className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+                      className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
                       type="text"
                       value={newFileName}
                       onChange={(e) => setNewFileName(e.target.value)}
@@ -519,7 +519,7 @@ export function FileTree({
                       <FolderIcon open={false} />
                     </div>
                     <input
-                      className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+                      className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
                       type="text"
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}

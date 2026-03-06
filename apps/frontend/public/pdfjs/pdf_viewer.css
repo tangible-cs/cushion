@@ -5320,7 +5320,7 @@
     }
 
 .popupMenu{
-  --menuitem-checkmark-icon:url(/pdfjs/images/checkmark.svg);
+  --menuitem-checkmark-icon:none;
   --menu-mark-icon-size:0;
   --menu-icon-size:16px;
   --menuitem-gap:5px;
@@ -5576,8 +5576,8 @@
   --treeitem-selected-color:var(--csstools-light-dark-toggle--104, rgb(0 0 0 / 0.9));
   --csstools-light-dark-toggle--105:var(--csstools-color-scheme--light) rgb(255 255 255 / 0.25);
   --treeitem-selected-bg-color:var(--csstools-light-dark-toggle--105, rgb(0 0 0 / 0.25));
-  --treeitem-expanded-icon:url(/pdfjs/images/treeitem-expanded.svg);
-  --treeitem-collapsed-icon:url(/pdfjs/images/treeitem-collapsed.svg);
+  --treeitem-expanded-icon:none;
+  --treeitem-collapsed-icon:none;
 }
 
 @supports (color: light-dark(red, red)) and (color: rgb(0 0 0 / 0)){
@@ -5721,18 +5721,18 @@
   }
 
 #viewsManager{
-  --views-manager-button-icon:url(/pdfjs/images/pages_viewButton.svg);
-  --views-manager-button-arrow-icon:url(/pdfjs/images/pages_viewArrow.svg);
-  --views-manager-add-file-button-icon:url(/pdfjs/images/toolbarButton-zoomIn.svg);
-  --current-outline-button-icon:url(/pdfjs/images/toolbarButton-currentOutlineItem.svg);
-  --menuitem-thumbnailsView-icon:url(/pdfjs/images/pages_viewButton.svg);
-  --menuitem-outlinesView-icon:url(/pdfjs/images/toolbarButton-viewOutline.svg);
-  --menuitem-attachmentsView-icon:url(/pdfjs/images/toolbarButton-viewAttachments.svg);
-  --menuitem-layersView-icon:url(/pdfjs/images/toolbarButton-viewLayers.svg);
-  --manage-button-icon:url(/pdfjs/images/toolbarButton-pageDown.svg);
-  --close-button-icon:url(/pdfjs/images/pages_closeButton.svg);
+  --views-manager-button-icon:none;
+  --views-manager-button-arrow-icon:none;
+  --views-manager-add-file-button-icon:none;
+  --current-outline-button-icon:none;
+  --menuitem-thumbnailsView-icon:none;
+  --menuitem-outlinesView-icon:none;
+  --menuitem-attachmentsView-icon:none;
+  --menuitem-layersView-icon:none;
+  --manage-button-icon:none;
+  --close-button-icon:none;
   --undo-label-icon:url(/pdfjs/images/altText_done.svg);
-  --pages-selected-icon:url(/pdfjs/images/pages_selected.svg);
+  --pages-selected-icon:none;
   --spinner-icon:url(/pdfjs/images/altText_spinner.svg);
 
   --csstools-light-dark-toggle--106:var(--csstools-color-scheme--light) rgb(35 34 43 / 0.92);
@@ -6816,7 +6816,7 @@
   content:"";
   width:100%;
   height:100%;
-  background:url("images/loading-icon.gif") center no-repeat;
+  background:url(/pdfjs/images/loading-icon.gif) center no-repeat;
   display:none;
   transition-property:display;
   transition-delay:var(--loading-icon-delay);

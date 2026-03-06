@@ -68,6 +68,12 @@ export type SelectedModel = {
   modelID: string;
 };
 
+export type DisplayPreferences = {
+  showThinking: boolean;
+  shellToolPartsExpanded: boolean;
+  editToolPartsExpanded: boolean;
+};
+
 export type ChatState = {
   baseUrl: string;
   directory: OpenCodeDirectory | null;
@@ -75,6 +81,7 @@ export type ChatState = {
   connection: OpenCodeConnectionState;
   activeSessionId: string | null;
   promptText: string;
+  displayPreferences: DisplayPreferences;
   contextItems: PromptContextItem[];
   contextBySession: Record<string, PromptContextItem[]>;
   promptBySession: Record<string, string>;
@@ -134,6 +141,9 @@ export type ChatActions = {
   compactSession: () => Promise<void>;
   shareSession: () => Promise<string | null>;
   unshareSession: () => Promise<void>;
+  toggleShowThinking: () => void;
+  toggleShellToolPartsExpanded: () => void;
+  toggleEditToolPartsExpanded: () => void;
 };
 
 export type ChatStore = ChatState & ChatActions;
@@ -156,6 +166,12 @@ export const MAX_PROMPT_SESSIONS = 20;
 // Initial state
 // ---------------------------------------------------------------------------
 
+export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+  showThinking: true,
+  shellToolPartsExpanded: true,
+  editToolPartsExpanded: false,
+};
+
 export const initialState: ChatState = {
   baseUrl: getOpenCodeStatus().baseUrl,
   directory: null,
@@ -163,6 +179,7 @@ export const initialState: ChatState = {
   connection: getOpenCodeStatus(),
   activeSessionId: null,
   promptText: '',
+  displayPreferences: DEFAULT_DISPLAY_PREFERENCES,
   contextItems: [],
   contextBySession: {},
   promptBySession: {},

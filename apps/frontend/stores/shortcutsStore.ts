@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { getDefaultBindings, type ShortcutId } from '@/lib/shortcuts/registry';
 import { areBindingsEqual, normalizeBindings } from '@/lib/shortcuts/utils';
 
@@ -13,6 +13,7 @@ interface ShortcutsState {
 }
 
 export const useShortcutsStore = create<ShortcutsState>()(
+  subscribeWithSelector(
   persist(
     (set, get) => ({
       overrides: {},
@@ -45,6 +46,7 @@ export const useShortcutsStore = create<ShortcutsState>()(
       name: 'cushion-shortcuts',
       partialize: (state) => ({ overrides: state.overrides }),
     }
+  )
   )
 );
 

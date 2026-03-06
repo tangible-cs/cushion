@@ -10,8 +10,10 @@
     "dev:coordinator": "bun run --filter coordinator dev",
     "build": "bun run --filter @cushion/types build && bun run --filter frontend build && bun run --filter coordinator build",
     "type-check": "bun run --filter '*' type-check",
-    "lint": "bun run --filter '*' lint && bun run lint:colors",
+    "lint": "bun run --filter '*' lint && bun run lint:colors && bun run verify:pdfjs-assets",
     "lint:colors": "bun run scripts/color-guardrails.mjs",
+    "sync:pdfjs-assets": "bun run scripts/sync-pdfjs-assets.mjs",
+    "verify:pdfjs-assets": "bun run scripts/verify-pdfjs-assets.mjs",
     "test": "bun run --filter '*' test",
     "ci": "bun run lint && bun run type-check && bun run test",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next apps/*/dist"

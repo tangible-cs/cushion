@@ -225,10 +225,10 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'InlineCode') {
-        decorations.push(
-          Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
-        );
         if (!isSelectRange(state, { from, to })) {
+          decorations.push(
+            Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
+          );
           hideSubNodeMarks(node, 'CodeMark', decorations, 'code');
         }
         return false;

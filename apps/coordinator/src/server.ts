@@ -17,6 +17,7 @@ import type {
 } from '@cushion/types';
 
 import { WorkspaceManager } from './workspace/manager.js';
+import { ConfigManager } from './workspace/config-manager.js';
 import { CredentialStorage } from './providers/storage.js';
 import { getModelsDevCache } from './providers/models-dev.js';
 import { getOAuthHandler } from './providers/oauth.js';
@@ -34,8 +35,18 @@ import {
   handleDuplicateFile,
   handleCreateFolder,
   handleReadFileBase64,
+  handleReadFileBase64Chunk,
   handleSaveFileBase64,
 } from './handlers/workspace.js';
+
+import {
+  handleConfigRead,
+  handleConfigWrite,
+  handleListSnippets,
+  handleReadSnippet,
+  handleWriteSnippet,
+  handleDeleteSnippet,
+} from './handlers/config.js';
 
 import {
   handleProviderList,
@@ -63,6 +74,7 @@ export class CoordinatorServer {
   private wss!: WebSocketServer;
   private clients = new Map<WebSocket, Map<string, DocumentState>>();
   private workspaceManager: WorkspaceManager;
+  private configManager: ConfigManager;
   private credentialStorage: CredentialStorage;
   private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private binDir: string;
@@ -74,6 +86,7 @@ export class CoordinatorServer {
 
   constructor(private port: number = 3001, private allowedOrigins?: string[]) {
     this.workspaceManager = new WorkspaceManager();
+    this.configManager = new ConfigManager();
     this.credentialStorage = new CredentialStorage();
     this.binDir = path.join(__dirname, '..', 'bin');
 
@@ -200,6 +213,7 @@ export class CoordinatorServer {
         // Workspace handlers
         case 'workspace/open':
           result = await handleOpenWorkspace(this.workspaceManager, request.params as RPCParams<'workspace/open'>);
+          this.configManager.setWorkspacePath((request.params as RPCParams<'workspace/open'>).projectPath);
           break;
 
         case 'workspace/select-folder':
@@ -244,6 +258,10 @@ export class CoordinatorServer {
 
         case 'workspace/file-base64':
           result = await handleReadFileBase64(this.workspaceManager, request.params as RPCParams<'workspace/file-base64'>);
+          break;
+
+        case 'workspace/file-base64-chunk':
+          result = await handleReadFileBase64Chunk(this.workspaceManager, request.params as RPCParams<'workspace/file-base64-chunk'>);
           break;
 
         case 'workspace/save-file-base64':
@@ -310,6 +328,31 @@ export class CoordinatorServer {
 
         case 'provider/ollama/write-config':
           result = await handleOllamaWriteConfig(this.credentialStorage, request.params as RPCParams<'provider/ollama/write-config'>);
+          break;
+
+        // Config handlers
+        case 'config/read':
+          result = await handleConfigRead(this.configManager, request.params as RPCParams<'config/read'>);
+          break;
+
+        case 'config/write':
+          result = await handleConfigWrite(this.configManager, request.params as RPCParams<'config/write'>);
+          break;
+
+        case 'config/list-snippets':
+          result = await handleListSnippets(this.configManager);
+          break;
+
+        case 'config/read-snippet':
+          result = await handleReadSnippet(this.configManager, request.params as RPCParams<'config/read-snippet'>);
+          break;
+
+        case 'config/write-snippet':
+          result = await handleWriteSnippet(this.configManager, request.params as RPCParams<'config/write-snippet'>);
+          break;
+
+        case 'config/delete-snippet':
+          result = await handleDeleteSnippet(this.configManager, request.params as RPCParams<'config/delete-snippet'>);
           break;
 
         default:

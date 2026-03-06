@@ -3,6 +3,7 @@ node_modules/
 
 # Reference implementations (cloned for research)
 inspo/
+docs/
 
 # AI tools
 .claude/

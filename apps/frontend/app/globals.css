@@ -110,10 +110,10 @@
   --nav-item-background-selected: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15);
 
   /* Component tokens: tabs (Obsidian-aligned) */
-  --tab-container-background: var(--color-base-20);
-  --tab-background-active: var(--color-base-00);
-  --tab-text-color: var(--text-faint);
-  --tab-text-color-active: var(--text-muted);
+  --tab-container-background: var(--background-secondary);
+  --tab-background-active: var(--background-primary);
+  --tab-text-color: var(--text-muted);
+  --tab-text-color-active: var(--text-normal);
 
   /* Component tokens: graph (Obsidian-aligned) */
   --graph-text: var(--text-normal);
@@ -233,28 +233,28 @@ html, body {
 
 /* pdf.js annotation editor toolbar fixes — Tailwind Preflight overrides box-sizing
    and pseudo-element defaults that pdf.js relies on */
-.editToolbar,
-.editToolbar *,
-.editToolbar *::before,
-.editToolbar *::after {
+.pdfjs-viewer-shell .editToolbar,
+.pdfjs-viewer-shell .editToolbar *,
+.pdfjs-viewer-shell .editToolbar *::before,
+.pdfjs-viewer-shell .editToolbar *::after {
   box-sizing: content-box;
 }
 
-.editToolbar .buttons .colorPicker .dropdown {
+.pdfjs-viewer-shell .editToolbar .buttons .colorPicker .dropdown {
   box-sizing: border-box;
 }
 
 /* Ensure pdf.js annotation toolbar and dropdowns are not clipped by parent containers */
-.annotationEditorLayer {
+.pdfjs-viewer-shell .annotationEditorLayer {
   overflow: visible;
 }
 
-.annotationEditorLayer .selectedEditor {
+.pdfjs-viewer-shell .annotationEditorLayer .selectedEditor {
   overflow: visible;
 }
 
 /* Reset Tailwind button normalization inside pdf.js toolbars */
-.editToolbar button {
+.pdfjs-viewer-shell .editToolbar button {
   background: none;
   border: none;
   padding: 0;
@@ -263,7 +263,7 @@ html, body {
 }
 
 /* Force editToolbar .buttons to be a horizontal flex row */
-.editToolbar .buttons {
+.pdfjs-viewer-shell .editToolbar .buttons {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -272,7 +272,7 @@ html, body {
 }
 
 /* Force delete button to stay inline, fixed size, with hardcoded icon */
-.editToolbar .buttons .deleteButton {
+.pdfjs-viewer-shell .editToolbar .buttons .deleteButton {
   width: 28px !important;
   height: 28px !important;
   flex-shrink: 0 !important;
@@ -282,7 +282,7 @@ html, body {
   position: relative !important;
 }
 
-.editToolbar .buttons .deleteButton::before {
+.pdfjs-viewer-shell .editToolbar .buttons .deleteButton::before {
   content: "" !important;
   display: block !important;
   width: 16px !important;
@@ -298,12 +298,12 @@ html, body {
   -webkit-mask-size: contain !important;
 }
 
-.editToolbar .buttons .deleteButton:hover {
+.pdfjs-viewer-shell .editToolbar .buttons .deleteButton:hover {
   border-radius: 2px;
   background-color: var(--editor-toolbar-hover-bg-color, var(--overlay-10));
 }
 
-.editToolbar .buttons .divider {
+.pdfjs-viewer-shell .editToolbar .buttons .divider {
   width: 0;
   height: 28px;
   border-left: 1px solid var(--editor-toolbar-border-color, var(--border));
@@ -314,14 +314,14 @@ html, body {
 }
 
 /* Ensure the colorPicker dropdown can extend beyond the toolbar */
-.editToolbar .buttons .colorPicker {
+.pdfjs-viewer-shell .editToolbar .buttons .colorPicker {
   overflow: visible;
   position: relative;
 }
 
 /* Force the dropdown to be absolutely positioned (pdf.js uses deeply nested :is() selectors
    that may not match). Without this, the dropdown renders in-flow and pushes the delete button down. */
-.editToolbar .buttons .colorPicker .dropdown {
+.pdfjs-viewer-shell .editToolbar .buttons .colorPicker .dropdown {
   position: absolute !important;
   inset-block-start: calc(100% + 4px);
   width: calc(100% + 4px);
@@ -329,7 +329,7 @@ html, body {
 }
 
 /* Hidden class for pdf.js dropdown toggle */
-.editToolbar .buttons .colorPicker .dropdown.hidden {
+.pdfjs-viewer-shell .editToolbar .buttons .colorPicker .dropdown.hidden {
   display: none !important;
 }
 
@@ -668,41 +668,84 @@ html, body {
 }
 
 [data-slot="user-message-copy-wrapper"] {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-[data-slot="user-message-text"]:hover [data-slot="user-message-copy-wrapper"] {
-  opacity: 1;
-}
-
-[data-slot="session-turn-summary-header"] {
+  min-height: 24px;
+  margin-top: 4px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  align-self: stretch;
-}
-
-[data-slot="session-turn-response"] {
-  position: relative;
-  width: 100%;
-}
-
-[data-slot="session-turn-response-copy-wrapper"] {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s ease;
-  z-index: 1;
 }
 
-[data-slot="session-turn-response"]:hover [data-slot="session-turn-response-copy-wrapper"] {
+[data-component="user-message"]:hover [data-slot="user-message-copy-wrapper"],
+[data-component="user-message"]:focus-within [data-slot="user-message-copy-wrapper"] {
   opacity: 1;
+  pointer-events: auto;
+}
+
+[data-slot="user-message-meta-wrap"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+[data-slot="user-message-meta"],
+[data-slot="user-message-meta-sep"],
+[data-slot="user-message-meta-tail"] {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--foreground-muted);
+  user-select: none;
+  white-space: nowrap;
+  cursor: default;
+}
+
+[data-slot="user-message-meta"] {
+  flex: 1 1 auto;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-slot="user-message-meta-tail"] {
+  flex: 0 0 auto;
+}
+
+/* Text part: copy wrapper + footer meta (OpenCode-style hover reveal) */
+[data-component="text-part"] [data-slot="text-part-copy-wrapper"] {
+  min-height: 24px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+[data-component="text-part"] [data-slot="text-part-meta"] {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  user-select: none;
+  cursor: default;
+}
+
+[data-component="text-part"] [data-slot="text-part-copy-wrapper"][data-interrupted] {
+  width: 100%;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+[data-component="text-part"]:hover [data-slot="text-part-copy-wrapper"],
+[data-component="text-part"]:focus-within [data-slot="text-part-copy-wrapper"] {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ========================================
@@ -844,41 +887,508 @@ html, body {
   width: 100%;
 }
 
-[data-slot="session-turn-collapsible"] {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  overflow: visible;
-}
-
-[data-slot="session-turn-collapsible-content-inner"] {
+[data-slot="session-turn-assistant-parts"] {
   width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-self: stretch;
   gap: 12px;
-  margin-left: 12px;
-  padding-left: 12px;
-  padding-right: 12px;
-  border-left: 1px solid var(--border);
 }
 
-[data-slot="session-turn-summary-section"] {
+/* Reasoning Part Styles (OpenCode-aligned) */
+[data-component="reasoning-part"] {
+  width: 100%;
+  color: var(--foreground-muted);
+  line-height: 1.75;
+}
+
+[data-component="reasoning-part"] [data-component="markdown"] {
+  margin-top: 24px;
+  font-style: normal;
+  font-size: inherit;
+  color: var(--foreground-muted);
+}
+
+[data-component="reasoning-part"] [data-component="markdown"] strong,
+[data-component="reasoning-part"] [data-component="markdown"] b {
+  color: var(--foreground-muted);
+}
+
+[data-component="reasoning-part"] [data-component="markdown"] p:has(strong) {
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+[data-component="reasoning-part"] [data-component="markdown"] p:has(strong):first-child {
+  margin-top: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-component="reasoning-part"] [data-component="markdown"] :not(pre) > code {
+    opacity: 0.6;
+  }
+}
+
+/* Edit/Write Tool Triggers (OpenCode-aligned) */
+[data-component="edit-trigger"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-title-area"] {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-title"] {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-title-text"] {
+  text-transform: capitalize;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-title-filename"] {
+  font-weight: 400;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-path"] {
+  display: flex;
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-directory"] {
+  color: var(--foreground-muted);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+[data-component="edit-trigger"] [data-slot="message-part-actions"] {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Edit/Write Tool Content Areas */
+[data-component="edit-content"],
+[data-component="write-content"] {
+  border-radius: inherit;
+  overflow-x: hidden;
+  overflow-y: visible;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Write tool code display */
+[data-component="write-code"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: 400px;
+  white-space: pre;
+  color: var(--foreground);
+  background-color: var(--background-subtle);
+  border-top: 1px solid var(--border);
+  scrollbar-width: none;
+}
+
+/* Edit/Write Tool Wrapper — sticky trigger and content styling */
+[data-component="edit-tool"],
+[data-component="write-tool"] {
+  > [data-component="collapsible"] {
+    gap: 0;
+  }
+
+  > [data-component="collapsible"] > [data-slot="collapsible-content"] {
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+}
+
+/* Tool File Accordion (inner file accordion for edit/write) */
+[data-component="tool-file-accordion"] {
+  border-top: 1px solid var(--border);
+}
+
+[data-slot="tool-file-accordion-trigger"] {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  background-color: var(--background-subtle);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+[data-slot="tool-file-trigger-content"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 20px;
+}
+
+[data-slot="tool-file-info"] {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-slot="tool-file-name-container"] {
+  display: flex;
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+[data-slot="tool-file-directory"] {
+  color: var(--foreground-muted);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+[data-slot="tool-file-filename"] {
+  color: var(--foreground);
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+[data-slot="tool-file-trigger-actions"] {
+  flex-shrink: 0;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+[data-slot="tool-file-accordion-content"] {
+  border-top: 1px solid var(--border);
+}
+
+/* DiffView inside edit tool — constrain height */
+[data-component="edit-content"] [data-component="diff-view"],
+[data-slot="tool-file-accordion-content"] [data-component="diff-view"] {
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* Apply Patch Multi-File Accordion */
+
+[data-component="apply-patch-tool"] > [data-component="collapsible"].tool-collapsible {
+  gap: 0px;
+}
+
+[data-component="apply-patch-files"] {
+  border-top: 1px solid var(--border);
+}
+
+[data-component="apply-patch-file-entry"] {
+  border-bottom: 1px solid var(--border);
+}
+
+[data-component="apply-patch-file-entry"]:last-child {
+  border-bottom: none;
+}
+
+[data-slot="apply-patch-file-trigger"] {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface-elevated);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+[data-slot="apply-patch-file-trigger"]:hover {
+  background: var(--muted);
+}
+
+[data-slot="apply-patch-trigger-content"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 20px;
+}
+
+[data-slot="apply-patch-file-info"] {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-slot="apply-patch-file-name-container"] {
+  display: flex;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+[data-slot="apply-patch-directory"] {
+  color: var(--foreground-muted);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 13px;
+}
+
+[data-slot="apply-patch-filename"] {
+  color: var(--foreground);
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+[data-slot="apply-patch-trigger-actions"] {
+  flex-shrink: 0;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+[data-slot="apply-patch-change"] {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+[data-slot="apply-patch-change"][data-type="added"] {
+  color: var(--accent-green);
+}
+
+[data-slot="apply-patch-change"][data-type="removed"] {
+  color: var(--accent-red);
+}
+
+[data-slot="apply-patch-change"][data-type="modified"] {
+  color: var(--accent-yellow, var(--foreground-muted));
+}
+
+[data-slot="apply-patch-file-content"] {
+  border-top: 1px solid var(--border);
+}
+
+[data-component="apply-patch-file-diff"] {
+  border-radius: inherit;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+[data-component="apply-patch-file-diff"] [data-component="diff-view"] {
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-radius: 0;
+  border: none;
+  border-top: none;
+}
+
+/* Diagnostics Display (LSP errors after edit/write) */
+[data-component="diagnostics"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: var(--accent-red-12);
+  border-top: 1px solid color-mix(in srgb, var(--accent-red) 35%, transparent);
+  -webkit-user-select: text;
+  user-select: text;
+
+  [data-slot="diagnostic"] {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  [data-slot="diagnostic-label"] {
+    color: var(--accent-red);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+
+  [data-slot="diagnostic-location"] {
+    color: color-mix(in srgb, var(--accent-red) 70%, var(--foreground));
+    flex-shrink: 0;
+  }
+
+  [data-slot="diagnostic-message"] {
+    color: color-mix(in srgb, var(--accent-red) 80%, var(--foreground));
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+}
+
+/* Tool Error Display (OpenCode-aligned) */
+[data-component="tool-error"] {
+  width: 100%;
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  background-color: var(--accent-red-12);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 35%, transparent);
+  border-radius: var(--radius-md, 6px);
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 20px;
+  color: color-mix(in srgb, var(--accent-red) 80%, var(--foreground));
+}
+
+[data-component="tool-error"] .tool-error-icon {
+  color: var(--accent-red);
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+[data-component="tool-error"] [data-slot="tool-error-content"] {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-component="tool-error"] [data-slot="tool-error-title"] {
+  font-weight: 500;
+  color: var(--accent-red);
+  white-space: nowrap;
+}
+
+[data-component="tool-error"] [data-slot="tool-error-message"] {
+  max-height: 240px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+/* Generation-level error card (OpenCode: Card variant="error" in session-turn) */
+[data-component="generation-error"] {
+  width: 100%;
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  background-color: var(--accent-red-12);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 35%, transparent);
+  border-radius: var(--radius-md, 6px);
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 20px;
+  color: color-mix(in srgb, var(--accent-red) 80%, var(--foreground));
+  max-height: 240px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-y: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+[data-component="generation-error"] .generation-error-icon {
+  color: var(--accent-red);
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+[data-slot="session-turn-diff-section"] {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 8px;
   align-items: flex-start;
   align-self: stretch;
 }
 
-[data-slot="session-turn-summary-title"] {
-  font-size: 13px;
+[data-slot="session-turn-diffs"] {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-component="session-turn-diffs-trigger"] {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+[data-slot="session-turn-diffs-title"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+[data-slot="session-turn-diffs-label"] {
+  color: var(--foreground);
+  font-size: 14px;
   font-weight: 500;
+  line-height: 20px;
+}
+
+[data-slot="session-turn-diffs-count"] {
   color: var(--foreground-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+[data-slot="session-turn-diffs-meta"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+[data-component="session-turn-diffs-content"] {
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
 [data-slot="session-turn-collapsible-trigger-content"] {
@@ -927,19 +1437,6 @@ html, body {
   background: var(--surface);
 }
 
-[data-slot="session-turn-diff-summary"] {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-[data-slot="session-turn-diff-title"] {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--foreground-muted);
-}
-
 [data-slot="session-turn-accordion"] {
   display: flex;
   flex-direction: column;
@@ -976,18 +1473,6 @@ html, body {
   padding: 8px 10px;
   text-align: left;
   cursor: pointer;
-  margin: 0;
-  display: block;
-}
-
-[data-slot="session-turn-accordion-trigger"] {
-  width: 100%;
-  border: 0;
-  background: var(--surface);
-  padding: 8px 10px;
-  text-align: left;
-  cursor: pointer;
-  margin: 0;
 }
 
 [data-component="sticky-accordion-header"][data-expanded]::before {
@@ -997,15 +1482,6 @@ html, body {
   top: calc(-1 * var(--sticky-header-height, 0px));
   background-color: var(--surface);
   z-index: -1;
-}
-
-[data-slot="session-turn-accordion-trigger"] {
-  width: 100%;
-  border: 0;
-  background: var(--surface);
-  padding: 8px 10px;
-  text-align: left;
-  cursor: pointer;
 }
 
 [data-slot="session-turn-accordion-trigger"]:hover {
@@ -1341,6 +1817,131 @@ html, body {
   height: auto;
 }
 
+/* ========================================
+   Bash Tool Output (matching OpenCode)
+   ======================================== */
+
+[data-component="bash-output"] {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-component="bash-output"] [data-slot="bash-copy"] {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 1;
+}
+
+[data-component="bash-output"]:hover [data-slot="bash-copy"],
+[data-component="bash-output"]:focus-within [data-slot="bash-copy"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+[data-component="bash-output"] [data-slot="bash-scroll"] {
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 240px;
+  scrollbar-width: none;
+}
+
+[data-component="bash-output"] [data-slot="bash-scroll"]::-webkit-scrollbar {
+  display: none;
+}
+
+[data-component="bash-output"] [data-slot="bash-pre"] {
+  margin: 0;
+  padding: 12px;
+}
+
+[data-component="bash-output"] [data-slot="bash-pre"] code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}
+
+/* TodoWrite checklist */
+[data-component="todos"] {
+  padding: 10px 0 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: text;
+}
+
+[data-component="todo-checkbox"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: default;
+  pointer-events: none;
+}
+
+[data-slot="todo-checkbox-control"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  margin-top: 0.5px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border);
+}
+
+[data-component="todo-checkbox"][data-checked] [data-slot="todo-checkbox-control"] {
+  border-color: var(--border);
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+[data-slot="todo-content"] {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+[data-slot="todo-content"][data-completed] {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* Question tool — answered Q&A pairs */
+[data-component="question-answers"] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 8px 8px;
+}
+
+[data-slot="question-answer-item"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+[data-slot="question-answer-item"] [data-slot="question-text"] {
+  color: var(--foreground-muted);
+}
+
+[data-slot="question-answer-item"] [data-slot="answer-text"] {
+  color: var(--foreground);
+}
+
 [data-slot="session-turn-status-text"] {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1406,4 +2007,168 @@ html, body {
 /* Collapsible content */
 [data-slot="collapsible-content"] {
   content-visibility: auto;
+}
+
+/* Tool shimmer animation for pending/running states */
+@keyframes text-shimmer {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.text-shimmer {
+  color: var(--foreground-muted);
+  animation: text-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Per-character text shimmer (OpenCode-style thinking indicator) */
+[data-component="text-shimmer"] [data-slot="text-shimmer-char"] {
+  white-space: pre;
+  color: inherit;
+}
+
+[data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char"] {
+  animation-name: text-shimmer-char;
+  animation-duration: var(--text-shimmer-duration, 1200ms);
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-delay: calc(var(--text-shimmer-step, 45ms) * var(--text-shimmer-index));
+}
+
+@keyframes text-shimmer-char {
+  0%, 100% { color: var(--foreground-muted); }
+  30% { color: var(--muted-foreground); }
+  55% { color: var(--foreground); }
+  75% { color: var(--foreground); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char"] {
+    animation: none !important;
+    color: inherit;
+  }
+}
+
+/* Thinking indicator */
+[data-slot="session-turn-thinking"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  color: var(--foreground-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  min-height: 20px;
+}
+
+[data-slot="session-turn-thinking-heading"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+[data-slot="session-turn-thinking-duration"] {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Context tool group trigger */
+[data-component="context-tool-group-trigger"] {
+  width: 100%;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0px;
+  cursor: pointer;
+
+  [data-slot="context-tool-group-title"] {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--foreground);
+  }
+
+  [data-slot="context-tool-group-label"] {
+    flex-shrink: 0;
+  }
+
+  [data-slot="context-tool-group-summary"] {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 400;
+    color: var(--muted-foreground);
+  }
+
+  [data-slot="collapsible-arrow"] {
+    color: var(--muted-foreground);
+  }
+}
+
+/* Context tool group expanded list */
+[data-component="context-tool-group-list"] {
+  padding: 6px 0 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  [data-slot="context-tool-group-item"] {
+    min-width: 0;
+    padding: 6px 0;
+  }
+
+  [data-slot="basic-tool-tool-info-main"] {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  [data-slot="basic-tool-tool-title"] {
+    flex-shrink: 0;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--foreground);
+  }
+
+  [data-slot="basic-tool-tool-subtitle"] {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
+
+  [data-slot="basic-tool-tool-arg"] {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
 }

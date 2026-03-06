@@ -6,6 +6,7 @@ export const PDF_SHORTCUT_IDS = [
   'pdf.save',
   'pdf.zoom.in',
   'pdf.zoom.out',
+  'pdf.zoom.reset',
 ] as const;
 
 // Annotation editor modes from pdf.js

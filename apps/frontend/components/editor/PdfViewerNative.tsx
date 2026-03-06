@@ -13,18 +13,199 @@ import {
 import { PdfToolbar, PdfSearchBar } from './PdfToolbar';
 import { usePdfZoom } from '@/hooks/usePdfZoom';
 import { usePdfSearch } from '@/hooks/usePdfSearch';
+import {
+  markPdfTelemetry,
+  markPdfTelemetryDuration,
+  pdfTelemetryNow,
+  type PdfTelemetrySession,
+} from '@/lib/pdf-telemetry';
+import { base64ToUint8Array, downloadPdf, printPdf } from '@/lib/pdf-bytes';
+
+interface PdfBase64Chunk {
+  base64: string;
+  offset: number;
+  bytesRead: number;
+  totalBytes: number;
+  mimeType: string;
+}
+
+interface PdfProgressiveLoadingConfig {
+  readChunk: (offset: number, length: number) => Promise<PdfBase64Chunk>;
+  rangeChunkSize?: number;
+}
 
 interface PdfViewerNativeProps {
   filePath: string;
-  base64Data: string;
-  onSave?: (data: Uint8Array) => void;
+  base64Data?: string;
+  telemetrySession?: PdfTelemetrySession | null;
+  progressiveLoading?: PdfProgressiveLoadingConfig | null;
+  readOriginalBase64?: (() => Promise<string>) | null;
+  onSave?: (data: Uint8Array) => void | Promise<void>;
+}
+
+const DEFAULT_PDF_RANGE_CHUNK_SIZE = 256 * 1024;
+
+function mergeUint8Chunks(chunks: Uint8Array[], totalLength: number): Uint8Array {
+  if (chunks.length === 1) {
+    return chunks[0];
+  }
+
+  const merged = new Uint8Array(totalLength);
+  let writeOffset = 0;
+
+  for (const chunk of chunks) {
+    merged.set(chunk, writeOffset);
+    writeOffset += chunk.length;
+  }
+
+  return merged;
+}
+
+function normalizeError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (typeof error === 'string' && error.length > 0) {
+    return new Error(error);
+  }
+
+  return new Error(fallbackMessage);
+}
+
+function createCoordinatorRangeTransport(
+  pdfjsLib: any,
+  initialChunk: PdfBase64Chunk,
+  readChunk: (offset: number, length: number) => Promise<PdfBase64Chunk>,
+  onFatalError?: (error: Error) => void,
+) {
+  const initialData = base64ToUint8Array(initialChunk.base64);
+  if (initialData.length !== initialChunk.bytesRead) {
+    throw new Error(
+      `Initial chunk decode mismatch (decoded ${initialData.length}, expected ${initialChunk.bytesRead})`
+    );
+  }
+
+  const transport = new pdfjsLib.PDFDataRangeTransport(initialChunk.totalBytes, initialData, false);
+  let aborted = false;
+  let fatalErrorReported = false;
+  const inFlight = new Map<string, Promise<void>>();
+
+  const reportFatalError = (error: unknown) => {
+    if (aborted || fatalErrorReported) {
+      return;
+    }
+
+    fatalErrorReported = true;
+    onFatalError?.(normalizeError(error, 'Failed to stream PDF data'));
+  };
+
+  (transport as any).requestDataRange = (begin: number, end: number) => {
+    if (aborted || end <= begin) {
+      return;
+    }
+
+    const key = `${begin}:${end}`;
+    if (inFlight.has(key)) {
+      return;
+    }
+
+    const requestPromise = (async () => {
+      try {
+        const requestedLength = end - begin;
+        let loadedBytes = 0;
+        let nextOffset = begin;
+        const expectedTotalBytes = initialChunk.totalBytes;
+        const decodedChunks: Uint8Array[] = [];
+
+        while (!aborted && loadedBytes < requestedLength) {
+          const chunk = await readChunk(nextOffset, requestedLength - loadedBytes);
+
+          if (chunk.bytesRead <= 0) {
+            throw new Error(`Empty chunk response at offset ${nextOffset}`);
+          }
+
+          if (chunk.offset !== nextOffset) {
+            throw new Error(
+              `Unexpected chunk offset (expected ${nextOffset}, received ${chunk.offset})`
+            );
+          }
+
+          if (chunk.totalBytes !== expectedTotalBytes) {
+            throw new Error(
+              `Document size changed during progressive read (expected ${expectedTotalBytes}, received ${chunk.totalBytes})`
+            );
+          }
+
+          const decodedChunk = base64ToUint8Array(chunk.base64);
+          if (decodedChunk.length !== chunk.bytesRead) {
+            throw new Error(
+              `Chunk decode mismatch at offset ${nextOffset} (decoded ${decodedChunk.length}, expected ${chunk.bytesRead})`
+            );
+          }
+
+          const chunkLength = decodedChunk.length;
+
+          if (chunkLength <= 0) {
+            throw new Error(`Decoded empty chunk at offset ${nextOffset}`);
+          }
+
+          decodedChunks.push(decodedChunk);
+
+          loadedBytes += chunkLength;
+          nextOffset += chunkLength;
+        }
+
+        if (aborted || loadedBytes <= 0) {
+          return;
+        }
+
+        if (loadedBytes < requestedLength) {
+          throw new Error(
+            `Incomplete chunk response for range ${begin}:${end} (${loadedBytes}/${requestedLength} bytes)`
+          );
+        }
+
+        const mergedChunk = mergeUint8Chunks(decodedChunks, loadedBytes);
+        (transport as any).onDataRange(begin, mergedChunk);
+        (transport as any).onDataProgress(
+          Math.min(expectedTotalBytes, begin + loadedBytes),
+          expectedTotalBytes,
+        );
+      } catch (error) {
+        if (!aborted) {
+          const normalizedError = normalizeError(error, 'Failed to read PDF chunk');
+          console.error('[PdfViewerNative] Failed to read PDF chunk:', normalizedError);
+          reportFatalError(normalizedError);
+        }
+      } finally {
+        inFlight.delete(key);
+      }
+    })();
+
+    inFlight.set(key, requestPromise);
+  };
+
+  (transport as any).abort = () => {
+    aborted = true;
+    inFlight.clear();
+  };
+
+  return transport;
 }
 
 /**
  * PDF Viewer using pdf.js native PDFViewer component with built-in annotation editors.
  * This uses pdf.js's own annotation editing which saves properly to PDF.
  */
-export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativeProps) {
+export function PdfViewerNative({
+  filePath,
+  base64Data,
+  telemetrySession,
+  progressiveLoading,
+  readOriginalBase64,
+  onSave,
+}: PdfViewerNativeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -34,17 +215,40 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   const [editorMode, setEditorMode] = useState<EditorMode>('none');
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const pdfShortcuts = useShortcutBindings(PDF_SHORTCUT_IDS);
 
   const pdfDocRef = useRef<any>(null);
   const pdfViewerRef = useRef<any>(null);
   const eventBusRef = useRef<any>(null);
+  const decodedPdfBytesRef = useRef<{ base64Key: string; bytes: Uint8Array } | null>(null);
+  const saveInFlightRef = useRef(false);
+  const pendingSavedBytesRef = useRef<Uint8Array | null>(null);
+  const lastSavedBytesRef = useRef<Uint8Array | null>(null);
 
   // Extracted hooks
-  const { zoom, setZoom, handleZoom, handleZoomPreset } = usePdfZoom(pdfViewerRef, containerRef);
+  const {
+    zoom,
+    setZoom,
+    handleZoom,
+    handleZoomPreset,
+    handleZoomReset,
+  } = usePdfZoom(pdfViewerRef, containerRef);
   const {
     showSearch, searchQuery, setSearchQuery, searchInputRef,
-    handleSearch, openSearch, closeSearch,
+    caseSensitive,
+    setCaseSensitive,
+    entireWord,
+    setEntireWord,
+    highlightAll,
+    setHighlightAll,
+    searchMatchesCount,
+    searchStatusMessage,
+    handleSearch,
+    handleFindControlState,
+    handleFindMatchesCount,
+    openSearch,
+    closeSearch,
   } = usePdfSearch(eventBusRef);
 
   // Add image via file picker: enters stamp mode, then triggers keyboard add
@@ -80,6 +284,51 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
     });
   }, []);
 
+  const getDecodedPdfBytes = useCallback(() => {
+    if (!base64Data) {
+      throw new Error('Missing PDF base64 payload');
+    }
+
+    const cached = decodedPdfBytesRef.current;
+    if (cached && cached.base64Key === base64Data) {
+      return { bytes: cached.bytes, fromCache: true };
+    }
+
+    const bytes = base64ToUint8Array(base64Data);
+    decodedPdfBytesRef.current = { base64Key: base64Data, bytes };
+    return { bytes, fromCache: false };
+  }, [base64Data]);
+
+  const progressiveReadChunk = progressiveLoading?.readChunk;
+  const progressiveRangeChunkSize = progressiveLoading?.rangeChunkSize;
+
+  const readOriginalPdfBytes = useCallback(async () => {
+    if (readOriginalBase64) {
+      const originalBase64 = await readOriginalBase64();
+      return base64ToUint8Array(originalBase64);
+    }
+
+    if (typeof base64Data === 'string') {
+      return base64ToUint8Array(base64Data);
+    }
+
+    throw new Error('Original PDF bytes are unavailable');
+  }, [base64Data, readOriginalBase64]);
+
+  const annotatedFileName = filePath
+    .split(/[/\\]/)
+    .pop()
+    ?.replace(/\.pdf$/i, '_annotated.pdf') ?? 'Document_annotated.pdf';
+
+  const persistPdfBytes = useCallback(async (data: Uint8Array) => {
+    if (onSave) {
+      await onSave(data);
+      return;
+    }
+
+    downloadPdf(data, annotatedFileName);
+  }, [annotatedFileName, onSave]);
+
   // Load CSS on mount
   useEffect(() => {
     const existingLink = document.querySelector('link[href="/pdfjs/pdf_viewer.css"]');
@@ -94,38 +343,122 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   // Initialize PDF viewer
   useEffect(() => {
     let cancelled = false;
+    let loadingTask: any = null;
+    let rangeTransport: any = null;
+    let loadedPdfDoc: any = null;
+    let loadedViewer: any = null;
+    let loadedEventBus: any = null;
+    let loadedLinkService: any = null;
+    let loadedFindController: any = null;
+    let loadedAnnotationStorage: any = null;
+
+    let onPageChanging: ((evt: any) => void) | null = null;
+    let onScaleChanging: ((evt: any) => void) | null = null;
+    let onPageRendered: ((evt: any) => void) | null = null;
+    let onPagesInit: (() => void) | null = null;
+    let onAnnotationEditorParamsChanged: ((evt: any) => void) | null = null;
+    let onFindControlStateChanged: ((evt: any) => void) | null = null;
+    let onFindMatchesCountChanged: ((evt: any) => void) | null = null;
 
     async function init() {
       try {
         setLoading(true);
         setError(null);
+        setHasChanges(false);
+        setSaveError(null);
+        saveInFlightRef.current = false;
+        pendingSavedBytesRef.current = null;
+        lastSavedBytesRef.current = null;
 
         const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
         const pdfjsViewer = await import('pdfjs-dist/legacy/web/pdf_viewer.mjs');
 
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
-
-        const binaryStr = atob(base64Data);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
+        if (cancelled) {
+          return;
         }
 
-        const pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+
+        if (progressiveReadChunk) {
+          const requestedRangeChunkSize = progressiveRangeChunkSize ?? DEFAULT_PDF_RANGE_CHUNK_SIZE;
+          const rangeChunkSize =
+            Number.isInteger(requestedRangeChunkSize) && requestedRangeChunkSize > 0
+              ? requestedRangeChunkSize
+              : DEFAULT_PDF_RANGE_CHUNK_SIZE;
+
+          const initialChunkStartedAtMs = pdfTelemetryNow();
+          const initialChunk = await progressiveReadChunk(0, rangeChunkSize);
+
+          if (cancelled) {
+            return;
+          }
+
+          if (initialChunk.offset !== 0 || initialChunk.bytesRead <= 0 || initialChunk.totalBytes <= 0) {
+            throw new Error('Failed to load initial PDF bytes for progressive mode');
+          }
+
+          markPdfTelemetryDuration(telemetrySession, 'base64-decode-complete', initialChunkStartedAtMs, {
+            mode: 'progressive-range',
+            chunkBytes: initialChunk.bytesRead,
+            totalBytes: initialChunk.totalBytes,
+          });
+
+          rangeTransport = createCoordinatorRangeTransport(
+            pdfjsLib,
+            initialChunk,
+            progressiveReadChunk,
+            (rangeError) => {
+              if (cancelled) {
+                return;
+              }
+
+              setError(rangeError.message);
+              setLoading(false);
+              void loadingTask?.destroy?.();
+            },
+          );
+
+          loadingTask = pdfjsLib.getDocument({
+            range: rangeTransport,
+            length: initialChunk.totalBytes,
+            rangeChunkSize,
+            disableStream: true,
+          });
+        } else {
+          const decodeStartedAtMs = pdfTelemetryNow();
+          const { bytes: decodedBytes, fromCache } = getDecodedPdfBytes();
+          markPdfTelemetryDuration(telemetrySession, 'base64-decode-complete', decodeStartedAtMs, {
+            decodedBytes: decodedBytes.length,
+            cacheHit: fromCache,
+          });
+
+          loadingTask = pdfjsLib.getDocument({ data: decodedBytes.slice() });
+        }
+
+        const getDocumentStartedAtMs = pdfTelemetryNow();
+        const pdfDoc = await loadingTask.promise;
         if (cancelled) return;
 
+        markPdfTelemetryDuration(telemetrySession, 'get-document-resolved', getDocumentStartedAtMs, {
+          numPages: pdfDoc.numPages,
+        });
+
+        loadedPdfDoc = pdfDoc;
         pdfDocRef.current = pdfDoc;
         setNumPages(pdfDoc.numPages);
 
         const eventBus = new pdfjsViewer.EventBus();
+        loadedEventBus = eventBus;
         eventBusRef.current = eventBus;
 
         const linkService = new pdfjsViewer.PDFLinkService({ eventBus });
+        loadedLinkService = linkService;
 
         const findController = new pdfjsViewer.PDFFindController({
           eventBus,
           linkService,
         });
+        loadedFindController = findController;
 
         const container = containerRef.current!;
         const viewer = new (pdfjsViewer.PDFViewer as any)({
@@ -142,32 +475,76 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
           enableUpdatedAddImage: false,
           enableNewAltTextWhenAddingImage: false,
         });
+        loadedViewer = viewer;
         pdfViewerRef.current = viewer;
 
         linkService.setViewer(viewer);
 
-        eventBus.on('pagechanging', (evt: any) => {
+        onPageChanging = (evt: any) => {
+          if (cancelled) return;
           setCurrentPage(evt.pageNumber);
-        });
+        };
+        eventBus.on('pagechanging', onPageChanging);
 
-        eventBus.on('scalechanging', (evt: any) => {
+        onScaleChanging = (evt: any) => {
+          if (cancelled) return;
           setZoom(Math.round(evt.scale * 100));
-        });
+        };
+        eventBus.on('scalechanging', onScaleChanging);
 
-        eventBus.on('pagesinit', () => {
+        let firstPageRendered = false;
+
+        onPageRendered = (evt: any) => {
+          if (cancelled || firstPageRendered) return;
+          firstPageRendered = true;
+          markPdfTelemetry(telemetrySession, 'first-visible-page-rendered', {
+            pageNumber: evt.pageNumber,
+          });
+        };
+        eventBus.on('pagerendered', onPageRendered);
+
+        onPagesInit = () => {
+          if (cancelled) return;
+          markPdfTelemetry(telemetrySession, 'pagesinit', {
+            numPages: pdfDoc.numPages,
+          });
           viewer.currentScaleValue = 'auto';
           setLoading(false);
-        });
+        };
+        eventBus.on('pagesinit', onPagesInit);
 
         // Sync param changes back from pdf.js (toolbar manages its own param state now)
-        eventBus.on('annotationeditorparamschanged', (_evt: any) => {
+        onAnnotationEditorParamsChanged = (_evt: any) => {
+          if (cancelled) return;
           // PdfToolbar owns the param state; pdf.js events are handled internally
-        });
+        };
+        eventBus.on('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
+
+        onFindControlStateChanged = (evt: any) => {
+          if (cancelled) return;
+          handleFindControlState(evt);
+        };
+        eventBus.on('updatefindcontrolstate', onFindControlStateChanged);
+
+        onFindMatchesCountChanged = (evt: any) => {
+          if (cancelled) return;
+          handleFindMatchesCount(evt);
+        };
+        eventBus.on('updatefindmatchescount', onFindMatchesCountChanged);
 
         const annotationStorage = pdfDoc.annotationStorage;
+        loadedAnnotationStorage = annotationStorage;
         if (annotationStorage) {
-          annotationStorage.onSetModified = () => setHasChanges(true);
-          annotationStorage.onResetModified = () => setHasChanges(false);
+          annotationStorage.onSetModified = () => {
+            if (cancelled) return;
+            setHasChanges(true);
+            setSaveError(null);
+            pendingSavedBytesRef.current = null;
+          };
+          annotationStorage.onResetModified = () => {
+            if (cancelled) return;
+            setHasChanges(false);
+          };
         }
 
         viewer.setDocument(pdfDoc);
@@ -186,9 +563,63 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
     return () => {
       cancelled = true;
-      pdfViewerRef.current?.cleanup();
+      rangeTransport?.abort?.();
+
+      if (loadedAnnotationStorage) {
+        loadedAnnotationStorage.onSetModified = null;
+        loadedAnnotationStorage.onResetModified = null;
+      }
+
+      if (loadedEventBus) {
+        if (onPageChanging) {
+          loadedEventBus.off?.('pagechanging', onPageChanging);
+        }
+        if (onScaleChanging) {
+          loadedEventBus.off?.('scalechanging', onScaleChanging);
+        }
+        if (onPageRendered) {
+          loadedEventBus.off?.('pagerendered', onPageRendered);
+        }
+        if (onPagesInit) {
+          loadedEventBus.off?.('pagesinit', onPagesInit);
+        }
+        if (onAnnotationEditorParamsChanged) {
+          loadedEventBus.off?.('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
+        }
+        if (onFindControlStateChanged) {
+          loadedEventBus.off?.('updatefindcontrolstate', onFindControlStateChanged);
+        }
+        if (onFindMatchesCountChanged) {
+          loadedEventBus.off?.('updatefindmatchescount', onFindMatchesCountChanged);
+        }
+      }
+
+      loadedFindController?.setDocument?.(null);
+      loadedLinkService?.setDocument?.(null, null);
+      loadedViewer?.setDocument?.(null);
+      loadedViewer?.cleanup?.();
+
+      if (pdfDocRef.current === loadedPdfDoc) {
+        pdfDocRef.current = null;
+      }
+      if (pdfViewerRef.current === loadedViewer) {
+        pdfViewerRef.current = null;
+      }
+      if (eventBusRef.current === loadedEventBus) {
+        eventBusRef.current = null;
+      }
+
+      void loadingTask?.destroy?.();
     };
-  }, [base64Data, setZoom]);
+  }, [
+    getDecodedPdfBytes,
+    handleFindControlState,
+    handleFindMatchesCount,
+    progressiveRangeChunkSize,
+    progressiveReadChunk,
+    setZoom,
+    telemetrySession,
+  ]);
 
   // Handle editor mode changes
   useEffect(() => {
@@ -225,53 +656,88 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
 
   const fileName = filePath.split(/[/\\]/).pop() || 'Document';
 
-  const handleDownload = useCallback(() => {
-    const binaryStr = atob(base64Data);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
+  const handleDownloadOriginal = useCallback(async () => {
+    try {
+      const originalBytes = await readOriginalPdfBytes();
+      downloadPdf(originalBytes, fileName);
+    } catch (err) {
+      const normalizedError = normalizeError(err, 'Failed to download original PDF');
+      console.error('[PdfViewerNative] Download original failed:', normalizedError);
+      alert('Failed to download original PDF: ' + normalizedError.message);
     }
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [base64Data, fileName]);
+  }, [fileName, readOriginalPdfBytes]);
 
-  const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+  const handleDownloadAnnotated = useCallback(async () => {
+    try {
+      if (hasChanges && !pendingSavedBytesRef.current) {
+        throw new Error('Save annotations first to download an annotated copy');
+      }
+
+      const annotatedBytes = pendingSavedBytesRef.current?.slice()
+        ?? lastSavedBytesRef.current?.slice()
+        ?? await readOriginalPdfBytes();
+
+      downloadPdf(annotatedBytes, annotatedFileName);
+    } catch (err) {
+      const normalizedError = normalizeError(err, 'Failed to download annotated PDF');
+      console.error('[PdfViewerNative] Download annotated failed:', normalizedError);
+      alert('Failed to download annotated PDF: ' + normalizedError.message);
+    }
+  }, [annotatedFileName, hasChanges, readOriginalPdfBytes]);
+
+  const handlePrint = useCallback(async () => {
+    try {
+      const originalBytes = await readOriginalPdfBytes();
+      await printPdf(originalBytes);
+    } catch (err) {
+      const normalizedError = normalizeError(err, 'Failed to print PDF');
+      console.error('[PdfViewerNative] Print failed:', normalizedError);
+      alert('Failed to print PDF: ' + normalizedError.message);
+    }
+  }, [readOriginalPdfBytes]);
 
   const handleSave = useCallback(async () => {
     const pdfDoc = pdfDocRef.current;
-    if (!pdfDoc || saving) return;
+    if (!pdfDoc || saveInFlightRef.current) return;
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+    setSaveError(null);
 
     try {
-      setSaving(true);
-      const data = await pdfDoc.saveDocument();
-
-      if (onSave) {
-        onSave(data);
-      } else {
-        const blob = new Blob([data], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName.replace(/\.pdf$/i, '_annotated.pdf');
-        a.click();
-        URL.revokeObjectURL(url);
+      let bytesToPersist = pendingSavedBytesRef.current;
+      if (!bytesToPersist) {
+        const generatedBytes: Uint8Array = await pdfDoc.saveDocument();
+        bytesToPersist = generatedBytes;
+        pendingSavedBytesRef.current = generatedBytes.slice();
       }
 
-      setHasChanges(false);
+      if (!bytesToPersist) {
+        throw new Error('saveDocument returned empty PDF bytes');
+      }
+
+      await persistPdfBytes(bytesToPersist);
+
+      const persistedBytes = bytesToPersist.slice();
+      pendingSavedBytesRef.current = null;
+      lastSavedBytesRef.current = persistedBytes;
+      setSaveError(null);
+
+      if (typeof base64Data === 'string') {
+        decodedPdfBytesRef.current = {
+          base64Key: base64Data,
+          bytes: persistedBytes,
+        };
+      }
     } catch (err) {
-      console.error('Error saving PDF:', err);
-      alert('Failed to save PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      const normalizedError = normalizeError(err, 'Failed to save PDF');
+      console.error('[PdfViewerNative] Save failed:', normalizedError);
+      setSaveError(normalizedError.message);
     } finally {
       setSaving(false);
+      saveInFlightRef.current = false;
     }
-  }, [onSave, saving, fileName]);
+  }, [base64Data, persistPdfBytes]);
 
   // Keyboard shortcuts
   const pdfHandlers = useMemo(() => ({
@@ -280,10 +746,21 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
       if (showSearch) closeSearch();
       if (editorMode !== 'none') setEditorMode('none');
     },
-    'pdf.save': () => { if (hasChanges) handleSave(); },
+    'pdf.save': () => { if (hasChanges || saveError) handleSave(); },
     'pdf.zoom.in': () => { handleZoom(10); },
     'pdf.zoom.out': () => { handleZoom(-10); },
-  } as const), [showSearch, editorMode, hasChanges, handleSave, handleZoom, openSearch, closeSearch]);
+    'pdf.zoom.reset': () => { handleZoomReset(); },
+  } as const), [
+    closeSearch,
+    editorMode,
+    handleSave,
+    handleZoom,
+    handleZoomReset,
+    hasChanges,
+    openSearch,
+    saveError,
+    showSearch,
+  ]);
 
   useShortcutHandler({ handlers: pdfHandlers });
 
@@ -308,7 +785,7 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="pdfjs-viewer-shell flex flex-col h-full bg-background">
       <PdfToolbar
         editorMode={editorMode}
         setEditorMode={setEditorMode}
@@ -328,7 +805,8 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         goToPage={goToPage}
         handleRotate={handleRotate}
         handlePrint={handlePrint}
-        handleDownload={handleDownload}
+        handleDownloadOriginal={handleDownloadOriginal}
+        handleDownloadAnnotated={handleDownloadAnnotated}
         handleSave={handleSave}
         handleAddImage={handleAddImage}
         dispatchParam={dispatchParam}
@@ -341,10 +819,32 @@ export function PdfViewerNative({ filePath, base64Data, onSave }: PdfViewerNativ
         }}
       />
 
+      {saveError && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-[var(--background-secondary-alt)]">
+          <span className="text-xs text-accent-red">Save failed: {saveError}</span>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-2 py-1 text-xs rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Retry save
+          </button>
+        </div>
+      )}
+
       {showSearch && (
         <PdfSearchBar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          caseSensitive={caseSensitive}
+          setCaseSensitive={setCaseSensitive}
+          entireWord={entireWord}
+          setEntireWord={setEntireWord}
+          highlightAll={highlightAll}
+          setHighlightAll={setHighlightAll}
+          searchMatchesCount={searchMatchesCount}
+          searchStatusMessage={searchStatusMessage}
           searchInputRef={searchInputRef}
           handleSearch={handleSearch}
           onClose={closeSearch}

@@ -14,6 +14,36 @@ import { isSelectRange, isFocusEvent } from './reveal-on-cursor';
 
 const hiddenDecoration = Decoration.mark({ class: 'cm-hidden' });
 
+const languageLabelMap: Record<string, string> = {
+  js: 'JavaScript',
+  javascript: 'JavaScript',
+  jsx: 'JSX',
+  ts: 'TypeScript',
+  typescript: 'TypeScript',
+  tsx: 'TSX',
+  py: 'Python',
+  rb: 'Ruby',
+  sh: 'Shell',
+  bash: 'Bash',
+  zsh: 'Zsh',
+  csharp: 'C#',
+  cs: 'C#',
+  cpp: 'C++',
+  cxx: 'C++',
+  md: 'Markdown',
+  plaintext: 'Text',
+  text: 'Text',
+};
+
+function formatCodeBlockLanguage(lang: string): string {
+  const normalized = lang.trim().toLowerCase();
+  if (!normalized) return 'Text';
+  const mapped = languageLabelMap[normalized];
+  if (mapped) return mapped;
+  if (normalized.length <= 3) return normalized.toUpperCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function updateCodeBlockHiddenDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
   syntaxTree(state).iterate({
@@ -104,14 +134,15 @@ class CodeBlockInfoWidget extends WidgetType {
   }
   toDOM() {
     const dom = document.createElement('div');
+    const languageLabel = formatCodeBlockLanguage(this.lang);
     dom.className = 'cm-code-block-info';
-    dom.textContent = this.lang || 'text';
+    dom.textContent = languageLabel;
     dom.tabIndex = -1;
     dom.onclick = (event) => {
-      dom.textContent = `copied!`;
+      dom.textContent = 'Copied!';
       if (this.timeout) window.clearTimeout(this.timeout);
       this.timeout = window.setTimeout(() => {
-        dom.textContent = this.lang || 'text';
+        dom.textContent = languageLabel;
         this.timeout = undefined;
       }, 2000);
       if (window.navigator.clipboard) {

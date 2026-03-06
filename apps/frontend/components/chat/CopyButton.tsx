@@ -6,9 +6,10 @@ import { Check, Copy } from 'lucide-react';
 type CopyButtonProps = {
   text: string;
   className?: string;
+  label?: string;
 };
 
-export function CopyButton({ text, className }: CopyButtonProps) {
+export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
@@ -44,8 +45,8 @@ export function CopyButton({ text, className }: CopyButtonProps) {
         handleCopy().catch(() => undefined);
       }}
       className={className}
-      aria-label={copied ? 'Copied' : 'Copy'}
-      title={copied ? 'Copied' : 'Copy'}
+      aria-label={copied ? 'Copied!' : label}
+      title={copied ? 'Copied!' : label}
     >
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </button>

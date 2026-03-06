@@ -24,6 +24,7 @@
   /* Border radius */
   --md-border-radius: 6px;
   --md-border-radius-sm: 3px;
+  --md-code-block-radius: 4px;
 }
 
 /* Dark theme (default) */
@@ -299,10 +300,12 @@
    positions before decorations update.
    ============================================ */
 
-/* Hidden state - applied only when cursor NOT in range */
+/* Hidden state - applied only when cursor NOT in range.
+   !important guards against specificity conflicts with styling classes
+   (e.g. cm-inline-code's font-size: 0.9em) that can land on the same span. */
 .cm-editor.cm-markdown-wysiwyg .cm-hidden {
-  font-size: 0;
-  line-height: 0;
+  font-size: 0 !important;
+  line-height: 0 !important;
   tab-size: 0;
   overflow: hidden;
   display: inline;
@@ -357,13 +360,9 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-inline-code {
-  font-family: var(--md-code-font-family);
-  font-size: 0.9em;
   background: var(--md-code-bg);
   color: var(--md-code-text);
-  padding: 2px 6px;
   border-radius: var(--md-border-radius-sm);
-  border: 1px solid var(--md-code-border);
 }
 
 /* ============================================
@@ -526,8 +525,7 @@
   position: relative;
   font-family: var(--md-code-font-family);
   font-size: 0.9em;
-  border-left: 3px solid var(--md-accent);
-  padding: 2px 12px;
+  padding: 2px 14px;
   margin: 0;
   border-radius: 0;
   line-height: 1.5;
@@ -541,7 +539,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -3px;
+  left: 0;
   right: 0;
   background: var(--md-code-bg);
   z-index: -3;
@@ -550,41 +548,37 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start {
-  border-top-left-radius: var(--md-border-radius);
-  border-top-right-radius: var(--md-border-radius);
+  border-top-left-radius: var(--md-code-block-radius);
+  border-top-right-radius: var(--md-code-block-radius);
   padding-top: 10px;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end {
-  border-bottom-left-radius: var(--md-border-radius);
-  border-bottom-right-radius: var(--md-border-radius);
+  border-bottom-left-radius: var(--md-code-block-radius);
+  border-bottom-right-radius: var(--md-code-block-radius);
   padding-bottom: 10px;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-code-block-info {
   float: right;
-  margin-right: 2px;
+  margin-right: 4px;
   margin-top: 2px;
-  padding: 0.2rem 0.5rem;
+  padding: 0;
   font-size: 0.8em;
   font-weight: 500;
-  font-family: var(--md-code-font-family);
+  font-family: var(--md-font-family);
   color: var(--md-text-muted);
-  text-transform: lowercase;
-  letter-spacing: 0.03em;
+  text-transform: none;
+  letter-spacing: 0;
   cursor: default;
-  border-radius: 0.4rem;
-  transition: background-color 0.2s ease;
+  border-radius: 0;
+  transition: color 0.2s ease;
   background-color: transparent;
   user-select: none;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-code-block-info:hover {
-  background-color: var(--md-code-info-hover-bg);
-}
-
-.light .cm-editor.cm-markdown-wysiwyg .cm-code-block-info:hover {
-  background-color: var(--md-code-info-hover-bg);
+  color: var(--md-text);
 }
 
 /* Syntax highlighting colors for code blocks */

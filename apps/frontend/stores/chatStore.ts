@@ -47,7 +47,7 @@ import {
   isValidBaseUrl,
 } from './chat-store-utils';
 
-export type { PromptAttachment, PromptSelection, PromptContextItem, PromptInputPayload, SelectedModel } from './chat-store-utils';
+export type { PromptAttachment, PromptSelection, PromptContextItem, PromptInputPayload, SelectedModel, DisplayPreferences } from './chat-store-utils';
 
 // ---------------------------------------------------------------------------
 // Store
@@ -352,6 +352,33 @@ export const useChatStore = create<ChatState & ChatActions>()(
     shareSession: () => handleShareSession(get, set),
     unshareSession: () => handleUnshareSession(get, set),
     sendPrompt: (input) => handleSendPrompt(input, get, set),
+
+    toggleShowThinking: () => {
+      set((state) => ({
+        displayPreferences: {
+          ...state.displayPreferences,
+          showThinking: !state.displayPreferences.showThinking,
+        },
+      }));
+    },
+
+    toggleShellToolPartsExpanded: () => {
+      set((state) => ({
+        displayPreferences: {
+          ...state.displayPreferences,
+          shellToolPartsExpanded: !state.displayPreferences.shellToolPartsExpanded,
+        },
+      }));
+    },
+
+    toggleEditToolPartsExpanded: () => {
+      set((state) => ({
+        displayPreferences: {
+          ...state.displayPreferences,
+          editToolPartsExpanded: !state.displayPreferences.editToolPartsExpanded,
+        },
+      }));
+    },
       }),
       {
         name: 'cushion-chat',
@@ -366,6 +393,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           selectedModelByDirectory: state.selectedModelByDirectory,
           selectedVariantByDirectory: state.selectedVariantByDirectory,
           modelVisibility: state.modelVisibility,
+          displayPreferences: state.displayPreferences,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;

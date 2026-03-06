@@ -116,13 +116,13 @@ function computeDiffHunks(lines: DiffLine[], contextLines: number = 3): { hunks:
   return { hunks, visibleLines };
 }
 
-type DiffChangesProps = {
+export type DiffChangesProps = {
   changes: { additions: number; deletions: number } | { additions: number; deletions: number }[];
   variant?: 'default' | 'bars';
   className?: string;
 };
 
-function DiffChanges({ changes, variant = 'default', className }: DiffChangesProps) {
+export function DiffChanges({ changes, variant = 'default', className }: DiffChangesProps) {
   const additions = Array.isArray(changes)
     ? changes.reduce((acc, diff) => acc + (diff.additions ?? 0), 0)
     : changes.additions ?? 0;
@@ -205,7 +205,7 @@ type DiffViewProps = {
   shouldScrollToFirstChange?: boolean;
 };
 
-function DiffView({ diff, shouldScrollToFirstChange }: DiffViewProps) {
+export function DiffView({ diff, shouldScrollToFirstChange }: DiffViewProps) {
   const before = diff.before ?? '';
   const after = diff.after ?? '';
   const firstChangeRowRef = useRef<HTMLTableRowElement>(null);
@@ -399,89 +399,147 @@ type DiffSummaryProps = {
 };
 
 export function DiffSummary({ diffs }: DiffSummaryProps) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [firstOpen, setFirstOpen] = useState<Set<string>>(new Set());
+  const [visibleFiles, setVisibleFiles] = useState<Set<string>>(new Set());
   const diffInit = 20;
   const diffBatch = 20;
   const [limit, setLimit] = useState(diffInit);
 
   useEffect(() => {
-    setOpen(new Set());
+    setSectionOpen(false);
+    setExpanded(new Set());
     setFirstOpen(new Set());
+    setVisibleFiles(new Set());
     setLimit(diffInit);
   }, [diffs]);
 
+  // Reset expanded files when collapsible closes
+  const handleSectionToggle = () => {
+    setSectionOpen((prev) => {
+      if (prev) {
+        setExpanded(new Set());
+        setVisibleFiles(new Set());
+      }
+      return !prev;
+    });
+  };
+
+  const handleFileClick = (file: string, hasContent: boolean) => {
+    if (!hasContent) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(file)) {
+        next.delete(file);
+        setVisibleFiles((v) => { const n = new Set(v); n.delete(file); return n; });
+      } else {
+        next.add(file);
+        setFirstOpen((p) => new Set(p).add(file));
+        // Lazy render via rAF
+        requestAnimationFrame(() => {
+          setVisibleFiles((v) => new Set(v).add(file));
+        });
+      }
+      return next;
+    });
+  };
+
+  const edited = diffs.length;
+  const fileLabel = edited === 1 ? 'file' : 'files';
+
   return (
-    <div data-slot="session-turn-diff-summary">
-      <div data-slot="session-turn-diff-title">Changes</div>
-      <div data-slot="session-turn-accordion">
-        {diffs.slice(0, limit).map((diff) => {
-          const isOpen = open.has(diff.file);
-          const hasContent = Boolean(diff.before || diff.after);
-          const directory = getDirectory(diff.file);
-          const filename = getFilename(diff.file);
-          const isJustOpened = firstOpen.has(diff.file);
+    <div data-slot="session-turn-diffs">
+      <button
+        type="button"
+        data-component="session-turn-diffs-trigger"
+        onClick={handleSectionToggle}
+        aria-expanded={sectionOpen}
+      >
+        <div data-slot="session-turn-diffs-title">
+          <span data-slot="session-turn-diffs-label">Modified</span>
+          <span data-slot="session-turn-diffs-count">{edited} {fileLabel}</span>
+          <div data-slot="session-turn-diffs-meta">
+            <DiffChanges changes={diffs} variant="bars" />
+            <Icon
+              name="chevron-down"
+              size="small"
+              className="text-muted-foreground"
+              style={{
+                transform: sectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                transition: 'transform 0.15s ease',
+              }}
+            />
+          </div>
+        </div>
+      </button>
+      {sectionOpen && (
+        <div data-component="session-turn-diffs-content">
+          <div data-slot="session-turn-accordion">
+            {diffs.slice(0, limit).map((diff) => {
+              const isOpen = expanded.has(diff.file);
+              const isVisible = visibleFiles.has(diff.file);
+              const hasContent = Boolean(diff.before || diff.after);
+              const directory = getDirectory(diff.file);
+              const filename = getFilename(diff.file);
+              const isJustOpened = firstOpen.has(diff.file);
 
-          const handleClick = () => {
-            if (!hasContent) return;
-            setOpen((prev) => {
-              const newSet = new Set(prev);
-              if (newSet.has(diff.file)) {
-                newSet.delete(diff.file);
-              } else {
-                newSet.add(diff.file);
-                setFirstOpen((prev) => new Set(prev).add(diff.file));
-              }
-              return newSet;
-            });
-          };
-
-          return (
-            <div
-              key={diff.file}
-              data-slot="session-turn-accordion-item"
-              data-expanded={isOpen ? 'true' : undefined}
-            >
-              <div data-component="sticky-accordion-header" data-expanded={isOpen ? 'true' : undefined}>
-                <button
-                  type="button"
-                  data-slot="session-turn-accordion-trigger"
-                  onClick={handleClick}
+              return (
+                <div
+                  key={diff.file}
+                  data-slot="session-turn-accordion-item"
+                  data-expanded={isOpen ? 'true' : undefined}
                 >
-                  <div data-slot="session-turn-accordion-trigger-content">
-                    <div data-slot="session-turn-file-info">
-                      <FileIcon className="size-4 text-muted-foreground" />
-                      <div data-slot="session-turn-file-path">
-                        {directory && (
-                          <span data-slot="session-turn-directory">{directory}/</span>
-                        )}
-                        <span data-slot="session-turn-filename">{filename}</span>
+                  <div data-component="sticky-accordion-header" data-expanded={isOpen ? 'true' : undefined}>
+                    <button
+                      type="button"
+                      data-slot="session-turn-accordion-trigger"
+                      onClick={() => handleFileClick(diff.file, hasContent)}
+                    >
+                      <div data-slot="session-turn-accordion-trigger-content">
+                        <div data-slot="session-turn-file-info">
+                          <FileIcon className="size-4 text-muted-foreground" />
+                          <div data-slot="session-turn-file-path">
+                            {directory && (
+                              <span data-slot="session-turn-directory">{directory}/</span>
+                            )}
+                            <span data-slot="session-turn-filename">{filename}</span>
+                          </div>
+                        </div>
+                        <div data-slot="session-turn-accordion-actions">
+                          <DiffChanges changes={diff} />
+                          <Icon
+                            name="chevron-down"
+                            size="small"
+                            className="text-muted-foreground"
+                            style={{
+                              transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                              transition: 'transform 0.15s ease',
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div data-slot="session-turn-accordion-actions">
-                      <DiffChanges changes={diff} />
-                      <Icon name="chevron-grabber-vertical" size="small" className="text-muted-foreground" />
-                    </div>
+                    </button>
                   </div>
-                </button>
-              </div>
-              {isOpen && hasContent && (
-                <div data-slot="session-turn-accordion-content">
-                  <DiffView diff={diff} shouldScrollToFirstChange={isJustOpened} />
+                  {isOpen && hasContent && isVisible && (
+                    <div data-slot="session-turn-accordion-content">
+                      <DiffView diff={diff} shouldScrollToFirstChange={isJustOpened} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {diffs.length > limit && (
-        <button
-          type="button"
-          data-slot="session-turn-accordion-more"
-          onClick={() => setLimit((value) => Math.min(value + diffBatch, diffs.length))}
-        >
-          Show more ({diffs.length - limit})
-        </button>
+              );
+            })}
+          </div>
+          {diffs.length > limit && (
+            <button
+              type="button"
+              data-slot="session-turn-accordion-more"
+              onClick={() => setLimit((value) => Math.min(value + diffBatch, diffs.length))}
+            >
+              Show more ({diffs.length - limit})
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

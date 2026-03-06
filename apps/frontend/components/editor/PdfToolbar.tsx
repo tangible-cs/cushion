@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   ZoomIn, ZoomOut, ChevronUp, ChevronDown,
-  RotateCw, Download, Printer, Save,
+  RotateCw, Download, FileDown, Printer, Save,
   Search, X, Type, Pencil, Highlighter, Image as ImageIcon,
   MousePointer
 } from 'lucide-react';
@@ -32,7 +32,8 @@ type PdfToolbarProps = {
   goToPage: (page: number) => void;
   handleRotate: () => void;
   handlePrint: () => void;
-  handleDownload: () => void;
+  handleDownloadOriginal: () => void;
+  handleDownloadAnnotated: () => void;
   handleSave: () => void;
   handleAddImage: () => void;
   dispatchParam: (type: number, value: any) => void;
@@ -63,7 +64,8 @@ export function PdfToolbar({
   goToPage,
   handleRotate,
   handlePrint,
-  handleDownload,
+  handleDownloadOriginal,
+  handleDownloadAnnotated,
   handleSave,
   handleAddImage,
   dispatchParam,
@@ -342,10 +344,18 @@ export function PdfToolbar({
 
         <button
           className="p-1.5 rounded hover:bg-[var(--background-modifier-hover)] text-foreground-muted transition-colors"
-          onClick={handleDownload}
-          title="Download original"
+          onClick={handleDownloadOriginal}
+          title="Download original PDF"
         >
           <Download size={18} />
+        </button>
+
+        <button
+          className="p-1.5 rounded hover:bg-[var(--background-modifier-hover)] text-foreground-muted transition-colors"
+          onClick={handleDownloadAnnotated}
+          title="Download annotated PDF"
+        >
+          <FileDown size={18} />
         </button>
 
         <button
@@ -376,6 +386,17 @@ export function PdfToolbar({
 type PdfSearchBarProps = {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  caseSensitive: boolean;
+  setCaseSensitive: (value: boolean) => void;
+  entireWord: boolean;
+  setEntireWord: (value: boolean) => void;
+  highlightAll: boolean;
+  setHighlightAll: (value: boolean) => void;
+  searchMatchesCount: {
+    current: number;
+    total: number;
+  };
+  searchStatusMessage: string;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   handleSearch: (direction: 'next' | 'prev' | 'initial') => void;
   onClose: () => void;
@@ -389,14 +410,24 @@ type PdfSearchBarProps = {
 export function PdfSearchBar({
   searchQuery,
   setSearchQuery,
+  caseSensitive,
+  setCaseSensitive,
+  entireWord,
+  setEntireWord,
+  highlightAll,
+  setHighlightAll,
+  searchMatchesCount,
+  searchStatusMessage,
   searchInputRef,
   handleSearch,
   onClose,
   pdfShortcuts,
   shortcutLabels,
 }: PdfSearchBarProps) {
+  const showMatchesCount = searchQuery.length > 0 || searchMatchesCount.total > 0;
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--background-secondary-alt)] border-b border-border">
+    <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[var(--background-secondary-alt)] border-b border-border">
       <Search size={16} className="text-foreground-faint" />
       <input
         ref={searchInputRef}
@@ -420,6 +451,11 @@ export function PdfSearchBar({
         placeholder="Search in document..."
         className="flex-1 bg-background text-foreground px-2 py-1 rounded border border-border outline-none focus:border-accent text-sm min-w-[200px]"
       />
+      {showMatchesCount && (
+        <span className="text-xs text-foreground-faint min-w-[52px] text-right">
+          {searchMatchesCount.current}/{searchMatchesCount.total}
+        </span>
+      )}
       <button
         onClick={() => handleSearch('prev')}
         className="p-1 rounded hover:bg-[var(--background-modifier-hover)] text-foreground-muted"
@@ -434,6 +470,37 @@ export function PdfSearchBar({
       >
         <ChevronDown size={16} />
       </button>
+
+      <label className="flex items-center gap-1 text-xs text-foreground-faint whitespace-nowrap">
+        <input
+          type="checkbox"
+          checked={caseSensitive}
+          onChange={(e) => setCaseSensitive(e.target.checked)}
+          className="h-3.5 w-3.5 accent-accent"
+        />
+        <span>Case</span>
+      </label>
+
+      <label className="flex items-center gap-1 text-xs text-foreground-faint whitespace-nowrap">
+        <input
+          type="checkbox"
+          checked={entireWord}
+          onChange={(e) => setEntireWord(e.target.checked)}
+          className="h-3.5 w-3.5 accent-accent"
+        />
+        <span>Word</span>
+      </label>
+
+      <label className="flex items-center gap-1 text-xs text-foreground-faint whitespace-nowrap">
+        <input
+          type="checkbox"
+          checked={highlightAll}
+          onChange={(e) => setHighlightAll(e.target.checked)}
+          className="h-3.5 w-3.5 accent-accent"
+        />
+        <span>Highlight all</span>
+      </label>
+
       <button
         onClick={onClose}
         className="p-1 rounded hover:bg-[var(--background-modifier-hover)] text-foreground-faint"
@@ -441,6 +508,10 @@ export function PdfSearchBar({
       >
         <X size={16} />
       </button>
+
+      {searchStatusMessage && (
+        <span className="basis-full text-xs text-foreground-faint pl-6">{searchStatusMessage}</span>
+      )}
     </div>
   );
 }

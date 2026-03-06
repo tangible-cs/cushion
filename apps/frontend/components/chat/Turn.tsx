@@ -1,29 +1,28 @@
 'use client';
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
 import type {
   Part,
   TextPart,
   ReasoningPart,
   AssistantMessage,
+  UserMessage,
   ToolPart,
 } from '@opencode-ai/sdk/v2/client';
 import { useChatStore } from '@/stores/chatStore';
 import { Markdown } from './Markdown';
-import { Icon } from './Icon';
 import { DiffSummary } from './DiffView';
-import { ToolPartView, AttachmentList } from './ToolPartView';
+import { ToolPartView, AttachmentList, ContextToolGroup, CONTEXT_GROUP_TOOLS } from './ToolPartView';
 import { CopyButton } from './CopyButton';
 import { HighlightedText, ContextList } from './UserMessageContent';
 import { useThrottledValue } from '@/hooks/useThrottledValue';
+import { Ban } from 'lucide-react';
 import {
   type MessageTurn,
   EMPTY_PARTS,
   TEXT_RENDER_THROTTLE_MS,
   getUserText,
   getFiles,
-  getLastTextPart,
   isAttachment,
   isAgent,
   isText,
@@ -36,24 +35,29 @@ import {
   isStepFinish,
   isRetry,
   computeStatusFromPart,
+  extractReasoningHeading,
   formatDuration,
+  buildFooterMeta,
+  resolveModelName,
+  isInterrupted,
+  unwrapError,
 } from './message-helpers';
+import { TextShimmer } from './TextShimmer';
 
 type TurnProps = {
   turn: MessageTurn;
   sessionId: string;
   isWorking: boolean;
   onInteract: () => void;
+  showThinking?: boolean;
 };
 
-export function Turn({ turn, sessionId, isWorking, onInteract }: TurnProps) {
-  const [stepsExpanded, setStepsExpanded] = useState(false);
+export function Turn({ turn, sessionId, isWorking, onInteract, showThinking = true }: TurnProps) {
   const [duration, setDuration] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const stickyRef = useRef<HTMLDivElement | null>(null);
   const parts = useChatStore((state) => state.parts[turn.userMessage.id] ?? EMPTY_PARTS);
   const sessionStatus = useChatStore((state) => state.sessionStatus[sessionId]);
-  const sessionDiffs = useChatStore((state) => state.sessionDiffs[sessionId]);
 
   const textPart = getUserText(parts);
   const fileParts = getFiles(parts);
@@ -71,30 +75,110 @@ export function Turn({ turn, sessionId, isWorking, onInteract }: TurnProps) {
     return allParts;
   }, [turn.assistantMessages]);
 
-  const lastTextPart = useMemo(() => getLastTextPart(allAssistantParts), [allAssistantParts]);
-  const responseText = lastTextPart?.text ?? '';
-  const responsePartId = lastTextPart?.id;
-  const hideResponsePart = !isWorking && !!responsePartId;
-
   const status = useMemo(() => {
     if (!isWorking) return undefined;
     const lastPart = allAssistantParts[allAssistantParts.length - 1];
     return computeStatusFromPart(lastPart);
   }, [isWorking, allAssistantParts]);
 
-  const hasSteps = turn.assistantMessages.length > 0;
+  const isThinking = useMemo(() => {
+    if (!isWorking) return false;
+    const lastPart = allAssistantParts[allAssistantParts.length - 1];
+    return !lastPart || lastPart.type === 'reasoning' || lastPart.type === 'text';
+  }, [isWorking, allAssistantParts]);
+
+  const reasoningHeading = useMemo(() => {
+    if (!isWorking) return undefined;
+    for (let i = allAssistantParts.length - 1; i >= 0; i--) {
+      const part = allAssistantParts[i];
+      if (part.type === 'reasoning' && part.text) {
+        return extractReasoningHeading(part.text);
+      }
+    }
+    return undefined;
+  }, [isWorking, allAssistantParts]);
+
+  const hasAssistantContent = turn.assistantMessages.length > 0;
   const lastAssistant = turn.assistantMessages[turn.assistantMessages.length - 1];
   const lastAssistantId = lastAssistant?.id;
-  const diffSummary =
-    turn.userMessage.summary &&
-    typeof turn.userMessage.summary === 'object' &&
-    'diffs' in turn.userMessage.summary
-      ? (turn.userMessage.summary.diffs ?? [])
-      : [];
+  const providers = useChatStore((state) => state.providers);
 
-  useEffect(() => {
-    setStepsExpanded(isWorking);
-  }, [isWorking]);
+  const lastTextPartId = useMemo(() => {
+    for (let i = allAssistantParts.length - 1; i >= 0; i--) {
+      const p = allAssistantParts[i];
+      if (isText(p) && !p.synthetic && p.text?.trim()) return p.id;
+    }
+    return undefined;
+  }, [allAssistantParts]);
+
+  const footerMeta = useMemo(() => {
+    if (!lastAssistant || isWorking) return undefined;
+    const userCreated = (turn.userMessage as { time?: { created?: number } }).time?.created;
+    let durationStr = '';
+    if (typeof userCreated === 'number') {
+      const end = turn.assistantMessages.reduce<number | undefined>((max, msg) => {
+        const completed = msg.time.completed;
+        if (typeof completed !== 'number') return max;
+        if (max === undefined) return completed;
+        return Math.max(max, completed);
+      }, undefined);
+      if (typeof end === 'number' && end >= userCreated) {
+        durationStr = formatDuration(userCreated, end);
+      }
+    }
+    const meta = buildFooterMeta(lastAssistant, providers, durationStr);
+    if (!meta) return undefined;
+    return { meta, interrupted: isInterrupted(lastAssistant) };
+  }, [lastAssistant, isWorking, turn.assistantMessages, turn.userMessage, providers]);
+
+  // Generation-level error: find the first non-abort error from assistant messages
+  const generationError = useMemo(() => {
+    const errMsg = turn.assistantMessages.find(
+      (m) => m.error && m.error.name !== 'MessageAbortedError',
+    );
+    if (!errMsg?.error) return undefined;
+    const raw = (errMsg.error as { data?: { message?: unknown } }).data?.message;
+    if (raw === undefined || raw === null) return undefined;
+    return unwrapError(typeof raw === 'string' ? raw : String(raw));
+  }, [turn.assistantMessages]);
+  const diffSummary = useMemo(() => {
+    const raw =
+      turn.userMessage.summary &&
+      typeof turn.userMessage.summary === 'object' &&
+      'diffs' in turn.userMessage.summary
+        ? ((turn.userMessage.summary.diffs ?? []) as import('@opencode-ai/sdk/v2/client').FileDiff[])
+        : [];
+    if (raw.length === 0) return raw;
+    // Deduplicate: last diff per file wins, preserve order
+    const seen = new Set<string>();
+    return raw
+      .reduceRight<import('@opencode-ai/sdk/v2/client').FileDiff[]>((result, diff) => {
+        if (seen.has(diff.file)) return result;
+        seen.add(diff.file);
+        result.push(diff);
+        return result;
+      }, [])
+      .reverse();
+  }, [turn.userMessage.summary]);
+
+  const userMeta = useMemo(() => {
+    const msg = turn.userMessage as UserMessage;
+    const agent = msg.agent;
+    const model = msg.model ? resolveModelName(providers, msg.model.providerID, msg.model.modelID) : '';
+    const created = msg.time?.created;
+    let stamp = '';
+    if (typeof created === 'number') {
+      const date = new Date(created);
+      const hours = date.getHours();
+      const hour12 = hours % 12 || 12;
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      stamp = `${hour12}:${minute} ${hours < 12 ? 'AM' : 'PM'}`;
+    }
+    const head = [agent ? agent[0].toUpperCase() + agent.slice(1) : '', model].filter(Boolean).join('\u00A0\u00B7\u00A0');
+    const tail = stamp;
+    if (!head && !tail) return undefined;
+    return { head, tail };
+  }, [turn.userMessage, providers]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -143,98 +227,89 @@ export function Turn({ turn, sessionId, isWorking, onInteract }: TurnProps) {
           <div data-slot="session-turn-message-content">
             <div data-component="user-message">
               {textPart && (
-                <div data-slot="user-message-text" className="text-sm">
-                  <HighlightedText text={textPart.text ?? ''} fileRefs={inlineFiles} agentRefs={agentParts} />
+                <>
+                  <div data-slot="user-message-text" className="text-sm">
+                    <HighlightedText text={textPart.text ?? ''} fileRefs={inlineFiles} agentRefs={agentParts} />
+                  </div>
                   {textPart.text && (
                     <div data-slot="user-message-copy-wrapper">
-                      <CopyButton text={textPart.text} />
+                      {userMeta && (
+                        <span data-slot="user-message-meta-wrap">
+                          {userMeta.head && (
+                            <span data-slot="user-message-meta">{userMeta.head}</span>
+                          )}
+                          {userMeta.head && userMeta.tail && (
+                            <span data-slot="user-message-meta-sep">{'\u00A0\u00B7\u00A0'}</span>
+                          )}
+                          {userMeta.tail && (
+                            <span data-slot="user-message-meta-tail">{userMeta.tail}</span>
+                          )}
+                        </span>
+                      )}
+                      <CopyButton text={textPart.text} label="Copy message" />
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
             {contextFiles.length > 0 && <ContextList parts={contextFiles} />}
           </div>
 
-          {(hasSteps || isWorking) && (
+          {isWorking && (
             <div data-slot="session-turn-response-trigger">
-              <button
-                type="button"
-                onClick={() => setStepsExpanded((value) => !value)}
-                data-slot="session-turn-collapsible-trigger-content"
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground w-full text-left"
-              >
-                {isWorking ? (
+              {isThinking ? (
+                <div data-slot="session-turn-thinking">
+                  <TextShimmer text="Thinking..." />
+                  {reasoningHeading && (
+                    <span data-slot="session-turn-thinking-heading">{reasoningHeading}</span>
+                  )}
+                  {duration && <span data-slot="session-turn-thinking-duration">· {duration}</span>}
+                </div>
+              ) : (
+                <div
+                  data-slot="session-turn-collapsible-trigger-content"
+                  className="flex items-center gap-2 text-xs text-muted-foreground w-full text-left"
+                >
                   <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 10 10"
-                    fill="none"
-                    className={cn("transition-transform", stepsExpanded && "rotate-180")}
-                    data-slot="session-turn-trigger-icon"
-                  >
-                    <path
-                      d="M8.125 1.875H1.875L5 8.125L8.125 1.875Z"
-                      fill="currentColor"
-                      stroke="currentColor"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-                <span data-slot="session-turn-status-text">
-                  {isWorking
-                    ? status ?? 'Working...'
-                    : stepsExpanded
-                      ? 'Hide steps'
-                      : 'Show steps'}
-                </span>
-                {duration && <span className="text-muted-foreground">· {duration}</span>}
-                {sessionStatus?.type === 'retry' && (
-                  <span className="text-muted-foreground">
-                    · Retrying #{(sessionStatus as { attempt: number }).attempt}
+                  <span data-slot="session-turn-status-text">
+                    {status ?? 'Working...'}
                   </span>
-                )}
-              </button>
+                  {duration && <span className="text-muted-foreground">· {duration}</span>}
+                  {sessionStatus?.type === 'retry' && (
+                    <span className="text-muted-foreground">
+                      · Retrying #{(sessionStatus as { attempt: number }).attempt}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {stepsExpanded && hasSteps && (
-          <div data-slot="session-turn-collapsible">
-            <div data-slot="session-turn-collapsible-content-inner">
-              {turn.assistantMessages.map((msg) => (
-                <AssistantStepsMessage
-                  key={msg.id}
-                  message={msg}
-                  responsePartId={responsePartId}
-                  hideResponsePart={hideResponsePart}
-                  hideReasoning={!isWorking}
-                />
-              ))}
-            </div>
+        {hasAssistantContent && (
+          <div data-slot="session-turn-assistant-parts">
+            {turn.assistantMessages.map((msg) => (
+              <AssistantPartsMessage
+                key={msg.id}
+                message={msg}
+                showThinking={showThinking}
+                lastTextPartId={lastTextPartId}
+                footerMeta={footerMeta}
+              />
+            ))}
           </div>
         )}
 
-        {!isWorking && (responseText || diffSummary.length > 0) && (
-          <div data-slot="session-turn-summary-section">
-            <div data-slot="session-turn-summary-header">
-              <h2 data-slot="session-turn-summary-title">Response</h2>
-              <div data-slot="session-turn-response">
-                {responseText && (
-                  <div data-slot="session-turn-markdown" data-diffs={diffSummary.length > 0} className="text-sm">
-                    <Markdown text={responseText} cacheKey={responsePartId} />
-                  </div>
-                )}
-                {responseText && (
-                  <div data-slot="session-turn-response-copy-wrapper">
-                    <CopyButton text={responseText} />
-                  </div>
-                )}
-              </div>
-            </div>
-            {diffSummary.length > 0 && <DiffSummary diffs={diffSummary} />}
+        {generationError && (
+          <div data-component="generation-error">
+            <Ban size={14} className="generation-error-icon" />
+            <span>{generationError}</span>
+          </div>
+        )}
+
+        {diffSummary.length > 0 && !isWorking && (
+          <div data-slot="session-turn-diff-section">
+            <DiffSummary diffs={diffSummary} />
           </div>
         )}
       </div>
@@ -242,51 +317,87 @@ export function Turn({ turn, sessionId, isWorking, onInteract }: TurnProps) {
   );
 }
 
-type AssistantStepsMessageProps = {
+type FooterMeta = { meta: string; interrupted: boolean };
+
+type AssistantPartsMessageProps = {
   message: AssistantMessage;
-  responsePartId?: string;
-  hideResponsePart: boolean;
-  hideReasoning: boolean;
+  showThinking?: boolean;
+  lastTextPartId?: string;
+  footerMeta?: FooterMeta;
 };
 
-const AssistantStepsMessage = memo(function AssistantStepsMessage({
+const HIDDEN_TOOLS = new Set(['todoread']);
+
+type GroupedItem =
+  | { type: 'part'; part: Part; key: string }
+  | { type: 'context'; parts: ToolPart[]; key: string };
+
+function groupParts(parts: Part[], showThinking: boolean): GroupedItem[] {
+  const items: GroupedItem[] = [];
+  let contextBuffer: ToolPart[] = [];
+
+  const flushContext = () => {
+    if (contextBuffer.length > 0) {
+      items.push({ type: 'context', parts: contextBuffer, key: `ctx:${contextBuffer[0].id}` });
+      contextBuffer = [];
+    }
+  };
+
+  for (const part of parts) {
+    // Skip hidden tools
+    if (isTool(part) && HIDDEN_TOOLS.has(part.tool)) continue;
+    // Skip reasoning when hidden
+    if (isReasoning(part) && !showThinking) continue;
+
+    // Group context tools
+    if (isTool(part) && CONTEXT_GROUP_TOOLS.has(part.tool)) {
+      contextBuffer.push(part);
+      continue;
+    }
+
+    flushContext();
+    items.push({ type: 'part', part, key: `part:${part.id}` });
+  }
+
+  flushContext();
+  return items;
+}
+
+const AssistantPartsMessage = memo(function AssistantPartsMessage({
   message,
-  responsePartId,
-  hideResponsePart,
-  hideReasoning,
-}: AssistantStepsMessageProps) {
+  showThinking = true,
+  lastTextPartId,
+  footerMeta,
+}: AssistantPartsMessageProps) {
   const parts = useChatStore((state) => state.parts[message.id] ?? EMPTY_PARTS);
-  const lastTextPart = useMemo(() => getLastTextPart(parts), [parts]);
-  const filteredParts = useMemo(() => {
-    const withoutTodo = parts.filter((x) => x.type !== 'tool' || (x as ToolPart).tool !== 'todoread');
-    const withoutReasoning = hideReasoning ? withoutTodo.filter((part) => part.type !== 'reasoning') : withoutTodo;
-    if (!hideResponsePart || !responsePartId) return withoutReasoning;
-    if (lastTextPart?.id !== responsePartId) return withoutReasoning;
-    return withoutReasoning.filter((part) => part.id !== responsePartId);
-  }, [parts, hideReasoning, hideResponsePart, responsePartId, lastTextPart?.id]);
+  const grouped = useMemo(() => groupParts(parts, showThinking), [parts, showThinking]);
 
   return (
     <div className="space-y-2">
-      {filteredParts.map((part) => (
-        <PartView key={part.id} part={part} />
-      ))}
+      {grouped.map((item) =>
+        item.type === 'context' ? (
+          <ContextToolGroup key={item.key} parts={item.parts} />
+        ) : (
+          <PartView
+            key={item.key}
+            part={item.part}
+            showThinking={showThinking}
+            lastTextPartId={lastTextPartId}
+            footerMeta={footerMeta}
+          />
+        ),
+      )}
     </div>
-  );
-},
-(prevProps, nextProps) => {
-  return (
-    prevProps.message.id === nextProps.message.id &&
-    prevProps.responsePartId === nextProps.responsePartId &&
-    prevProps.hideResponsePart === nextProps.hideResponsePart &&
-    prevProps.hideReasoning === nextProps.hideReasoning
   );
 });
 
-const PartView = memo(function PartView({ part }: { part: Part }) {
+const PartView = memo(function PartView({ part, showThinking = true, lastTextPartId, footerMeta }: { part: Part; showThinking?: boolean; lastTextPartId?: string; footerMeta?: FooterMeta }) {
   if (isText(part) && !part.synthetic) {
-    return <TextPartView part={part} />;
+    const isLast = part.id === lastTextPartId;
+    return <TextPartView part={part} footerMeta={isLast ? footerMeta : undefined} />;
   }
   if (isReasoning(part)) {
+    if (!showThinking) return null;
     return <ReasoningPartView part={part} />;
   }
   if (isTool(part)) {
@@ -296,18 +407,10 @@ const PartView = memo(function PartView({ part }: { part: Part }) {
     return <AttachmentList parts={[part]} />;
   }
   if (isSnapshot(part)) {
-    return (
-      <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-        Snapshot: {part.snapshot}
-      </div>
-    );
+    return null;
   }
   if (isPatch(part)) {
-    return (
-      <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-        Patch {part.hash} · {part.files.length} files
-      </div>
-    );
+    return null;
   }
   if (isStepStart(part)) {
     return null;
@@ -321,12 +424,18 @@ const PartView = memo(function PartView({ part }: { part: Part }) {
   return null;
 });
 
-const TextPartView = memo(function TextPartView({ part }: { part: TextPart }) {
+const TextPartView = memo(function TextPartView({ part, footerMeta }: { part: TextPart; footerMeta?: FooterMeta }) {
   const text = useThrottledValue(part.text ?? '', TEXT_RENDER_THROTTLE_MS);
   if (!text) return null;
   return (
-    <div className="text-sm">
+    <div data-component="text-part" className="text-sm">
       <Markdown text={text} cacheKey={part.id} />
+      {footerMeta && (
+        <div data-slot="text-part-copy-wrapper" data-interrupted={footerMeta.interrupted || undefined}>
+          <CopyButton text={text} label="Copy response" />
+          <span data-slot="text-part-meta">{footerMeta.meta}</span>
+        </div>
+      )}
     </div>
   );
 });
@@ -335,8 +444,9 @@ const ReasoningPartView = memo(function ReasoningPartView({ part }: { part: Reas
   const text = useThrottledValue(part.text ?? '', TEXT_RENDER_THROTTLE_MS);
   if (!text) return null;
   return (
-    <div className="text-xs text-muted-foreground italic">
+    <div data-component="reasoning-part">
       <Markdown text={text} cacheKey={part.id} />
     </div>
   );
 });
+

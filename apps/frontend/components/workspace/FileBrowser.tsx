@@ -197,7 +197,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         ref={sidebarRef}
         className={cn(
           "group/sidebar h-screen flex-shrink-0 bg-sidebar-bg flex flex-col relative",
-          "transition-[margin] duration-300 ease-in-out"
+          "transition-[margin] duration-300 ease-in-out",
+          !isCollapsed && "border-r border-border"
         )}
         style={{
           width: resolvedSidebarWidth,
@@ -343,7 +344,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         <div className="flex-shrink-0 h-2" />
 
         {/* Root folder toggle + file tree */}
-        <div className="flex-1 overflow-y-auto px-2 py-1 thin-scrollbar">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 thin-scrollbar">
           {/* Root folder row */}
           <button
             onClick={() => setRootExpanded(!rootExpanded)}

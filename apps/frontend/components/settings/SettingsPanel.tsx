@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Keyboard, Settings as SettingsIcon, SlidersHorizontal, X } from 'lucide-react';
+import { Keyboard, Palette, Settings as SettingsIcon, SlidersHorizontal, X } from 'lucide-react';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { ConfigSettings } from './ConfigSettings';
+import { AppearanceSettings } from './AppearanceSettings';
 import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
@@ -12,6 +13,7 @@ interface SettingsPanelProps {
 
 const sections = [
   { id: 'config', label: 'Config', icon: SlidersHorizontal },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ] as const;
 
@@ -59,6 +61,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         <section className="flex-1 min-w-0 min-h-0 flex flex-col">
           {activeSection === 'config' && <ConfigSettings />}
+          {activeSection === 'appearance' && <AppearanceSettings />}
           {activeSection === 'shortcuts' && <ShortcutsSettings />}
         </section>
       </div>

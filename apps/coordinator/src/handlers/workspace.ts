@@ -237,6 +237,19 @@ export async function handleReadFileBase64(
   return workspaceManager.readFileBase64(params.filePath);
 }
 
+export async function handleReadFileBase64Chunk(
+  workspaceManager: WorkspaceManager,
+  params: { filePath: string; offset: number; length: number }
+): Promise<{
+  base64: string;
+  mimeType: string;
+  offset: number;
+  bytesRead: number;
+  totalBytes: number;
+}> {
+  return workspaceManager.readFileBase64Chunk(params.filePath, params.offset, params.length);
+}
+
 export async function handleSaveFileBase64(
   workspaceManager: WorkspaceManager,
   params: { filePath: string; base64: string }

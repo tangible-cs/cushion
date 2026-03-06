@@ -134,6 +134,16 @@ describe('path traversal rejection', () => {
     }
   });
 
+  describe('readFileBase64Chunk', () => {
+    for (const payload of TRAVERSAL_PAYLOADS) {
+      test(`rejects "${payload}"`, async () => {
+        await expect(manager.readFileBase64Chunk(payload, 0, 1024)).rejects.toThrow(
+          'Path outside workspace'
+        );
+      });
+    }
+  });
+
   describe('saveFileBase64', () => {
     for (const payload of TRAVERSAL_PAYLOADS) {
       test(`rejects "${payload}"`, async () => {
@@ -279,5 +289,79 @@ describe('valid workspace operations', () => {
     await manager.saveFileBase64('doc.pdf', data.toString('base64'));
     const written = await fs.readFile(path.join(tmpDir, 'doc.pdf'));
     expect(Buffer.compare(written, data)).toBe(0);
+  });
+
+  test('readFileBase64Chunk reads requested byte range', async () => {
+    const data = Buffer.from([0, 1, 2, 3, 4, 5, 6, 7]);
+    await fs.writeFile(path.join(tmpDir, 'chunk.bin'), data);
+
+    const result = await manager.readFileBase64Chunk('chunk.bin', 2, 3);
+
+    expect(result.offset).toBe(2);
+    expect(result.bytesRead).toBe(3);
+    expect(result.totalBytes).toBe(data.length);
+    expect(Buffer.from(result.base64, 'base64')).toEqual(Buffer.from([2, 3, 4]));
+  });
+
+  test('readFileBase64Chunk returns empty data when offset is beyond EOF', async () => {
+    const data = Buffer.from([10, 11, 12]);
+    await fs.writeFile(path.join(tmpDir, 'eof.bin'), data);
+
+    const result = await manager.readFileBase64Chunk('eof.bin', 5, 10);
+
+    expect(result.offset).toBe(5);
+    expect(result.bytesRead).toBe(0);
+    expect(result.totalBytes).toBe(data.length);
+    expect(result.base64).toBe('');
+  });
+
+  test('saveFileBase64 and chunk reads preserve binary payloads', async () => {
+    const data = Buffer.alloc(4097);
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = i % 256;
+    }
+
+    await manager.saveFileBase64('roundtrip.pdf', data.toString('base64'));
+
+    const fullRead = await manager.readFileBase64('roundtrip.pdf');
+    expect(fullRead.mimeType).toBe('application/pdf');
+    expect(Buffer.from(fullRead.base64, 'base64')).toEqual(data);
+
+    const chunks: Buffer[] = [];
+    let offset = 0;
+
+    while (true) {
+      const chunk = await manager.readFileBase64Chunk('roundtrip.pdf', offset, 1024);
+      expect(chunk.offset).toBe(offset);
+      expect(chunk.totalBytes).toBe(data.length);
+
+      if (chunk.bytesRead === 0) {
+        break;
+      }
+
+      const decodedChunk = Buffer.from(chunk.base64, 'base64');
+      expect(decodedChunk.length).toBe(chunk.bytesRead);
+      chunks.push(decodedChunk);
+      offset += chunk.bytesRead;
+    }
+
+    expect(Buffer.concat(chunks)).toEqual(data);
+  });
+
+  test('readFileBase64Chunk enforces max chunk size', async () => {
+    const maxChunkSizeBytes = 2 * 1024 * 1024;
+    const data = Buffer.alloc(maxChunkSizeBytes + 64, 0xab);
+    await fs.writeFile(path.join(tmpDir, 'large-chunk.bin'), data);
+
+    const result = await manager.readFileBase64Chunk(
+      'large-chunk.bin',
+      0,
+      maxChunkSizeBytes + 1024,
+    );
+
+    expect(result.offset).toBe(0);
+    expect(result.bytesRead).toBe(maxChunkSizeBytes);
+    expect(result.totalBytes).toBe(data.length);
+    expect(Buffer.from(result.base64, 'base64')).toEqual(data.subarray(0, maxChunkSizeBytes));
   });
 });

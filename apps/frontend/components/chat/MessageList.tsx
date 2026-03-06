@@ -7,6 +7,7 @@ import { useAutoScroll } from './useAutoScroll';
 import { Icon } from './Icon';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Turn } from './Turn';
+import { DisplayOptionsPopover } from './DisplayOptionsPopover';
 import { groupMessagesIntoTurns, EMPTY_MESSAGES } from './message-helpers';
 
 type MessageListProps = {
@@ -21,6 +22,7 @@ export function MessageList({ className }: MessageListProps) {
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
   const setActiveSession = useChatStore((state) => state.setActiveSession);
+  const showThinking = useChatStore((s) => s.displayPreferences.showThinking);
   const [sessionQuery, setSessionQuery] = useState('');
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
 
@@ -185,18 +187,21 @@ export function MessageList({ className }: MessageListProps) {
                   </div>
                 </PopoverContent>
               </Popover>
-              <button
-                type="button"
-                onClick={() => {
-                  setSessionMenuOpen(false);
-                  setActiveSession(null).catch(() => undefined);
-                }}
-                className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
-                aria-label="New session"
-                title="New session"
-              >
-                <Icon name="plus-small" size="small" />
-              </button>
+              <div className="flex items-center gap-1">
+                <DisplayOptionsPopover />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSessionMenuOpen(false);
+                    setActiveSession(null).catch(() => undefined);
+                  }}
+                  className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
+                  aria-label="New session"
+                  title="New session"
+                >
+                  <Icon name="plus-small" size="small" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -230,6 +235,7 @@ export function MessageList({ className }: MessageListProps) {
                 sessionId={sessionId}
                 isWorking={isLastTurnWorking && turn === lastTurn}
                 onInteract={autoScroll.handleInteraction}
+                showThinking={showThinking}
               />
             ))
           )}

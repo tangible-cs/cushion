@@ -407,8 +407,56 @@ export class CoordinatorClient {
     return this.sendRequest<{ base64: string; mimeType: string }>('workspace/file-base64', { filePath });
   }
 
+  async readFileBase64Chunk(
+    filePath: string,
+    offset: number,
+    length: number,
+  ): Promise<{
+    base64: string;
+    mimeType: string;
+    offset: number;
+    bytesRead: number;
+    totalBytes: number;
+  }> {
+    return this.sendRequest<{
+      base64: string;
+      mimeType: string;
+      offset: number;
+      bytesRead: number;
+      totalBytes: number;
+    }>('workspace/file-base64-chunk', { filePath, offset, length });
+  }
+
   async saveFileBase64(filePath: string, base64: string): Promise<{ success: boolean }> {
     return this.sendRequest<{ success: boolean }>('workspace/save-file-base64', { filePath, base64 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Config RPCs
+  // ---------------------------------------------------------------------------
+
+  async readConfig(file: string): Promise<{ content: string | null; exists: boolean }> {
+    return this.sendRequest<{ content: string | null; exists: boolean }>('config/read', { file });
+  }
+
+  async writeConfig(file: string, content: string): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('config/write', { file, content });
+  }
+
+  async listSnippets(): Promise<{ snippets: string[] }> {
+    return this.sendRequest<{ snippets: string[] }>('config/list-snippets', {});
+  }
+
+  async readSnippet(name: string): Promise<{ content: string }> {
+    return this.sendRequest<{ content: string }>('config/read-snippet', { name });
+  }
+
+  async writeSnippet(name: string, content: string): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('config/write-snippet', { name, content });
+  }
+
+  async deleteSnippet(name: string): Promise<{ success: boolean }> {
+    return this.sendRequest<{ success: boolean }>('config/delete-snippet', { name });
   }
 
   // ---------------------------------------------------------------------------

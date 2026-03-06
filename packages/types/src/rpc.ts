@@ -84,6 +84,16 @@ export interface RPCMethodMap {
     params: { filePath: string };
     result: { base64: string; mimeType: string };
   };
+  'workspace/file-base64-chunk': {
+    params: { filePath: string; offset: number; length: number };
+    result: {
+      base64: string;
+      mimeType: string;
+      offset: number;
+      bytesRead: number;
+      totalBytes: number;
+    };
+  };
   'workspace/save-file-base64': {
     params: { filePath: string; base64: string };
     result: { success: boolean };
@@ -147,6 +157,32 @@ export interface RPCMethodMap {
   'provider/ollama/write-config': {
     params: { baseUrl?: string; models?: unknown[] };
     result: { success: boolean; message: string };
+  };
+
+  // Config
+  'config/read': {
+    params: { file: string };
+    result: { content: string | null; exists: boolean };
+  };
+  'config/write': {
+    params: { file: string; content: string };
+    result: { success: boolean };
+  };
+  'config/list-snippets': {
+    params: void;
+    result: { snippets: string[] };
+  };
+  'config/read-snippet': {
+    params: { name: string };
+    result: { content: string };
+  };
+  'config/write-snippet': {
+    params: { name: string; content: string };
+    result: { success: boolean };
+  };
+  'config/delete-snippet': {
+    params: { name: string };
+    result: { success: boolean };
   };
 }
 

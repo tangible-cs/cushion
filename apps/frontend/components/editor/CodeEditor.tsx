@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
 import {
   EditorView,
@@ -13,6 +13,7 @@ import {
   rectangularSelection,
   crosshairCursor,
   highlightActiveLine,
+  panels,
   type KeyBinding,
 } from '@codemirror/view';
 import {
@@ -61,6 +62,7 @@ import {
 import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath } from '@/lib/markdown-extensions';
 import { createListKeymap } from '@/lib/codemirror-wysiwyg/list-commands';
 import { createFormatKeymap } from '@/lib/codemirror-wysiwyg/format-commands';
+import { modernSearchExtension } from '@/lib/codemirror-search-panel';
 import { useShortcutBindings } from '@/lib/shortcuts';
 import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
 
@@ -80,6 +82,8 @@ interface CodeEditorProps {
   focusModeEnabled?: boolean;
   /** Handle image pastes in markdown */
   onPasteImages?: (params: { files: File[]; view: EditorView; filePath: string }) => void;
+  /** Optional container where search panel should render */
+  searchPanelContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 
@@ -158,6 +162,7 @@ export function CodeEditor({
   embedResolver,
   focusModeEnabled = false,
   onPasteImages,
+  searchPanelContainerRef,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -342,7 +347,13 @@ export function CodeEditor({
       '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--md-border)' },
       '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--md-border)' },
       '.cm-searchMatch': {
-        backgroundColor: 'var(--md-highlight-yellow)',
+        backgroundColor: 'var(--accent-primary-12)',
+        outline: '1px solid var(--border-subtle)',
+        borderRadius: '2px',
+      },
+      '.cm-searchMatch.cm-searchMatch-selected': {
+        backgroundColor: 'var(--accent-primary-12)',
+        outline: '1px solid var(--accent-primary)',
       },
       '.cm-activeLine': {
         backgroundColor: 'var(--md-active-line-bg)',
@@ -437,6 +448,10 @@ export function CodeEditor({
       rectangularSelection(),
       crosshairCursor(),
       highlightActiveLine(),
+      ...(searchPanelContainerRef?.current
+        ? [panels({ topContainer: searchPanelContainerRef.current })]
+        : []),
+      modernSearchExtension,
       highlightSelectionMatches(),
       EditorView.lineWrapping,
       // -- Keymaps (CM-internal, explicitly listed) --

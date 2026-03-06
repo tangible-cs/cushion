@@ -19,6 +19,11 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
+import { ConfigSync } from '@/lib/config-sync';
+import { DEFAULT_SETTINGS, DEFAULT_WORKSPACE, DEFAULT_HOTKEYS, DEFAULT_APPEARANCE, DEFAULT_CHAT } from '@/lib/config-defaults';
+import { useShortcutsStore } from '@/stores/shortcutsStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
+import type { CushionSettings, CushionWorkspace, CushionHotkeys, CushionAppearance, CushionChat } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
@@ -44,6 +49,44 @@ function closeTopmostOverlay(targets: readonly OverlayCloseTarget[]): boolean {
   return false;
 }
 
+const SNIPPET_ATTR = 'data-cushion-snippet';
+
+function injectSnippet(name: string, css: string) {
+  removeSnippet(name);
+  const style = document.createElement('style');
+  style.setAttribute(SNIPPET_ATTR, name);
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+function removeSnippet(name: string) {
+  const el = document.querySelector(`style[${SNIPPET_ATTR}="${CSS.escape(name)}"]`);
+  el?.remove();
+}
+
+function removeAllSnippets() {
+  document.querySelectorAll(`style[${SNIPPET_ATTR}]`).forEach((el) => el.remove());
+}
+
+function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: string) {
+  const html = document.documentElement;
+  html.className = resolvedTheme;
+
+  if (accentColor) {
+    // accentColor is stored as "h s% l%" (e.g. "210 90% 50%")
+    const parts = accentColor.match(/(\d+)\s+(\d+)%?\s+(\d+)%?/);
+    if (parts) {
+      html.style.setProperty('--accent-h', parts[1]);
+      html.style.setProperty('--accent-s', `${parts[2]}%`);
+      html.style.setProperty('--accent-l', `${parts[3]}%`);
+    }
+  } else {
+    html.style.removeProperty('--accent-h');
+    html.style.removeProperty('--accent-s');
+    html.style.removeProperty('--accent-l');
+  }
+}
+
 export default function Home() {
   const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects } = useWorkspaceStore();
   const openFiles = useWorkspaceStore((state) => state.openFiles);
@@ -64,6 +107,14 @@ export default function Home() {
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
+  const configSyncRef = useRef<ConfigSync | null>(null);
+  const lastSettingsRef = useRef<CushionSettings>(DEFAULT_SETTINGS);
+  const skipSettingsWriteRef = useRef(false);
+  const skipWorkspaceWriteRef = useRef(false);
+  const skipHotkeysWriteRef = useRef(false);
+  const skipAppearanceWriteRef = useRef(false);
+  const skipChatWriteRef = useRef(false);
+  const workspaceConfigLoadedRef = useRef(false);
 
   // File tree and connection state from useFileTree hook
   const { fileTree, connectionState, fetchFileTree } = useFileTree({
@@ -127,6 +178,345 @@ export default function Home() {
       disconnectChat();
     };
   }, [metadata?.projectPath, connectChat, disconnectChat]);
+
+  // --- ConfigSync lifecycle ---
+
+  // Create / destroy ConfigSync when client connects
+  useEffect(() => {
+    if (!client) return;
+    configSyncRef.current = new ConfigSync(client);
+    return () => {
+      configSyncRef.current?.flush();
+      configSyncRef.current?.destroy();
+      configSyncRef.current = null;
+    };
+  }, [client]);
+
+  // Load settings.json + workspace.json + hotkeys.json when a workspace opens
+  useEffect(() => {
+    if (!metadata || !configSyncRef.current) return;
+    workspaceConfigLoadedRef.current = false;
+    let cancelled = false;
+    const sync = configSyncRef.current;
+
+    (async () => {
+      // Load settings.json
+      const parsedSettings = await sync.read<CushionSettings>('settings.json');
+      if (cancelled) return;
+      if (parsedSettings) {
+        const merged = { ...DEFAULT_SETTINGS, ...parsedSettings };
+        lastSettingsRef.current = merged;
+        skipSettingsWriteRef.current = true;
+        useWorkspaceStore.getState().updatePreferences({
+          showHiddenFiles: merged.showHiddenFiles,
+          showCushionFiles: merged.showCushionFiles,
+          fileTreeCollapsed: merged.fileTreeCollapsed,
+          autoSave: merged.autoSave,
+          autoSaveDelay: merged.autoSaveDelay,
+        });
+      }
+
+      // Load workspace.json — restore right panel + tabs
+      const parsedWorkspace = await sync.read<CushionWorkspace>('workspace.json');
+      if (cancelled) return;
+      if (parsedWorkspace) {
+        const merged = { ...DEFAULT_WORKSPACE, ...parsedWorkspace };
+
+        // Restore right panel state
+        if (merged.rightPanel) {
+          setRightPanelMode(merged.rightPanel.mode);
+          setRightPanelWidth(merged.rightPanel.width);
+          if (merged.rightPanel.mode !== 'none') {
+            lastRightPanelModeRef.current = merged.rightPanel.mode;
+          }
+        }
+
+        // Restore tabs — re-open each file from disk
+        if (merged.tabs.length > 0 && client) {
+          skipWorkspaceWriteRef.current = true;
+          const activeFilePath = merged.activeTab;
+          for (const tab of merged.tabs) {
+            try {
+              const { content } = await client.readFile(tab.filePath);
+              if (cancelled) return;
+              useWorkspaceStore.getState().openFile(tab.filePath, content);
+              if (tab.isPinned) {
+                const currentTabs = useWorkspaceStore.getState().tabs;
+                const restored = currentTabs.find((t) => t.filePath === tab.filePath);
+                if (restored) useWorkspaceStore.getState().pinTab(restored.id);
+              }
+            } catch {
+              // File may have been deleted since workspace.json was saved — skip
+              console.warn(`[ConfigSync] Skipping missing tab: ${tab.filePath}`);
+            }
+          }
+          // Set active tab by filePath
+          if (activeFilePath) {
+            const currentTabs = useWorkspaceStore.getState().tabs;
+            const activeTab = currentTabs.find((t) => t.filePath === activeFilePath);
+            if (activeTab) {
+              useWorkspaceStore.getState().setActiveTab(activeTab.id);
+            }
+          }
+        }
+      }
+
+      workspaceConfigLoadedRef.current = true;
+
+      // Load hotkeys.json — restore shortcut overrides
+      const parsedHotkeys = await sync.read<CushionHotkeys>('hotkeys.json');
+      if (cancelled) return;
+      if (parsedHotkeys) {
+        skipHotkeysWriteRef.current = true;
+        // Replace overrides in shortcuts store directly
+        useShortcutsStore.setState({ overrides: parsedHotkeys });
+      }
+
+      // Load appearance.json — restore theme, accent color, fonts
+      const parsedAppearance = await sync.read<CushionAppearance>('appearance.json');
+      if (cancelled) return;
+      if (parsedAppearance) {
+        skipAppearanceWriteRef.current = true;
+        useAppearanceStore.getState().loadAppearance(parsedAppearance);
+      }
+
+      // Load enabled CSS snippets
+      const enabledSnippets = parsedAppearance?.enabledCssSnippets ?? DEFAULT_APPEARANCE.enabledCssSnippets;
+      if (enabledSnippets.length > 0 && client) {
+        for (const snippetName of enabledSnippets) {
+          try {
+            const { content } = await client.readSnippet(snippetName);
+            if (cancelled) return;
+            injectSnippet(snippetName, content);
+          } catch {
+            console.warn(`[ConfigSync] Snippet not found: ${snippetName}`);
+          }
+        }
+      }
+
+      // Load chat.json — restore AI preferences for this workspace
+      const parsedChat = await sync.read<CushionChat>('chat.json');
+      if (cancelled) return;
+      if (parsedChat) {
+        const merged = { ...DEFAULT_CHAT, ...parsedChat };
+        const directory = metadata.projectPath;
+        skipChatWriteRef.current = true;
+        useChatStore.setState((state) => ({
+          displayPreferences: merged.displayPreferences,
+          modelVisibility: { ...state.modelVisibility, ...merged.modelVisibility },
+          ...(merged.selectedModel && {
+            selectedModel: merged.selectedModel,
+            selectedModelByDirectory: {
+              ...state.selectedModelByDirectory,
+              [directory]: merged.selectedModel,
+            },
+          }),
+          ...(merged.selectedAgent !== null && {
+            selectedAgent: merged.selectedAgent,
+            selectedAgentByDirectory: {
+              ...state.selectedAgentByDirectory,
+              [directory]: merged.selectedAgent,
+            },
+          }),
+          ...(merged.selectedVariant !== null && {
+            selectedVariant: merged.selectedVariant,
+            selectedVariantByDirectory: {
+              ...state.selectedVariantByDirectory,
+              [directory]: merged.selectedVariant,
+            },
+          }),
+        }));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [metadata, client]);
+
+  // Dual-write: when preferences change, also write to settings.json
+  useEffect(() => {
+    if (!metadata) return;
+
+    const unsub = useWorkspaceStore.subscribe(
+      (state) => state.preferences,
+      (prefs) => {
+        if (skipSettingsWriteRef.current) {
+          skipSettingsWriteRef.current = false;
+          return;
+        }
+        const sync = configSyncRef.current;
+        if (!sync) return;
+
+        const settings: CushionSettings = {
+          ...lastSettingsRef.current,
+          showHiddenFiles: prefs.showHiddenFiles,
+          showCushionFiles: prefs.showCushionFiles,
+          fileTreeCollapsed: prefs.fileTreeCollapsed,
+          autoSave: prefs.autoSave,
+          autoSaveDelay: prefs.autoSaveDelay,
+        };
+        lastSettingsRef.current = settings;
+        sync.scheduleWrite('settings.json', settings);
+      },
+    );
+
+    return unsub;
+  }, [metadata]);
+
+  // Dual-write: when tabs or active file change, also write to workspace.json
+  useEffect(() => {
+    if (!metadata) return;
+
+    const unsub = useWorkspaceStore.subscribe(
+      (state) => ({ tabs: state.tabs, currentFile: state.currentFile }),
+      ({ tabs, currentFile }) => {
+        if (skipWorkspaceWriteRef.current) {
+          skipWorkspaceWriteRef.current = false;
+          return;
+        }
+        const sync = configSyncRef.current;
+        if (!sync) return;
+
+        const workspaceData: CushionWorkspace = {
+          tabs: tabs.map((t) => ({
+            id: t.id,
+            filePath: t.filePath,
+            isPinned: t.isPinned,
+            isPreview: t.isPreview,
+            order: t.order,
+          })),
+          activeTab: currentFile,
+          rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
+          lastOpenFiles: tabs.map((t) => t.filePath),
+        };
+        sync.scheduleWrite('workspace.json', workspaceData);
+      },
+    );
+
+    return unsub;
+  }, [metadata, rightPanelMode, rightPanelWidth]);
+
+  // Dual-write: when hotkey overrides change, also write to hotkeys.json
+  useEffect(() => {
+    if (!metadata) return;
+
+    const unsub = useShortcutsStore.subscribe(
+      (state) => state.overrides,
+      (overrides) => {
+        if (skipHotkeysWriteRef.current) {
+          skipHotkeysWriteRef.current = false;
+          return;
+        }
+        const sync = configSyncRef.current;
+        if (!sync) return;
+
+        sync.scheduleWrite('hotkeys.json', overrides);
+      },
+    );
+
+    return unsub;
+  }, [metadata]);
+
+  // Dual-write: when appearance changes, also write to appearance.json
+  useEffect(() => {
+    if (!metadata) return;
+
+    const unsub = useAppearanceStore.subscribe(
+      (state) => ({
+        theme: state.theme,
+        accentColor: state.accentColor,
+        baseFontSize: state.baseFontSize,
+        textFontFamily: state.textFontFamily,
+        monospaceFontFamily: state.monospaceFontFamily,
+        interfaceFontFamily: state.interfaceFontFamily,
+        sidebarWidth: state.sidebarWidth,
+        enabledCssSnippets: state.enabledCssSnippets,
+      }),
+      () => {
+        if (skipAppearanceWriteRef.current) {
+          skipAppearanceWriteRef.current = false;
+          return;
+        }
+        const sync = configSyncRef.current;
+        if (!sync) return;
+
+        sync.scheduleWrite('appearance.json', useAppearanceStore.getState().getConfig());
+      },
+      { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+    );
+
+    return unsub;
+  }, [metadata]);
+
+  // Dual-write: when chat preferences change, also write to chat.json
+  useEffect(() => {
+    if (!metadata) return;
+    const directory = metadata.projectPath;
+
+    const unsub = useChatStore.subscribe(
+      (state) => ({
+        displayPreferences: state.displayPreferences,
+        modelVisibility: state.modelVisibility,
+        selectedModel: state.selectedModelByDirectory[directory] ?? state.selectedModel,
+        selectedAgent: state.selectedAgentByDirectory[directory] ?? state.selectedAgent,
+        selectedVariant: state.selectedVariantByDirectory[directory] ?? state.selectedVariant,
+      }),
+      (slice) => {
+        if (skipChatWriteRef.current) {
+          skipChatWriteRef.current = false;
+          return;
+        }
+        const sync = configSyncRef.current;
+        if (!sync) return;
+
+        const chatData: CushionChat = {
+          selectedModel: slice.selectedModel,
+          selectedAgent: slice.selectedAgent,
+          selectedVariant: slice.selectedVariant,
+          displayPreferences: slice.displayPreferences,
+          modelVisibility: slice.modelVisibility,
+        };
+        sync.scheduleWrite('chat.json', chatData);
+      },
+      { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+    );
+
+    return unsub;
+  }, [metadata]);
+
+  // Apply theme class and accent color CSS variables to <html>
+  useEffect(() => {
+    const { resolvedTheme, accentColor } = useAppearanceStore.getState();
+    applyAppearanceToDOM(resolvedTheme, accentColor);
+
+    const unsub = useAppearanceStore.subscribe(
+      (state) => ({ resolvedTheme: state.resolvedTheme, accentColor: state.accentColor }),
+      ({ resolvedTheme, accentColor }) => applyAppearanceToDOM(resolvedTheme, accentColor),
+    );
+
+    return unsub;
+  }, []);
+
+  // Listen for OS theme changes when theme === 'system'
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      const { theme } = useAppearanceStore.getState();
+      if (theme === 'system') {
+        useAppearanceStore.getState().setTheme('system');
+      }
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // Flush pending config writes on page unload
+  useEffect(() => {
+    const handler = () => configSyncRef.current?.flush();
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // --- End ConfigSync lifecycle ---
 
   useEffect(() => {
     if (!client || metadata || autoOpenAttempted.current) {
@@ -200,39 +590,32 @@ export default function Home() {
   }, [appShortcuts, closeTopmostAppOverlay, focusModeEnabled, setActiveSession]);
 
   useEffect(() => {
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('cushion-right-panel') : null;
-    if (!stored) return;
-    if (stored === 'chat' || stored === 'none') {
-      setRightPanelMode(stored);
-    } else if (stored === 'backlinks') {
-      setRightPanelMode('none');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('cushion-right-panel-width');
-    if (!stored) return;
-    const parsed = Number(stored);
-    if (!Number.isFinite(parsed)) return;
-    setRightPanelWidth(parsed);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('cushion-right-panel', rightPanelMode);
-  }, [rightPanelMode]);
-
-  useEffect(() => {
     if (rightPanelMode !== 'none') {
       lastRightPanelModeRef.current = rightPanelMode;
     }
   }, [rightPanelMode]);
 
+  // Write workspace.json when right panel state changes
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('cushion-right-panel-width', String(rightPanelWidth));
-  }, [rightPanelWidth]);
+    if (!metadata || !workspaceConfigLoadedRef.current) return;
+    const sync = configSyncRef.current;
+    if (!sync) return;
+
+    const { tabs, currentFile } = useWorkspaceStore.getState();
+    const workspaceData: CushionWorkspace = {
+      tabs: tabs.map((t) => ({
+        id: t.id,
+        filePath: t.filePath,
+        isPinned: t.isPinned,
+        isPreview: t.isPreview,
+        order: t.order,
+      })),
+      activeTab: currentFile,
+      rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
+      lastOpenFiles: tabs.map((t) => t.filePath),
+    };
+    sync.scheduleWrite('workspace.json', workspaceData);
+  }, [metadata, rightPanelMode, rightPanelWidth]);
 
   const handleFileOpen = useCallback(
     (filePath: string, content: string) => {
@@ -243,10 +626,6 @@ export default function Home() {
 
   const handleOpenWorkspace = useCallback(() => {
     setShowWorkspaceModal(true);
-  }, []);
-
-  const openChatSidebar = useCallback(() => {
-    setRightPanelMode('chat');
   }, []);
 
   const toggleRightPanel = useCallback(() => {
@@ -367,7 +746,6 @@ export default function Home() {
                 }}
                 focusModeEnabled={focusModeEnabled}
                 onToggleFocusMode={toggleFocusMode}
-                onOpenChat={openChatSidebar}
                 rightPanelOpen={rightPanelMode !== 'none'}
                 onToggleRightPanel={toggleRightPanel}
               />

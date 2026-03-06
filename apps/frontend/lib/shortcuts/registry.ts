@@ -326,7 +326,7 @@ export const shortcutRegistry = [
     description: 'Jump to the next search match.',
     scope: 'pdf',
     category: 'PDF Viewer',
-    defaultBindings: ['Enter'],
+    defaultBindings: ['Enter', 'Mod+G'],
   },
   {
     id: 'pdf.search.prev',
@@ -334,7 +334,7 @@ export const shortcutRegistry = [
     description: 'Jump to the previous search match.',
     scope: 'pdf',
     category: 'PDF Viewer',
-    defaultBindings: ['Shift+Enter'],
+    defaultBindings: ['Shift+Enter', 'Mod+Shift+G'],
   },
   {
     id: 'pdf.search.close',
@@ -367,6 +367,14 @@ export const shortcutRegistry = [
     scope: 'pdf',
     category: 'PDF Viewer',
     defaultBindings: ['Mod+-'],
+  },
+  {
+    id: 'pdf.zoom.reset',
+    label: 'Reset zoom',
+    description: 'Reset the PDF zoom to automatic.',
+    scope: 'pdf',
+    category: 'PDF Viewer',
+    defaultBindings: ['Mod+0'],
   },
   {
     id: 'image.zoom.in',

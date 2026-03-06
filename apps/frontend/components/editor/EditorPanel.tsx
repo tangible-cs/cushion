@@ -1,16 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { CodeEditor } from './CodeEditor';
-import { EditorTabs } from './EditorTabs';
+import { EditorNavRow } from './EditorNavRow';
+import { EditorTabRow } from './EditorTabRow';
+import { buildEditorBreadcrumb } from './editor-path';
 import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
 import { ImageViewer } from './ImageViewer';
 import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
-import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Share2, Target } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { uint8ArrayToBase64 } from '@/lib/pdf-bytes';
+import { isPdfProgressiveLoadingEnabled } from '@/lib/pdf-feature-flags';
+import {
+  createPdfTelemetrySession,
+  pdfTelemetryNow,
+  type PdfTelemetrySession,
+} from '@/lib/pdf-telemetry';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
@@ -22,7 +28,6 @@ interface EditorPanelProps {
   fileTree?: FileTreeNode[];
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
-  onOpenChat?: () => void;
   focusModeEnabled?: boolean;
   onToggleFocusMode?: () => void;
   rightPanelOpen?: boolean;
@@ -75,19 +80,36 @@ function joinWorkspacePath(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\\/g, '/');
 }
 
+type PdfDataState =
+  | {
+      mode: 'base64';
+      filePath: string;
+      base64: string;
+      telemetrySession: PdfTelemetrySession | null;
+    }
+  | {
+      mode: 'progressive';
+      filePath: string;
+      telemetrySession: null;
+    };
+
+const PDF_RANGE_CHUNK_SIZE = 256 * 1024;
+
+const pdfProgressiveLoadingEnabled = isPdfProgressiveLoadingEnabled();
+
 export function EditorPanel({
   client,
   onFileRenamed,
   fileTree,
   sidebarCollapsed,
   onExpandSidebar,
-  onOpenChat,
   focusModeEnabled,
   onToggleFocusMode,
   rightPanelOpen,
   onToggleRightPanel,
 }: EditorPanelProps) {
   const workspacePath = useWorkspaceStore((s) => s.metadata?.projectPath ?? null);
+  const projectName = useWorkspaceStore((s) => s.metadata?.projectName ?? null);
   const currentFile = useWorkspaceStore((s) => s.currentFile);
   const tabs = useWorkspaceStore((s) => s.tabs);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
@@ -125,6 +147,10 @@ export function EditorPanel({
 
   const canGoBack = historyRef.current.index > 0;
   const canGoForward = historyRef.current.index < historyRef.current.entries.length - 1;
+  const breadcrumb = useMemo(
+    () => buildEditorBreadcrumb({ projectName, currentFile }),
+    [projectName, currentFile]
+  );
 
   const goBack = useCallback(() => {
     const h = historyRef.current;
@@ -145,7 +171,7 @@ export function EditorPanel({
   }, [setCurrentFile]);
 
   const openedUrisRef = useRef<Set<string>>(new Set());
-  const [pdfData, setPdfData] = useState<{ filePath: string; base64: string } | null>(null);
+  const [pdfData, setPdfData] = useState<PdfDataState | null>(null);
   const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
   const embedCacheRef = useRef(new Map<string, Promise<EmbedResolverResult | null>>());
 
@@ -188,9 +214,33 @@ export function EditorPanel({
       setPdfData(null);
       return;
     }
+
+    if (pdfProgressiveLoadingEnabled) {
+      setPdfData({
+        mode: 'progressive',
+        filePath: currentFile,
+        telemetrySession: null,
+      });
+      return;
+    }
+
     let cancelled = false;
+    const readStartedAtMs = pdfTelemetryNow();
     client.readFileBase64(currentFile).then((result) => {
-      if (!cancelled) setPdfData({ filePath: currentFile, base64: result.base64 });
+      if (cancelled) return;
+
+      const telemetrySession = createPdfTelemetrySession({
+        filePath: currentFile,
+        base64Data: result.base64,
+        fileReadDurationMs: pdfTelemetryNow() - readStartedAtMs,
+      });
+
+      setPdfData({
+        mode: 'base64',
+        filePath: currentFile,
+        base64: result.base64,
+        telemetrySession,
+      });
     }).catch((err) => {
       console.error('[EditorPanel] Failed to load PDF:', err);
     });
@@ -396,6 +446,7 @@ export function EditorPanel({
   );
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
+  const searchPanelContainerRef = useRef<HTMLDivElement>(null);
 
   const handleRename = useCallback(async (newName: string): Promise<boolean> => {
     if (!currentFile) return false;
@@ -442,6 +493,28 @@ export function EditorPanel({
     );
   }, []);
 
+  const pdfFilePath = pdfData?.filePath ?? currentFile ?? null;
+
+  const readPdfChunk = useCallback(
+    async (offset: number, length: number) => {
+      if (!pdfFilePath) {
+        throw new Error('No PDF file selected');
+      }
+
+      return client.readFileBase64Chunk(pdfFilePath, offset, length);
+    },
+    [client, pdfFilePath]
+  );
+
+  const readPdfBase64 = useCallback(async () => {
+    if (!pdfFilePath) {
+      throw new Error('No PDF file selected');
+    }
+
+    const result = await client.readFileBase64(pdfFilePath);
+    return result.base64;
+  }, [client, pdfFilePath]);
+
 
   const handleWikiLinkNavigate: WikiLinkNavigateCallback = useCallback(
     async (href, resolvedPath, createIfMissing) => {
@@ -469,116 +542,33 @@ export function EditorPanel({
 
   return (
     <div className="flex flex-col w-full h-full bg-background">
-      {/* Top bar: sidebar toggle, nav arrows, tabs */}
+      {/* Header rows */}
       {!focusModeEnabled && (
-        <div className="flex items-center bg-background min-h-[40px] flex-shrink-0">
-          {/* Sidebar toggle button (Affine-style) */}
-          {sidebarCollapsed && (
-            <button
-              onClick={onExpandSidebar}
-              className={cn(
-                "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-              title="Open sidebar"
-            >
-              <PanelLeft size={16} />
-            </button>
-          )}
-
-          {/* Back / Forward navigation */}
-          <div className="flex items-center flex-shrink-0">
-            <button
-              onClick={goBack}
-              disabled={!canGoBack}
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center transition-colors duration-150",
-                canGoBack
-                  ? "text-muted-foreground hover:text-foreground"
-                  : "text-muted-foreground/30 cursor-default"
-              )}
-              title="Go back"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={goForward}
-              disabled={!canGoForward}
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center transition-colors duration-150",
-                canGoForward
-                  ? "text-muted-foreground hover:text-foreground"
-                  : "text-muted-foreground/30 cursor-default"
-              )}
-              title="Go forward"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          {/* Tabs */}
-          {tabs.length > 0 && (
-            <EditorTabs
-              tabs={tabs}
-              currentFile={currentFile}
-              onSelectTab={handleSelectTab}
-              onCloseTab={handleCloseTab}
-            />
-          )}
-
-          <div className="ml-auto mr-2 flex items-center gap-1">
-            {onToggleFocusMode && (
-              <button
-                onClick={onToggleFocusMode}
-                className={cn(
-                  "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
-                  focusModeEnabled ? "text-foreground" : "text-muted-foreground",
-                  "hover:text-foreground",
-                  focusModeEnabled
-                    ? "bg-muted/40"
-                    : "hover:bg-muted/40",
-                  "transition-colors duration-150"
-                )}
-                title={focusModeEnabled ? "Exit focus mode" : "Enter focus mode"}
-                aria-pressed={!!focusModeEnabled}
-              >
-                <Target size={16} />
-              </button>
-            )}
-            {/* Share */}
-            <button
-              className={cn(
-                "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-              title="Share"
-            >
-              <Share2 size={16} />
-            </button>
-            {onToggleRightPanel && (
-              <button
-                onClick={onToggleRightPanel}
-                className={cn(
-                  "h-8 w-8 flex-shrink-0 flex items-center justify-center rounded",
-                  rightPanelOpen ? "text-foreground" : "text-muted-foreground",
-                  "hover:text-foreground",
-                  "hover:bg-muted/40",
-                  "transition-colors duration-150"
-                )}
-                title={rightPanelOpen ? "Close right sidebar" : "Open right sidebar"}
-                aria-label={rightPanelOpen ? "Close right sidebar" : "Open right sidebar"}
-                aria-pressed={!!rightPanelOpen}
-              >
-                <PanelRight size={16} />
-              </button>
-            )}
-          </div>
-        </div>
+        <>
+          <EditorTabRow
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={onExpandSidebar}
+            tabs={tabs}
+            currentFile={currentFile}
+            onSelectTab={handleSelectTab}
+            onCloseTab={handleCloseTab}
+            rightPanelOpen={rightPanelOpen}
+            onToggleRightPanel={onToggleRightPanel}
+          />
+          <EditorNavRow
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onGoBack={goBack}
+            onGoForward={goForward}
+            focusModeEnabled={focusModeEnabled}
+            onToggleFocusMode={onToggleFocusMode}
+            centerContent={breadcrumb.text}
+            centerTitle={breadcrumb.title}
+          />
+        </>
       )}
+
+      <div ref={searchPanelContainerRef} className="flex-shrink-0" />
 
       {/* Editor content with rounded top corners */}
       <div
@@ -589,17 +579,20 @@ export function EditorPanel({
       >
         {isPdf && pdfData ? (
           <PdfViewer
-            filePath={currentFile!}
-            base64Data={pdfData.base64}
+            filePath={pdfData.filePath}
+            base64Data={pdfData.mode === 'base64' ? pdfData.base64 : undefined}
+            telemetrySession={pdfData.telemetrySession}
+            progressiveLoading={pdfData.mode === 'progressive' ? {
+              readChunk: readPdfChunk,
+              rangeChunkSize: PDF_RANGE_CHUNK_SIZE,
+            } : null}
+            readOriginalBase64={readPdfBase64}
             onSave={async (data: Uint8Array) => {
+              const activeFile = pdfData.filePath;
+
               try {
-                let binary = '';
-                for (let i = 0; i < data.length; i++) {
-                  binary += String.fromCharCode(data[i]);
-                }
-                const base64 = btoa(binary);
-                await client.saveFileBase64(currentFile!, base64);
-                setPdfData({ filePath: currentFile!, base64 });
+                const base64 = uint8ArrayToBase64(data);
+                await client.saveFileBase64(activeFile, base64);
               } catch (err) {
                 console.error('[EditorPanel] PDF save failed:', err);
                 alert('Failed to save PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -634,6 +627,7 @@ export function EditorPanel({
               onWikiLinkNavigate={handleWikiLinkNavigate}
               embedResolver={handleEmbedResolve}
               onPasteImages={handlePasteImages}
+              searchPanelContainerRef={searchPanelContainerRef}
             />
           </>
         ) : (

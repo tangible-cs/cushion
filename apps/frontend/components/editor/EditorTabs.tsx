@@ -22,9 +22,12 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
   const openFiles = useWorkspaceStore((s) => s.openFiles);
 
   return (
-    <div className="flex h-10 items-center gap-1 px-2 overflow-x-auto overflow-y-hidden thin-scrollbar">
-      {tabs.map((tab) => {
+    <div className="flex h-10 items-end px-2 overflow-x-auto overflow-y-hidden thin-scrollbar">
+      {tabs.map((tab, index) => {
         const isActive = tab.filePath === currentFile;
+        const previousTab = index > 0 ? tabs[index - 1] : null;
+        const previousIsActive = previousTab?.filePath === currentFile;
+        const showInactiveSeparator = !isActive && index > 0 && !previousIsActive;
         const file = openFiles.get(tab.filePath);
         const isDirty = file?.isDirty ?? false;
 
@@ -32,11 +35,12 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
           <div
             key={tab.id}
             className={cn(
-              "group flex items-center gap-1.5 h-7 px-3 rounded text-sm cursor-pointer select-none min-w-0 min-w-[60px]",
+              "group relative flex shrink-0 items-center gap-1.5 h-8 px-3 border text-sm cursor-pointer select-none min-w-[72px] max-w-[220px]",
               "transition-colors duration-150",
               isActive
-                ? "bg-tab-active text-tab-text-active shadow-sm"
-                : "text-tab-text hover:bg-tab-active/60 hover:text-tab-text-active"
+                ? "z-10 rounded-t-sm rounded-b-none bg-tab-active text-tab-text-active border-border border-b-background"
+                : "rounded-none border-transparent text-tab-text hover:bg-[var(--background-modifier-hover)] hover:text-tab-text-active",
+              showInactiveSeparator && "before:absolute before:left-0 before:top-2 before:h-4 before:w-px before:bg-border"
             )}
             title={getFileName(tab.filePath)}
             onClick={() => onSelectTab(tab.filePath)}
@@ -47,12 +51,11 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
             {isDirty && (
               <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
             )}
-            {/* Close button - visible on hover or when active */}
             <button
               className={cn(
                 "w-4 h-4 flex items-center justify-center rounded",
                 "transition-opacity duration-150",
-                "hover:bg-muted/60",
+                "hover:bg-[var(--background-modifier-hover)]",
                 isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 group-hover:hover:opacity-100"
               )}
               onClick={(e) => {
@@ -66,14 +69,13 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
         );
       })}
 
-      {/* Add tab button */}
       {onAddTab && (
         <button
           onClick={onAddTab}
           className={cn(
-            "h-7 w-7 rounded flex items-center justify-center shrink-0",
+            "h-8 w-8 rounded flex items-center justify-center shrink-0 ml-1",
             "text-muted-foreground hover:text-foreground",
-            "hover:bg-muted/50",
+            "hover:bg-[var(--background-modifier-hover)]",
             "transition-colors duration-150"
           )}
           title="New tab"
