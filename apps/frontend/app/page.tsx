@@ -109,6 +109,13 @@ export default function Home() {
     metadata,
     rightPanelMode,
     rightPanelWidth,
+    onRightPanelRestore: useCallback((mode: 'none' | 'chat', width: number) => {
+      setRightPanelMode(mode);
+      setRightPanelWidth(width);
+      if (mode !== 'none') {
+        lastRightPanelModeRef.current = mode;
+      }
+    }, []),
   });
 
   const appShortcuts = useShortcutBindings(APP_SHORTCUT_IDS);

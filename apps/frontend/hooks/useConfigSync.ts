@@ -28,6 +28,8 @@ interface UseConfigSyncOptions {
   /** Current right-panel UI state, written into workspace.json */
   rightPanelMode: 'none' | 'chat';
   rightPanelWidth: number;
+  /** Called when workspace.json is loaded with the persisted right-panel state */
+  onRightPanelRestore: (mode: 'none' | 'chat', width: number) => void;
 }
 
 /**
@@ -39,9 +41,12 @@ export function useConfigSync({
   metadata,
   rightPanelMode,
   rightPanelWidth,
+  onRightPanelRestore,
 }: UseConfigSyncOptions) {
   const configSyncRef = useRef<ConfigSync | null>(null);
   const workspaceConfigLoadedRef = useRef(false);
+  // Preserve the full on-disk settings object so unknown keys survive round-trips
+  const lastSettingsRef = useRef<CushionSettings>(DEFAULT_SETTINGS);
 
   // Create / destroy ConfigSync when client connects
   useEffect(() => {
@@ -66,10 +71,9 @@ export function useConfigSync({
       const parsedSettings = await sync.read<CushionSettings>('settings.json');
       if (cancelled) return;
       if (parsedSettings) {
-        useWorkspaceStore.getState().updatePreferences({
-          ...DEFAULT_SETTINGS,
-          ...parsedSettings,
-        });
+        const merged = { ...DEFAULT_SETTINGS, ...parsedSettings };
+        lastSettingsRef.current = merged;
+        useWorkspaceStore.getState().updatePreferences(merged);
       }
 
       // --- workspace.json ---
@@ -78,8 +82,10 @@ export function useConfigSync({
       if (parsedWorkspace) {
         const merged = { ...DEFAULT_WORKSPACE, ...parsedWorkspace };
 
-        // Restore right panel state — dispatch via external setter if needed
-        // (handled by the caller via returned ref or store)
+        // Restore right panel state
+        if (merged.rightPanel) {
+          onRightPanelRestore(merged.rightPanel.mode, merged.rightPanel.width);
+        }
 
         // Restore tabs
         if (merged.tabs.length > 0 && client) {
@@ -163,7 +169,10 @@ export function useConfigSync({
     return useWorkspaceStore.subscribe(
       (state) => state.preferences,
       (prefs) => {
-        configSyncRef.current?.scheduleWrite('settings.json', prefs);
+        // Spread over last-read disk object to preserve unknown keys
+        const settings: CushionSettings = { ...lastSettingsRef.current, ...prefs };
+        lastSettingsRef.current = settings;
+        configSyncRef.current?.scheduleWrite('settings.json', settings);
       },
     );
   }, [metadata]);
@@ -258,10 +267,9 @@ export function useConfigSync({
         case 'settings.json': {
           const parsed = await sync.read<CushionSettings>('settings.json');
           if (!parsed) return;
-          useWorkspaceStore.getState().updatePreferences({
-            ...DEFAULT_SETTINGS,
-            ...parsed,
-          });
+          const merged = { ...DEFAULT_SETTINGS, ...parsed };
+          lastSettingsRef.current = merged;
+          useWorkspaceStore.getState().updatePreferences(merged);
           break;
         }
         case 'appearance.json': {
