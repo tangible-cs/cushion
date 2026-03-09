@@ -88,6 +88,7 @@ export interface WorkspaceState {
   recentProjects: WorkspaceMetadata[];
   recentFiles: string[];
   preferences: WorkspacePreferences;
+  sidebarWidth: number;
   sessionId: string;
   isLoading: boolean;
   error: string | null;

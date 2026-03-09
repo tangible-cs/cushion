@@ -19,7 +19,6 @@ export const DEFAULT_SETTINGS: Required<CushionSettings> = {
   showHiddenFiles: false,
   showCushionFiles: false,
   fileSortOrder: 'alphabetical',
-  sidebarWidth: 240,
 };
 
 export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {
@@ -27,6 +26,7 @@ export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {
   activeTab: null,
   rightPanel: { mode: 'none', width: 360 },
   lastOpenFiles: [],
+  sidebarWidth: 240,
 };
 
 export const DEFAULT_APPEARANCE: Required<CushionAppearance> = {
@@ -36,7 +36,6 @@ export const DEFAULT_APPEARANCE: Required<CushionAppearance> = {
   textFontFamily: '',
   monospaceFontFamily: '',
   interfaceFontFamily: '',
-  sidebarWidth: 240,
 };
 
 export const DEFAULT_CHAT: Required<CushionChat> = {

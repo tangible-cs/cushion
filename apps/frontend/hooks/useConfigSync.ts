@@ -87,6 +87,11 @@ export function useConfigSync({
           onRightPanelRestore(merged.rightPanel.mode, merged.rightPanel.width);
         }
 
+        // Restore sidebar width
+        if (merged.sidebarWidth !== undefined) {
+          useWorkspaceStore.getState().setSidebarWidth(merged.sidebarWidth);
+        }
+
         // Restore tabs
         if (merged.tabs.length > 0 && client) {
           const activeFilePath = merged.activeTab;
@@ -182,8 +187,8 @@ export function useConfigSync({
     if (!metadata) return;
 
     return useWorkspaceStore.subscribe(
-      (state) => ({ tabs: state.tabs, currentFile: state.currentFile }),
-      ({ tabs, currentFile }) => {
+      (state) => ({ tabs: state.tabs, currentFile: state.currentFile, sidebarWidth: state.sidebarWidth }),
+      ({ tabs, currentFile, sidebarWidth }) => {
         const sync = configSyncRef.current;
         if (!sync) return;
 
@@ -198,6 +203,7 @@ export function useConfigSync({
           activeTab: currentFile,
           rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
           lastOpenFiles: tabs.map((t) => t.filePath),
+          sidebarWidth,
         };
         sync.scheduleWrite('workspace.json', workspaceData);
       },
@@ -216,7 +222,6 @@ export function useConfigSync({
         textFontFamily: state.textFontFamily,
         monospaceFontFamily: state.monospaceFontFamily,
         interfaceFontFamily: state.interfaceFontFamily,
-        sidebarWidth: state.sidebarWidth,
       }),
       () => {
         configSyncRef.current?.scheduleWrite(
@@ -320,7 +325,7 @@ export function useConfigSync({
     const sync = configSyncRef.current;
     if (!sync) return;
 
-    const { tabs, currentFile } = useWorkspaceStore.getState();
+    const { tabs, currentFile, sidebarWidth } = useWorkspaceStore.getState();
     const workspaceData: CushionWorkspace = {
       tabs: tabs.map((t) => ({
         id: t.id,
@@ -332,6 +337,7 @@ export function useConfigSync({
       activeTab: currentFile,
       rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
       lastOpenFiles: tabs.map((t) => t.filePath),
+      sidebarWidth,
     };
     sync.scheduleWrite('workspace.json', workspaceData);
   }, [metadata, rightPanelMode, rightPanelWidth]);

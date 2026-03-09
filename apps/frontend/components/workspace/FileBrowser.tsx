@@ -30,7 +30,7 @@ export interface FileBrowserHandle {
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings, onAskAIFile }, ref) {
-  const { metadata, currentFile, preferences, updatePreferences } = useWorkspaceStore();
+  const { metadata, currentFile, preferences, sidebarWidth: rawSidebarWidth, setSidebarWidth } = useWorkspaceStore();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,13 +50,12 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const sidebarMax = typeof window !== 'undefined'
     ? Math.max(sidebarMin, Math.floor(window.innerWidth * 0.45))
     : 520;
-  const rawSidebarWidth = Number.isFinite(preferences.sidebarWidth) ? preferences.sidebarWidth : 240;
   const resolvedSidebarWidth = Math.min(sidebarMax, Math.max(sidebarMin, rawSidebarWidth));
 
   useEffect(() => {
     if (resolvedSidebarWidth === rawSidebarWidth) return;
-    updatePreferences({ sidebarWidth: resolvedSidebarWidth });
-  }, [rawSidebarWidth, resolvedSidebarWidth, updatePreferences]);
+    setSidebarWidth(resolvedSidebarWidth);
+  }, [rawSidebarWidth, resolvedSidebarWidth, setSidebarWidth]);
 
   const loadDirectory = useCallback(async (relativePath: string): Promise<FileTreeNode[]> => {
     if (!client) {
@@ -101,9 +100,9 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
   const handleSidebarResize = useCallback(
     (nextWidth: number) => {
-      updatePreferences({ sidebarWidth: nextWidth });
+      setSidebarWidth(nextWidth);
     },
-    [updatePreferences]
+    [setSidebarWidth]
   );
 
   // Mobile auto-collapse - only run when isMobile changes

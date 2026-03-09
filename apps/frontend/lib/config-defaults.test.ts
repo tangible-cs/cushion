@@ -52,7 +52,6 @@ describe('DEFAULT_APPEARANCE', () => {
       'textFontFamily',
       'monospaceFontFamily',
       'interfaceFontFamily',
-      'sidebarWidth',
     ];
 
     for (const key of keys) {
@@ -78,6 +77,7 @@ describe('DEFAULT_WORKSPACE', () => {
       'activeTab',
       'rightPanel',
       'lastOpenFiles',
+      'sidebarWidth',
     ];
 
     for (const key of keys) {

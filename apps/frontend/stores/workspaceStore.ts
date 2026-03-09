@@ -53,6 +53,9 @@ interface WorkspaceActions {
   // Preferences
   updatePreferences: (preferences: Partial<WorkspacePreferences>) => void;
 
+  // Layout
+  setSidebarWidth: (width: number) => void;
+
   // Error handling
   setError: (error: string | null) => void;
   setLoading: (isLoading: boolean) => void;
@@ -81,6 +84,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   recentProjects: [],
   recentFiles: [],
   preferences: { ...DEFAULT_SETTINGS },
+  sidebarWidth: 240,
   sessionId: '',
   isLoading: false,
   error: null,
@@ -539,6 +543,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
               ...preferences,
             },
           }));
+        },
+
+        setSidebarWidth: (width: number) => {
+          set({ sidebarWidth: width });
         },
 
         /**

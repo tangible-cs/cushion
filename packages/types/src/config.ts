@@ -17,7 +17,6 @@ export interface CushionSettings {
   showHiddenFiles?: boolean;
   showCushionFiles?: boolean;
   fileSortOrder?: 'alphabetical' | 'modified' | 'created';
-  sidebarWidth?: number;
 }
 
 export interface CushionAppearance {
@@ -27,7 +26,6 @@ export interface CushionAppearance {
   textFontFamily?: string;
   monospaceFontFamily?: string;
   interfaceFontFamily?: string;
-  sidebarWidth?: number;
 }
 
 export interface CushionWorkspace {
@@ -44,6 +42,7 @@ export interface CushionWorkspace {
     width: number;
   };
   lastOpenFiles?: string[];
+  sidebarWidth?: number;
 }
 
 export interface CushionChat {

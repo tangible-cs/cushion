@@ -116,7 +116,6 @@ describe('loadAppearance', () => {
       textFontFamily: 'Georgia',
       monospaceFontFamily: 'Fira Code',
       interfaceFontFamily: 'Helvetica',
-      sidebarWidth: 300,
     });
 
     const state = useAppearanceStore.getState();
