@@ -16,6 +16,7 @@ import type {
   Frontmatter,
 } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
+import { DEFAULT_SETTINGS } from '@/lib/config-defaults';
 import { parseFrontmatter } from '@/lib/frontmatter';
 
 /**
@@ -79,20 +80,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   },
   recentProjects: [],
   recentFiles: [],
-  preferences: {
-    showHiddenFiles: false,
-    showCushionFiles: false,
-    sidebarWidth: 240,
-    autoSave: true,
-    autoSaveDelay: 1000,
-    showLineNumber: false,
-    spellcheck: true,
-    readableLineLength: true,
-    autoPairBrackets: true,
-    foldHeading: true,
-    foldIndent: true,
-    fileSortOrder: 'alphabetical',
-  },
+  preferences: { ...DEFAULT_SETTINGS },
   sessionId: '',
   isLoading: false,
   error: null,

@@ -19,10 +19,8 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
-import { ConfigSync } from '@/lib/config-sync';
-import { DEFAULT_SETTINGS, DEFAULT_WORKSPACE, DEFAULT_CHAT } from '@/lib/config-defaults';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import type { CushionSettings, CushionWorkspace, CushionAppearance, CushionChat } from '@cushion/types';
+import { useConfigSync } from '@/hooks/useConfigSync';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
@@ -89,9 +87,6 @@ export default function Home() {
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
-  const configSyncRef = useRef<ConfigSync | null>(null);
-  const lastSettingsRef = useRef<CushionSettings>(DEFAULT_SETTINGS);
-  const workspaceConfigLoadedRef = useRef(false);
 
   // File tree and connection state from useFileTree hook
   const { fileTree, connectionState, fetchFileTree } = useFileTree({
@@ -106,6 +101,14 @@ export default function Home() {
     metadata,
     fileTree,
     openFiles,
+  });
+
+  // Config sync lifecycle (settings, workspace, appearance, chat)
+  const { workspaceConfigLoadedRef } = useConfigSync({
+    client,
+    metadata,
+    rightPanelMode,
+    rightPanelWidth,
   });
 
   const appShortcuts = useShortcutBindings(APP_SHORTCUT_IDS);
@@ -156,257 +159,6 @@ export default function Home() {
     };
   }, [metadata?.projectPath, connectChat, disconnectChat]);
 
-  // --- ConfigSync lifecycle ---
-
-  // Create / destroy ConfigSync when client connects
-  useEffect(() => {
-    if (!client) return;
-    configSyncRef.current = new ConfigSync(client);
-    return () => {
-      configSyncRef.current?.flush();
-      configSyncRef.current?.destroy();
-      configSyncRef.current = null;
-    };
-  }, [client]);
-
-  // Load settings.json + workspace.json when a workspace opens
-  useEffect(() => {
-    if (!metadata || !configSyncRef.current) return;
-    workspaceConfigLoadedRef.current = false;
-    let cancelled = false;
-    const sync = configSyncRef.current;
-
-    (async () => {
-      // Load settings.json
-      const parsedSettings = await sync.read<CushionSettings>('settings.json');
-      if (cancelled) return;
-      if (parsedSettings) {
-        const merged = { ...DEFAULT_SETTINGS, ...parsedSettings };
-        lastSettingsRef.current = merged;
-        useWorkspaceStore.getState().updatePreferences({
-          showHiddenFiles: merged.showHiddenFiles,
-          showCushionFiles: merged.showCushionFiles,
-          autoSave: merged.autoSave,
-          autoSaveDelay: merged.autoSaveDelay,
-          showLineNumber: merged.showLineNumber,
-          spellcheck: merged.spellcheck,
-          readableLineLength: merged.readableLineLength,
-          autoPairBrackets: merged.autoPairBrackets,
-          foldHeading: merged.foldHeading,
-          foldIndent: merged.foldIndent,
-        });
-      }
-
-      // Load workspace.json — restore right panel + tabs
-      const parsedWorkspace = await sync.read<CushionWorkspace>('workspace.json');
-      if (cancelled) return;
-      if (parsedWorkspace) {
-        const merged = { ...DEFAULT_WORKSPACE, ...parsedWorkspace };
-
-        // Restore right panel state
-        if (merged.rightPanel) {
-          setRightPanelMode(merged.rightPanel.mode);
-          setRightPanelWidth(merged.rightPanel.width);
-          if (merged.rightPanel.mode !== 'none') {
-            lastRightPanelModeRef.current = merged.rightPanel.mode;
-          }
-        }
-
-        // Restore tabs — re-open each file from disk
-        if (merged.tabs.length > 0 && client) {
-          const activeFilePath = merged.activeTab;
-          for (const tab of merged.tabs) {
-            try {
-              const { content } = await client.readFile(tab.filePath);
-              if (cancelled) return;
-              useWorkspaceStore.getState().openFile(tab.filePath, content);
-              if (tab.isPinned) {
-                const currentTabs = useWorkspaceStore.getState().tabs;
-                const restored = currentTabs.find((t) => t.filePath === tab.filePath);
-                if (restored) useWorkspaceStore.getState().pinTab(restored.id);
-              }
-            } catch {
-              // File may have been deleted since workspace.json was saved — skip
-              console.warn(`[ConfigSync] Skipping missing tab: ${tab.filePath}`);
-            }
-          }
-          // Set active tab by filePath
-          if (activeFilePath) {
-            const currentTabs = useWorkspaceStore.getState().tabs;
-            const activeTab = currentTabs.find((t) => t.filePath === activeFilePath);
-            if (activeTab) {
-              useWorkspaceStore.getState().setActiveTab(activeTab.id);
-            }
-          }
-        }
-      }
-
-      workspaceConfigLoadedRef.current = true;
-
-      // Load appearance.json — restore theme, accent color, fonts
-      const parsedAppearance = await sync.read<CushionAppearance>('appearance.json');
-      if (cancelled) return;
-      if (parsedAppearance) {
-        useAppearanceStore.getState().loadAppearance(parsedAppearance);
-      }
-
-      // Load chat.json — restore AI preferences for this workspace
-      const parsedChat = await sync.read<CushionChat>('chat.json');
-      if (cancelled) return;
-      if (parsedChat) {
-        const merged = { ...DEFAULT_CHAT, ...parsedChat };
-        const directory = metadata.projectPath;
-        useChatStore.setState((state) => ({
-          displayPreferences: merged.displayPreferences,
-          modelVisibility: { ...state.modelVisibility, ...merged.modelVisibility },
-          ...(merged.selectedModel && {
-            selectedModel: merged.selectedModel,
-            selectedModelByDirectory: {
-              ...state.selectedModelByDirectory,
-              [directory]: merged.selectedModel,
-            },
-          }),
-          ...(merged.selectedAgent !== null && {
-            selectedAgent: merged.selectedAgent,
-            selectedAgentByDirectory: {
-              ...state.selectedAgentByDirectory,
-              [directory]: merged.selectedAgent,
-            },
-          }),
-          ...(merged.selectedVariant !== null && {
-            selectedVariant: merged.selectedVariant,
-            selectedVariantByDirectory: {
-              ...state.selectedVariantByDirectory,
-              [directory]: merged.selectedVariant,
-            },
-          }),
-        }));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [metadata, client]);
-
-  // Write to settings.json when preferences change
-  useEffect(() => {
-    if (!metadata) return;
-
-    const unsub = useWorkspaceStore.subscribe(
-      (state) => state.preferences,
-      (prefs) => {
-        const sync = configSyncRef.current;
-        if (!sync) return;
-
-        const settings: CushionSettings = {
-          ...lastSettingsRef.current,
-          showHiddenFiles: prefs.showHiddenFiles,
-          showCushionFiles: prefs.showCushionFiles,
-          autoSave: prefs.autoSave,
-          autoSaveDelay: prefs.autoSaveDelay,
-          showLineNumber: prefs.showLineNumber,
-          spellcheck: prefs.spellcheck,
-          readableLineLength: prefs.readableLineLength,
-          autoPairBrackets: prefs.autoPairBrackets,
-          foldHeading: prefs.foldHeading,
-          foldIndent: prefs.foldIndent,
-        };
-        lastSettingsRef.current = settings;
-        sync.scheduleWrite('settings.json', settings);
-      },
-    );
-
-    return unsub;
-  }, [metadata]);
-
-  // Write to workspace.json when tabs or active file change
-  useEffect(() => {
-    if (!metadata) return;
-
-    const unsub = useWorkspaceStore.subscribe(
-      (state) => ({ tabs: state.tabs, currentFile: state.currentFile }),
-      ({ tabs, currentFile }) => {
-        const sync = configSyncRef.current;
-        if (!sync) return;
-
-        const workspaceData: CushionWorkspace = {
-          tabs: tabs.map((t) => ({
-            id: t.id,
-            filePath: t.filePath,
-            isPinned: t.isPinned,
-            isPreview: t.isPreview,
-            order: t.order,
-          })),
-          activeTab: currentFile,
-          rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
-          lastOpenFiles: tabs.map((t) => t.filePath),
-        };
-        sync.scheduleWrite('workspace.json', workspaceData);
-      },
-    );
-
-    return unsub;
-  }, [metadata, rightPanelMode, rightPanelWidth]);
-
-  // Write to appearance.json when appearance changes
-  useEffect(() => {
-    if (!metadata) return;
-
-    const unsub = useAppearanceStore.subscribe(
-      (state) => ({
-        theme: state.theme,
-        accentColor: state.accentColor,
-        baseFontSize: state.baseFontSize,
-        textFontFamily: state.textFontFamily,
-        monospaceFontFamily: state.monospaceFontFamily,
-        interfaceFontFamily: state.interfaceFontFamily,
-        sidebarWidth: state.sidebarWidth,
-      }),
-      () => {
-        const sync = configSyncRef.current;
-        if (!sync) return;
-
-        sync.scheduleWrite('appearance.json', useAppearanceStore.getState().getConfig());
-      },
-      { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
-    );
-
-    return unsub;
-  }, [metadata]);
-
-  // Write to chat.json when chat preferences change
-  useEffect(() => {
-    if (!metadata) return;
-    const directory = metadata.projectPath;
-
-    const unsub = useChatStore.subscribe(
-      (state) => ({
-        displayPreferences: state.displayPreferences,
-        modelVisibility: state.modelVisibility,
-        selectedModel: state.selectedModelByDirectory[directory] ?? state.selectedModel,
-        selectedAgent: state.selectedAgentByDirectory[directory] ?? state.selectedAgent,
-        selectedVariant: state.selectedVariantByDirectory[directory] ?? state.selectedVariant,
-      }),
-      (slice) => {
-        const sync = configSyncRef.current;
-        if (!sync) return;
-
-        const chatData: CushionChat = {
-          selectedModel: slice.selectedModel,
-          selectedAgent: slice.selectedAgent,
-          selectedVariant: slice.selectedVariant,
-          displayPreferences: slice.displayPreferences,
-          modelVisibility: slice.modelVisibility,
-        };
-        sync.scheduleWrite('chat.json', chatData);
-      },
-      { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
-    );
-
-    return unsub;
-  }, [metadata]);
-
   // Apply theme class and accent color CSS variables to <html>
   useEffect(() => {
     const { resolvedTheme, accentColor } = useAppearanceStore.getState();
@@ -432,89 +184,6 @@ export default function Home() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
-
-  // Re-read config files when externally changed on disk
-  useEffect(() => {
-    if (!client || !metadata) return;
-
-    const unsub = client.onConfigChanged(async (file: string) => {
-      const sync = configSyncRef.current;
-      if (!sync) return;
-
-      switch (file) {
-        case 'settings.json': {
-          const parsed = await sync.read<CushionSettings>('settings.json');
-          if (!parsed) return;
-          const merged = { ...DEFAULT_SETTINGS, ...parsed };
-          lastSettingsRef.current = merged;
-          useWorkspaceStore.getState().updatePreferences({
-            showHiddenFiles: merged.showHiddenFiles,
-            showCushionFiles: merged.showCushionFiles,
-            autoSave: merged.autoSave,
-            autoSaveDelay: merged.autoSaveDelay,
-            showLineNumber: merged.showLineNumber,
-            spellcheck: merged.spellcheck,
-            readableLineLength: merged.readableLineLength,
-            autoPairBrackets: merged.autoPairBrackets,
-              foldHeading: merged.foldHeading,
-            foldIndent: merged.foldIndent,
-          });
-          break;
-        }
-        case 'appearance.json': {
-          const parsed = await sync.read<CushionAppearance>('appearance.json');
-          if (!parsed) return;
-          useAppearanceStore.getState().loadAppearance(parsed);
-          break;
-        }
-        case 'chat.json': {
-          const parsed = await sync.read<CushionChat>('chat.json');
-          if (!parsed) return;
-          const merged = { ...DEFAULT_CHAT, ...parsed };
-          const directory = metadata.projectPath;
-          useChatStore.setState((state) => ({
-            displayPreferences: merged.displayPreferences,
-            modelVisibility: { ...state.modelVisibility, ...merged.modelVisibility },
-            ...(merged.selectedModel && {
-              selectedModel: merged.selectedModel,
-              selectedModelByDirectory: {
-                ...state.selectedModelByDirectory,
-                [directory]: merged.selectedModel,
-              },
-            }),
-            ...(merged.selectedAgent !== null && {
-              selectedAgent: merged.selectedAgent,
-              selectedAgentByDirectory: {
-                ...state.selectedAgentByDirectory,
-                [directory]: merged.selectedAgent,
-              },
-            }),
-            ...(merged.selectedVariant !== null && {
-              selectedVariant: merged.selectedVariant,
-              selectedVariantByDirectory: {
-                ...state.selectedVariantByDirectory,
-                [directory]: merged.selectedVariant,
-              },
-            }),
-          }));
-          break;
-        }
-        // workspace.json is not re-read on external change — tabs are ephemeral
-        // and re-reading could disrupt the user's current session
-      }
-    });
-
-    return unsub;
-  }, [client, metadata]);
-
-  // Flush pending config writes on page unload
-  useEffect(() => {
-    const handler = () => configSyncRef.current?.flush();
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, []);
-
-  // --- End ConfigSync lifecycle ---
 
   useEffect(() => {
     if (!client || metadata || autoOpenAttempted.current) {
@@ -592,28 +261,6 @@ export default function Home() {
       lastRightPanelModeRef.current = rightPanelMode;
     }
   }, [rightPanelMode]);
-
-  // Write workspace.json when right panel state changes
-  useEffect(() => {
-    if (!metadata || !workspaceConfigLoadedRef.current) return;
-    const sync = configSyncRef.current;
-    if (!sync) return;
-
-    const { tabs, currentFile } = useWorkspaceStore.getState();
-    const workspaceData: CushionWorkspace = {
-      tabs: tabs.map((t) => ({
-        id: t.id,
-        filePath: t.filePath,
-        isPinned: t.isPinned,
-        isPreview: t.isPreview,
-        order: t.order,
-      })),
-      activeTab: currentFile,
-      rightPanel: { mode: rightPanelMode, width: rightPanelWidth },
-      lastOpenFiles: tabs.map((t) => t.filePath),
-    };
-    sync.scheduleWrite('workspace.json', workspaceData);
-  }, [metadata, rightPanelMode, rightPanelWidth]);
 
   const handleFileOpen = useCallback(
     (filePath: string, content: string) => {

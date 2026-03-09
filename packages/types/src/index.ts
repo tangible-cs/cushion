@@ -1,3 +1,5 @@
+import type { CushionSettings } from './config.js';
+
 export interface Position {
   line: number;
   character: number;
@@ -68,23 +70,7 @@ export interface TabState {
   order: number;
 }
 
-export interface WorkspacePreferences {
-  showHiddenFiles: boolean;
-  showCushionFiles: boolean;
-  fileTreeCollapsed: boolean;
-  sidebarWidth: number;
-  autoSave: boolean;
-  autoSaveDelay: number;
-  showLineNumber: boolean;
-  spellcheck: boolean;
-  readableLineLength: boolean;
-  autoPairBrackets: boolean;
-  foldHeading: boolean;
-  foldIndent: boolean;
-  fileSortOrder: 'alphabetical' | 'modified' | 'created';
-  newFileLocation: 'root' | 'current';
-  attachmentFolderPath: string;
-}
+export type WorkspacePreferences = Required<CushionSettings>;
 
 export interface FileWatcherState {
   watchedPaths: string[];

@@ -17,6 +17,7 @@ export interface CushionSettings {
   showHiddenFiles?: boolean;
   showCushionFiles?: boolean;
   fileSortOrder?: 'alphabetical' | 'modified' | 'created';
+  sidebarWidth?: number;
 }
 
 export interface CushionAppearance {

@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: Required<CushionSettings> = {
   showHiddenFiles: false,
   showCushionFiles: false,
   fileSortOrder: 'alphabetical',
+  sidebarWidth: 240,
 };
 
 export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {
