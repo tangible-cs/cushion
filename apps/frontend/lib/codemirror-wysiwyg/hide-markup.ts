@@ -11,7 +11,7 @@ import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { cursorInRange, isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
 import { resolveWikiLink } from '../wiki-link-resolver';
 import { fileTreeField, setFileTreeEffect } from './wiki-link-plugin';
-import { embedResolverField } from './embed-resolver';
+import { embedResolverField, setEmbedResolverEffect } from './embed-resolver';
 import { ImageWidget } from './widgets/image-widget';
 import { EmbedWidget } from './widgets/embed-widget';
 import { CheckboxWidget } from './widgets/checkbox-widget';
@@ -714,6 +714,9 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
       return buildWidgetDecorations(tr.state);
     }
     if (tr.effects.some(e => e.is(setFileTreeEffect))) {
+      return buildWidgetDecorations(tr.state);
+    }
+    if (tr.effects.some(e => e.is(setEmbedResolverEffect))) {
       return buildWidgetDecorations(tr.state);
     }
     return value;

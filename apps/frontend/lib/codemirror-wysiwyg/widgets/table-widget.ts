@@ -1,4 +1,5 @@
 import { WidgetType } from '@codemirror/view';
+import { parseTableRow } from '../table/row-parser';
 
 /**
  * Table widget that renders GFM markdown table syntax as an actual HTML <table>.
@@ -21,12 +22,7 @@ export class TableWidget extends WidgetType {
       return span;
     }
 
-    const parseCells = (line: string): string[] =>
-      line
-        .replace(/^\s*\|/, '')
-        .replace(/\|\s*$/, '')
-        .split('|')
-        .map((c) => c.trim());
+    const parseCells = (line: string): string[] => parseTableRow(line);
 
     // Parse alignment from delimiter row
     const delimiterCells = parseCells(lines[1]);

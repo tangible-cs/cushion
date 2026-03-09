@@ -1,18 +1,32 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { writeFileAtomicWithRetry } from './atomic-write.js';
+import type { ConfigWatcher } from './config-watcher.js';
 
 const CONFIG_DIR_NAME = '.cushion';
-const SNIPPETS_DIR_NAME = 'snippets';
+
+const GITIGNORE_CONTENT = `# Workspace layout changes frequently (device-specific)
+workspace.json
+`;
 
 export class ConfigManager {
   private workspacePath: string | null = null;
+  private configWatcher: ConfigWatcher | null = null;
+  private gitignoreCreated = false;
+
+  /**
+   * Link a ConfigWatcher for self-write suppression.
+   */
+  setConfigWatcher(watcher: ConfigWatcher) {
+    this.configWatcher = watcher;
+  }
 
   /**
    * Update the workspace path. Called when a workspace is opened.
    */
   setWorkspacePath(workspacePath: string) {
     this.workspacePath = workspacePath;
+    this.gitignoreCreated = false;
   }
 
   /**
@@ -20,10 +34,12 @@ export class ConfigManager {
    */
   clearWorkspacePath() {
     this.workspacePath = null;
+    this.gitignoreCreated = false;
   }
 
   /**
    * Read a config file from `.cushion/`. Returns null content for missing files.
+   * Permission errors are logged and treated as missing files to avoid crashes.
    */
   async readConfig(filename: string): Promise<{ content: string | null; exists: boolean }> {
     this.ensureWorkspace();
@@ -38,93 +54,35 @@ export class ConfigManager {
       if (error.code === 'ENOENT') {
         return { content: null, exists: false };
       }
+      if (error.code === 'EACCES' || error.code === 'EPERM') {
+        console.warn(`[ConfigManager] Permission denied reading ${filename}, treating as missing`);
+        return { content: null, exists: false };
+      }
       throw error;
     }
   }
 
   /**
    * Write a config file to `.cushion/`. Auto-creates the directory.
+   * Permission errors are logged but don't crash (read-only filesystem).
    */
   async writeConfig(filename: string, content: string): Promise<void> {
     this.ensureWorkspace();
     this.validateConfigFilename(filename);
 
-    await this.ensureConfigDir();
+    try {
+      await this.ensureConfigDir();
+    } catch (error: any) {
+      if (error.code === 'EACCES' || error.code === 'EPERM' || error.code === 'EROFS') {
+        console.warn(`[ConfigManager] Cannot create .cushion/ directory (read-only?), skipping write of ${filename}`);
+        return;
+      }
+      throw error;
+    }
+
+    this.configWatcher?.suppressNext(filename);
     const filePath = path.join(this.configDir, filename);
     await writeFileAtomicWithRetry(filePath, content, 'utf-8');
-  }
-
-  /**
-   * List CSS snippet filenames in `.cushion/snippets/`.
-   */
-  async listSnippets(): Promise<string[]> {
-    this.ensureWorkspace();
-
-    const snippetsDir = path.join(this.configDir, SNIPPETS_DIR_NAME);
-
-    try {
-      const entries = await fs.readdir(snippetsDir, { withFileTypes: true });
-      return entries
-        .filter((e) => e.isFile() && e.name.endsWith('.css'))
-        .map((e) => e.name)
-        .sort();
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Read a CSS snippet from `.cushion/snippets/`.
-   */
-  async readSnippet(name: string): Promise<string> {
-    this.ensureWorkspace();
-    this.validateSnippetName(name);
-
-    const filePath = path.join(this.configDir, SNIPPETS_DIR_NAME, name);
-
-    try {
-      return await fs.readFile(filePath, 'utf-8');
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Snippet not found: ${name}`);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Write a CSS snippet to `.cushion/snippets/`.
-   */
-  async writeSnippet(name: string, content: string): Promise<void> {
-    this.ensureWorkspace();
-    this.validateSnippetName(name);
-
-    const snippetsDir = path.join(this.configDir, SNIPPETS_DIR_NAME);
-    await fs.mkdir(snippetsDir, { recursive: true });
-    const filePath = path.join(snippetsDir, name);
-    await writeFileAtomicWithRetry(filePath, content, 'utf-8');
-  }
-
-  /**
-   * Delete a CSS snippet from `.cushion/snippets/`.
-   */
-  async deleteSnippet(name: string): Promise<void> {
-    this.ensureWorkspace();
-    this.validateSnippetName(name);
-
-    const filePath = path.join(this.configDir, SNIPPETS_DIR_NAME, name);
-
-    try {
-      await fs.unlink(filePath);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Snippet not found: ${name}`);
-      }
-      throw error;
-    }
   }
 
   // -- Internals --
@@ -141,6 +99,20 @@ export class ConfigManager {
 
   private async ensureConfigDir(): Promise<void> {
     await fs.mkdir(this.configDir, { recursive: true });
+    await this.ensureGitignore();
+  }
+
+  private async ensureGitignore(): Promise<void> {
+    if (this.gitignoreCreated) return;
+    this.gitignoreCreated = true;
+
+    const gitignorePath = path.join(this.configDir, '.gitignore');
+    try {
+      await fs.access(gitignorePath);
+      // Already exists — don't overwrite
+    } catch {
+      await fs.writeFile(gitignorePath, GITIGNORE_CONTENT, 'utf-8');
+    }
   }
 
   /**
@@ -158,18 +130,4 @@ export class ConfigManager {
     }
   }
 
-  /**
-   * Validate snippet name: must be a plain `.css` filename with no path separators.
-   */
-  private validateSnippetName(name: string): void {
-    if (!name || typeof name !== 'string') {
-      throw new Error('Invalid snippet name');
-    }
-    if (name.includes('/') || name.includes('\\') || name.includes('..')) {
-      throw new Error('Invalid snippet name: path traversal not allowed');
-    }
-    if (!name.endsWith('.css')) {
-      throw new Error('Invalid snippet name: must end with .css');
-    }
-  }
 }

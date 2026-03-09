@@ -18,6 +18,7 @@ import type {
 
 import { WorkspaceManager } from './workspace/manager.js';
 import { ConfigManager } from './workspace/config-manager.js';
+import { ConfigWatcher } from './workspace/config-watcher.js';
 import { CredentialStorage } from './providers/storage.js';
 import { getModelsDevCache } from './providers/models-dev.js';
 import { getOAuthHandler } from './providers/oauth.js';
@@ -42,10 +43,6 @@ import {
 import {
   handleConfigRead,
   handleConfigWrite,
-  handleListSnippets,
-  handleReadSnippet,
-  handleWriteSnippet,
-  handleDeleteSnippet,
 } from './handlers/config.js';
 
 import {
@@ -75,6 +72,7 @@ export class CoordinatorServer {
   private clients = new Map<WebSocket, Map<string, DocumentState>>();
   private workspaceManager: WorkspaceManager;
   private configManager: ConfigManager;
+  private configWatcher: ConfigWatcher;
   private credentialStorage: CredentialStorage;
   private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private binDir: string;
@@ -87,6 +85,8 @@ export class CoordinatorServer {
   constructor(private port: number = 3001, private allowedOrigins?: string[]) {
     this.workspaceManager = new WorkspaceManager();
     this.configManager = new ConfigManager();
+    this.configWatcher = new ConfigWatcher();
+    this.configManager.setConfigWatcher(this.configWatcher);
     this.credentialStorage = new CredentialStorage();
     this.binDir = path.join(__dirname, '..', 'bin');
 
@@ -211,10 +211,14 @@ export class CoordinatorServer {
 
       switch (method) {
         // Workspace handlers
-        case 'workspace/open':
-          result = await handleOpenWorkspace(this.workspaceManager, request.params as RPCParams<'workspace/open'>);
-          this.configManager.setWorkspacePath((request.params as RPCParams<'workspace/open'>).projectPath);
+        case 'workspace/open': {
+          const openParams = request.params as RPCParams<'workspace/open'>;
+          result = await handleOpenWorkspace(this.workspaceManager, openParams);
+          this.configManager.setWorkspacePath(openParams.projectPath);
+          this.configWatcher.stop();
+          this.configWatcher.start(openParams.projectPath);
           break;
+        }
 
         case 'workspace/select-folder':
           result = await handleSelectFolder(this.binDir);
@@ -339,22 +343,6 @@ export class CoordinatorServer {
           result = await handleConfigWrite(this.configManager, request.params as RPCParams<'config/write'>);
           break;
 
-        case 'config/list-snippets':
-          result = await handleListSnippets(this.configManager);
-          break;
-
-        case 'config/read-snippet':
-          result = await handleReadSnippet(this.configManager, request.params as RPCParams<'config/read-snippet'>);
-          break;
-
-        case 'config/write-snippet':
-          result = await handleWriteSnippet(this.configManager, request.params as RPCParams<'config/write-snippet'>);
-          break;
-
-        case 'config/delete-snippet':
-          result = await handleDeleteSnippet(this.configManager, request.params as RPCParams<'config/delete-snippet'>);
-          break;
-
         default:
           throw new Error(`Unknown method: ${method}`);
       }
@@ -461,6 +449,10 @@ export class CoordinatorServer {
     this.workspaceManager.setOnFileChangedOnDisk((filePath: string, mtime: number) => {
       this.broadcastNotification('workspace/fileChangedOnDisk', { filePath, mtime });
     });
+
+    this.configWatcher.setOnConfigChanged((file: string) => {
+      this.broadcastNotification('config/changed', { file });
+    });
   }
 
   close() {
@@ -479,6 +471,7 @@ export class CoordinatorServer {
     this.clients.clear();
     getModelsDevCache().stopAutoRefresh();
     this.workspaceManager.stopWatcher();
+    this.configWatcher.stop();
     this.wss.close();
   }
 }

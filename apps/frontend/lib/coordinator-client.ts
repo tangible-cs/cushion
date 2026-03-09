@@ -31,6 +31,7 @@ export class CoordinatorClient {
   private requestId = 0;
   private filesChangedCallbacks: Array<(changes: FileChange[]) => void> = [];
   private fileChangedOnDiskCallbacks: Array<(filePath: string, mtime: number) => void> = [];
+  private configChangedCallbacks: Array<(file: string) => void> = [];
 
   // Reconnect state
   private _intentionalDisconnect = false;
@@ -334,6 +335,11 @@ export class CoordinatorClient {
         safeForEach(this.fileChangedOnDiskCallbacks, filePath, mtime);
         break;
       }
+      case 'config/changed': {
+        const { file } = data.params as RPCServerNotificationParams<'config/changed'>;
+        safeForEach(this.configChangedCallbacks, file);
+        break;
+      }
     }
   }
 
@@ -443,22 +449,6 @@ export class CoordinatorClient {
     return this.sendRequest<{ success: boolean }>('config/write', { file, content });
   }
 
-  async listSnippets(): Promise<{ snippets: string[] }> {
-    return this.sendRequest<{ snippets: string[] }>('config/list-snippets', {});
-  }
-
-  async readSnippet(name: string): Promise<{ content: string }> {
-    return this.sendRequest<{ content: string }>('config/read-snippet', { name });
-  }
-
-  async writeSnippet(name: string, content: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('config/write-snippet', { name, content });
-  }
-
-  async deleteSnippet(name: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('config/delete-snippet', { name });
-  }
-
   // ---------------------------------------------------------------------------
   // Notification subscriptions
   // ---------------------------------------------------------------------------
@@ -474,6 +464,13 @@ export class CoordinatorClient {
     this.fileChangedOnDiskCallbacks.push(callback);
     return () => {
       this.fileChangedOnDiskCallbacks = this.fileChangedOnDiskCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  onConfigChanged(callback: (file: string) => void): () => void {
+    this.configChangedCallbacks.push(callback);
+    return () => {
+      this.configChangedCallbacks = this.configChangedCallbacks.filter((cb) => cb !== callback);
     };
   }
 

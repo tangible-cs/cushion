@@ -82,10 +82,16 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   preferences: {
     showHiddenFiles: false,
     showCushionFiles: false,
-    fileTreeCollapsed: false,
     sidebarWidth: 240,
     autoSave: true,
     autoSaveDelay: 1000,
+    showLineNumber: false,
+    spellcheck: true,
+    readableLineLength: true,
+    autoPairBrackets: true,
+    foldHeading: true,
+    foldIndent: true,
+    fileSortOrder: 'alphabetical',
   },
   sessionId: '',
   isLoading: false,
@@ -577,10 +583,9 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
       }),
       {
         name: 'cushion-workspace',
-        // Only persist certain fields
+        // Only persist recentProjects — preferences are loaded from disk (settings.json)
         partialize: (state) => ({
           recentProjects: state.recentProjects,
-          preferences: state.preferences,
         }),
       }
     )

@@ -86,53 +86,6 @@ describe('config filename validation', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Snippets
-// ---------------------------------------------------------------------------
-
-describe('listSnippets', () => {
-  test('returns empty array when no snippets dir', async () => {
-    const result = await manager.listSnippets();
-    expect(result).toEqual([]);
-  });
-
-  test('lists .css files only', async () => {
-    const snippetsDir = path.join(tmpDir, '.cushion', 'snippets');
-    await fs.mkdir(snippetsDir, { recursive: true });
-    await fs.writeFile(path.join(snippetsDir, 'theme.css'), 'body{}');
-    await fs.writeFile(path.join(snippetsDir, 'notes.txt'), 'not a snippet');
-    await fs.writeFile(path.join(snippetsDir, 'dark.css'), ':root{}');
-
-    const result = await manager.listSnippets();
-    expect(result).toEqual(['dark.css', 'theme.css']);
-  });
-});
-
-describe('readSnippet', () => {
-  test('reads snippet content', async () => {
-    const snippetsDir = path.join(tmpDir, '.cushion', 'snippets');
-    await fs.mkdir(snippetsDir, { recursive: true });
-    await fs.writeFile(path.join(snippetsDir, 'my-style.css'), 'body { color: red; }');
-
-    const content = await manager.readSnippet('my-style.css');
-    expect(content).toBe('body { color: red; }');
-  });
-
-  test('throws for missing snippet', async () => {
-    await expect(manager.readSnippet('nope.css')).rejects.toThrow('Snippet not found');
-  });
-});
-
-describe('snippet name validation', () => {
-  test('rejects path traversal', async () => {
-    await expect(manager.readSnippet('../evil.css')).rejects.toThrow('path traversal');
-  });
-
-  test('rejects non-.css extension', async () => {
-    await expect(manager.readSnippet('script.js')).rejects.toThrow('must end with .css');
-  });
-});
-
-// ---------------------------------------------------------------------------
 // No workspace
 // ---------------------------------------------------------------------------
 

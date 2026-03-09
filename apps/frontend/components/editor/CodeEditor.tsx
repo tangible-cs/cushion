@@ -49,6 +49,7 @@ import { Table } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
 import type { FileTreeNode } from '@cushion/types';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   wysiwygExtension,
   focusModeExtension,
@@ -179,10 +180,16 @@ export function CodeEditor({
   const editorKeymapCompartmentRef = useRef(new Compartment());
   const listKeymapCompartmentRef = useRef(new Compartment());
   const formatKeymapCompartmentRef = useRef(new Compartment());
+  const lineNumbersCompartmentRef = useRef(new Compartment());
+  const spellcheckCompartmentRef = useRef(new Compartment());
+  const closeBracketsCompartmentRef = useRef(new Compartment());
+  const foldGutterCompartmentRef = useRef(new Compartment());
+  const readableLineLengthCompartmentRef = useRef(new Compartment());
 
   const editorShortcuts = useShortcutBindings(EDITOR_SHORTCUT_IDS);
   const listShortcuts = useShortcutBindings(EDITOR_LIST_SHORTCUT_IDS);
   const formatShortcuts = useShortcutBindings(EDITOR_FORMAT_SHORTCUT_IDS);
+  const preferences = useWorkspaceStore((state) => state.preferences);
 
   const isMarkdownFile = useMemo(() => /\.(md|markdown)$/i.test(filePath), [filePath]);
 
@@ -430,20 +437,27 @@ export function CodeEditor({
       return key !== 'mod-g' && key !== 'shift-mod-g';
     });
 
+    const prefs = useWorkspaceStore.getState().preferences;
+
     const extensions: Extension[] = [
       // -- Features (non-keymap) --
-      lineNumbers(),
-      highlightActiveLineGutter(),
+      lineNumbersCompartmentRef.current.of(
+        prefs.showLineNumber ? [lineNumbers(), highlightActiveLineGutter()] : []
+      ),
       highlightSpecialChars(),
       history(),
-      foldGutter(),
+      foldGutterCompartmentRef.current.of(
+        prefs.foldHeading || prefs.foldIndent ? foldGutter() : []
+      ),
       drawSelection(),
       dropCursor(),
       EditorState.allowMultipleSelections.of(true),
       indentOnInput(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       bracketMatching(),
-      closeBrackets(),
+      closeBracketsCompartmentRef.current.of(
+        prefs.autoPairBrackets ? closeBrackets() : []
+      ),
       autocompletion(),
       rectangularSelection(),
       crosshairCursor(),
@@ -453,10 +467,15 @@ export function CodeEditor({
         : []),
       modernSearchExtension,
       highlightSelectionMatches(),
+      spellcheckCompartmentRef.current.of(
+        prefs.spellcheck
+          ? EditorView.contentAttributes.of({ spellcheck: 'true' })
+          : EditorView.contentAttributes.of({ spellcheck: 'false' })
+      ),
       EditorView.lineWrapping,
       // -- Keymaps (CM-internal, explicitly listed) --
       keymap.of([
-        ...closeBracketsKeymap,
+        ...(prefs.autoPairBrackets ? closeBracketsKeymap : []),
         ...defaultKeymap,
         ...filteredSearchKeymap,
         ...historyKeymap,
@@ -533,7 +552,6 @@ export function CodeEditor({
         },
         /* Content area — match markdown layout padding for all file types */
         '.cm-content': {
-          maxWidth: 'var(--md-content-max-width, 900px)',
           minWidth: '0',
           ...(isMarkdownFile ? { width: '100%' } : {}),
           paddingTop: '1em',
@@ -542,6 +560,11 @@ export function CodeEditor({
           paddingRight: '0',
         },
       }),
+      readableLineLengthCompartmentRef.current.of(
+        prefs.readableLineLength
+          ? EditorView.theme({ '.cm-content': { maxWidth: 'var(--md-content-max-width, 900px)' } })
+          : EditorView.theme({ '.cm-content': { maxWidth: 'none' } })
+      ),
     ];
 
     const initEditor = async () => {
@@ -574,17 +597,17 @@ export function CodeEditor({
         scheduleTypewriterCentering(view);
       }
 
+      setEmbedResolver(view, (path, options) => {
+        if (!embedResolverRef.current) return Promise.resolve(null);
+        return embedResolverRef.current(path, options);
+      });
+
       if (fileTree && fileTree.length > 0) {
         updateWikiLinkFileTree(view, fileTree);
       }
 
       setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
         onWikiLinkNavigateRef.current?.(href, resolvedPath, createIfMissing);
-      });
-
-      setEmbedResolver(view, (path, options) => {
-        if (!embedResolverRef.current) return Promise.resolve(null);
-        return embedResolverRef.current(path, options);
       });
     };
 
@@ -642,6 +665,43 @@ export function CodeEditor({
     });
   }, [formatKeymap, isMarkdownFile]);
 
+  // Reconfigure editor compartments when preferences change
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const effects = [
+      lineNumbersCompartmentRef.current.reconfigure(
+        preferences.showLineNumber ? [lineNumbers(), highlightActiveLineGutter()] : []
+      ),
+      spellcheckCompartmentRef.current.reconfigure(
+        preferences.spellcheck
+          ? EditorView.contentAttributes.of({ spellcheck: 'true' })
+          : EditorView.contentAttributes.of({ spellcheck: 'false' })
+      ),
+      closeBracketsCompartmentRef.current.reconfigure(
+        preferences.autoPairBrackets ? closeBrackets() : []
+      ),
+      foldGutterCompartmentRef.current.reconfigure(
+        preferences.foldHeading || preferences.foldIndent ? foldGutter() : []
+      ),
+      readableLineLengthCompartmentRef.current.reconfigure(
+        preferences.readableLineLength
+          ? EditorView.theme({ '.cm-content': { maxWidth: 'var(--md-content-max-width, 900px)' } })
+          : EditorView.theme({ '.cm-content': { maxWidth: 'none' } })
+      ),
+    ];
+
+    view.dispatch({ effects });
+  }, [
+    preferences.showLineNumber,
+    preferences.spellcheck,
+    preferences.autoPairBrackets,
+    preferences.foldHeading,
+    preferences.foldIndent,
+    preferences.readableLineLength,
+  ]);
+
   // Update file tree when it changes (for wiki-link resolution)
   useEffect(() => {
     if (viewRef.current && fileTree) {
@@ -666,7 +726,7 @@ export function CodeEditor({
       style={{
         width: '100%',
         ...(!isMarkdownFile ? {
-          maxWidth: 'var(--md-content-max-width, 900px)',
+          maxWidth: preferences.readableLineLength ? 'var(--md-content-max-width, 900px)' : 'none',
           margin: '0 auto',
           padding: '0 0 1em',
           boxSizing: 'border-box' as const,

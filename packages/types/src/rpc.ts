@@ -168,22 +168,6 @@ export interface RPCMethodMap {
     params: { file: string; content: string };
     result: { success: boolean };
   };
-  'config/list-snippets': {
-    params: void;
-    result: { snippets: string[] };
-  };
-  'config/read-snippet': {
-    params: { name: string };
-    result: { content: string };
-  };
-  'config/write-snippet': {
-    params: { name: string; content: string };
-    result: { success: boolean };
-  };
-  'config/delete-snippet': {
-    params: { name: string };
-    result: { success: boolean };
-  };
 }
 
 // ── Notification Maps ─────────────────────────────────────────────
@@ -198,6 +182,7 @@ export interface RPCNotificationMap {
 export interface RPCServerNotificationMap {
   'workspace/filesChanged': { changes: FileChange[] };
   'workspace/fileChangedOnDisk': { filePath: string; mtime: number };
+  'config/changed': { file: string };
 }
 
 // ── Extraction Helpers ────────────────────────────────────────────

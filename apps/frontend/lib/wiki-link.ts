@@ -12,6 +12,55 @@
 
 import type { WikiLinkInfo } from '@cushion/types';
 
+const TABLE_CELL_SEPARATOR = '\\|';
+
+function normalizeHrefForEscapedSeparator(href: string, displayText?: string): string {
+  if (!displayText) {
+    return href;
+  }
+
+  if (href.endsWith('\\')) {
+    return href.slice(0, -1);
+  }
+
+  return href;
+}
+
+function isEscapedAt(text: string, index: number): boolean {
+  let slashCount = 0;
+  let cursor = index - 1;
+
+  while (cursor >= 0 && text[cursor] === '\\') {
+    slashCount++;
+    cursor--;
+  }
+
+  return slashCount % 2 === 1;
+}
+
+/**
+ * Escape unescaped pipes for text that will be written in a markdown table cell.
+ */
+export function escapeForTableCell(text: string): string {
+  if (!text.includes('|')) {
+    return text;
+  }
+
+  let escaped = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '|' && !isEscapedAt(text, i)) {
+      escaped += TABLE_CELL_SEPARATOR;
+      continue;
+    }
+
+    escaped += char;
+  }
+
+  return escaped;
+}
+
 /**
  * Regex for matching wiki-links.
  * Adapted from Tangent's wikiLinkMatcher.
@@ -43,9 +92,10 @@ export function parseWikiLink(text: string): Omit<WikiLinkInfo, 'start' | 'end'>
   
   if (!match) return null;
   
-  const href = match[1].trim();
+  const rawHref = match[1].trim();
   const contentId = match[2] ? match[2].slice(1).trim() : undefined; // Remove leading #
   const displayText = match[3] ? match[3].slice(1).trim() : undefined; // Remove leading |
+  const href = normalizeHrefForEscapedSeparator(rawHref, displayText);
   
   return {
     raw: cleanText,
@@ -67,9 +117,10 @@ export function findAllWikiLinks(text: string): WikiLinkInfo[] {
   
   let match;
   while ((match = regex.exec(text)) !== null) {
-    const href = match[1].trim();
+    const rawHref = match[1].trim();
     const contentId = match[2] ? match[2].slice(1).trim() : undefined;
     const displayText = match[3] ? match[3].slice(1).trim() : undefined;
+    const href = normalizeHrefForEscapedSeparator(rawHref, displayText);
     
     links.push({
       raw: match[0],
@@ -135,7 +186,7 @@ export function getWikiLinkAtPosition(text: string, position: number): WikiLinkI
  */
 export function createWikiLink(
   href: string,
-  options?: { contentId?: string; displayText?: string }
+  options?: { contentId?: string; displayText?: string; inTableCell?: boolean }
 ): string {
   let link = `[[${href}`;
   
@@ -144,9 +195,23 @@ export function createWikiLink(
   }
   
   if (options?.displayText) {
-    link += `|${options.displayText}`;
+    const separator = options.inTableCell ? TABLE_CELL_SEPARATOR : '|';
+    const displayText = options.inTableCell
+      ? escapeForTableCell(options.displayText)
+      : options.displayText;
+    link += `${separator}${displayText}`;
   }
   
   link += ']]';
   return link;
+}
+
+/**
+ * Create a wiki-embed string from components.
+ */
+export function createWikiEmbed(
+  href: string,
+  options?: { contentId?: string; displayText?: string; inTableCell?: boolean }
+): string {
+  return `!${createWikiLink(href, options)}`;
 }

@@ -5,7 +5,7 @@
  * from disk can be spread over them: `{ ...defaults, ...parsed }`.
  */
 
-import type { CushionSettings, CushionWorkspace, CushionHotkeys, CushionAppearance, CushionChat } from '@cushion/types';
+import type { CushionSettings, CushionWorkspace, CushionAppearance, CushionChat } from '@cushion/types';
 
 export const DEFAULT_SETTINGS: Required<CushionSettings> = {
   readableLineLength: true,
@@ -14,15 +14,11 @@ export const DEFAULT_SETTINGS: Required<CushionSettings> = {
   autoSave: true,
   autoSaveDelay: 1000,
   autoPairBrackets: true,
-  autoPairMarkdown: true,
   foldHeading: true,
   foldIndent: true,
   showHiddenFiles: false,
   showCushionFiles: false,
-  fileTreeCollapsed: false,
   fileSortOrder: 'alphabetical',
-  newFileLocation: 'root',
-  attachmentFolderPath: './',
 };
 
 export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {
@@ -32,8 +28,6 @@ export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {
   lastOpenFiles: [],
 };
 
-export const DEFAULT_HOTKEYS: CushionHotkeys = {};
-
 export const DEFAULT_APPEARANCE: Required<CushionAppearance> = {
   theme: 'system',
   accentColor: '',
@@ -42,7 +36,6 @@ export const DEFAULT_APPEARANCE: Required<CushionAppearance> = {
   monospaceFontFamily: '',
   interfaceFontFamily: '',
   sidebarWidth: 240,
-  enabledCssSnippets: [],
 };
 
 export const DEFAULT_CHAT: Required<CushionChat> = {

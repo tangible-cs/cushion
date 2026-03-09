@@ -112,7 +112,8 @@ export class EmbedWidget extends WidgetType {
       this.options.linkState === other.options.linkState &&
       this.options.displayText === other.options.displayText &&
       this.options.contentId === other.options.contentId &&
-      this.options.block === other.options.block
+      this.options.block === other.options.block &&
+      this.options.resolver === other.options.resolver
     );
   }
 

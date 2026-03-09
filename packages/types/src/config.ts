@@ -12,15 +12,11 @@ export interface CushionSettings {
   autoSave?: boolean;
   autoSaveDelay?: number;
   autoPairBrackets?: boolean;
-  autoPairMarkdown?: boolean;
   foldHeading?: boolean;
   foldIndent?: boolean;
   showHiddenFiles?: boolean;
   showCushionFiles?: boolean;
-  fileTreeCollapsed?: boolean;
   fileSortOrder?: 'alphabetical' | 'modified' | 'created';
-  newFileLocation?: 'root' | 'current';
-  attachmentFolderPath?: string;
 }
 
 export interface CushionAppearance {
@@ -31,7 +27,6 @@ export interface CushionAppearance {
   monospaceFontFamily?: string;
   interfaceFontFamily?: string;
   sidebarWidth?: number;
-  enabledCssSnippets?: string[];
 }
 
 export interface CushionWorkspace {
@@ -48,10 +43,6 @@ export interface CushionWorkspace {
     width: number;
   };
   lastOpenFiles?: string[];
-}
-
-export interface CushionHotkeys {
-  [shortcutId: string]: string[];
 }
 
 export interface CushionChat {

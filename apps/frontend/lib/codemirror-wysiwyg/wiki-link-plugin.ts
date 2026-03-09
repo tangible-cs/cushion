@@ -94,9 +94,12 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
     if (isEmbed) continue;
     
     // Parse the link components
-    const href = match[1].trim();
+    const rawHref = match[1].trim();
     const contentId = match[2] ? match[2].slice(1).trim() : undefined;
     const displayText = match[3] ? match[3].slice(1).trim() : undefined;
+    const href = displayText && rawHref.endsWith('\\')
+      ? rawHref.slice(0, -1)
+      : rawHref;
     
     // Resolve the link
     const resolved = resolveWikiLink(href, fileTree);

@@ -46,6 +46,8 @@ const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
   'image/vnd.microsoft.icon': 'ico',
 };
 
+const BINARY_WIKI_LINK_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
+
 
 function formatPasteTimestamp(date: Date): string {
   const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -376,7 +378,7 @@ export function EditorPanel({
       if (!files.length) return;
 
       const noteDir = filePath.split('/').slice(0, -1).join('/');
-      const pasteFolder = joinWorkspacePath(noteDir, '.cushion', 'images');
+      const pasteFolder = joinWorkspacePath(noteDir, '.attachments');
 
       const selection = view.state.selection.main;
       const timestamp = new Date();
@@ -520,6 +522,10 @@ export function EditorPanel({
     async (href, resolvedPath, createIfMissing) => {
       if (resolvedPath) {
         try {
+          if (BINARY_WIKI_LINK_EXTENSIONS.test(resolvedPath)) {
+            openFile(resolvedPath, '');
+            return;
+          }
           const { content } = await client.readFile(resolvedPath);
           openFile(resolvedPath, content);
         } catch (err) {

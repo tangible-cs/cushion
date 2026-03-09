@@ -89,6 +89,7 @@ export function AppearanceSettings({ embedded = false }: AppearanceSettingsProps
           })}
         </div>
       </div>
+
     </div>
   );
 }

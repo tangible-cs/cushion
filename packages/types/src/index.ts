@@ -75,6 +75,15 @@ export interface WorkspacePreferences {
   sidebarWidth: number;
   autoSave: boolean;
   autoSaveDelay: number;
+  showLineNumber: boolean;
+  spellcheck: boolean;
+  readableLineLength: boolean;
+  autoPairBrackets: boolean;
+  foldHeading: boolean;
+  foldIndent: boolean;
+  fileSortOrder: 'alphabetical' | 'modified' | 'created';
+  newFileLocation: 'root' | 'current';
+  attachmentFolderPath: string;
 }
 
 export interface FileWatcherState {

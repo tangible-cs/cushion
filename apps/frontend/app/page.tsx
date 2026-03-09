@@ -20,10 +20,9 @@ import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { ConfigSync } from '@/lib/config-sync';
-import { DEFAULT_SETTINGS, DEFAULT_WORKSPACE, DEFAULT_HOTKEYS, DEFAULT_APPEARANCE, DEFAULT_CHAT } from '@/lib/config-defaults';
-import { useShortcutsStore } from '@/stores/shortcutsStore';
+import { DEFAULT_SETTINGS, DEFAULT_WORKSPACE, DEFAULT_CHAT } from '@/lib/config-defaults';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import type { CushionSettings, CushionWorkspace, CushionHotkeys, CushionAppearance, CushionChat } from '@cushion/types';
+import type { CushionSettings, CushionWorkspace, CushionAppearance, CushionChat } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
@@ -34,6 +33,8 @@ const APP_SHORTCUT_IDS = [
   'app.overlay.close',
   'app.focusMode.exit',
 ] as const;
+
+const BINARY_NAVIGATION_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
 
 type OverlayCloseTarget = {
   isOpen: boolean;
@@ -47,25 +48,6 @@ function closeTopmostOverlay(targets: readonly OverlayCloseTarget[]): boolean {
     return true;
   }
   return false;
-}
-
-const SNIPPET_ATTR = 'data-cushion-snippet';
-
-function injectSnippet(name: string, css: string) {
-  removeSnippet(name);
-  const style = document.createElement('style');
-  style.setAttribute(SNIPPET_ATTR, name);
-  style.textContent = css;
-  document.head.appendChild(style);
-}
-
-function removeSnippet(name: string) {
-  const el = document.querySelector(`style[${SNIPPET_ATTR}="${CSS.escape(name)}"]`);
-  el?.remove();
-}
-
-function removeAllSnippets() {
-  document.querySelectorAll(`style[${SNIPPET_ATTR}]`).forEach((el) => el.remove());
 }
 
 function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: string) {
@@ -109,11 +91,6 @@ export default function Home() {
   const autoOpenAttempted = useRef(false);
   const configSyncRef = useRef<ConfigSync | null>(null);
   const lastSettingsRef = useRef<CushionSettings>(DEFAULT_SETTINGS);
-  const skipSettingsWriteRef = useRef(false);
-  const skipWorkspaceWriteRef = useRef(false);
-  const skipHotkeysWriteRef = useRef(false);
-  const skipAppearanceWriteRef = useRef(false);
-  const skipChatWriteRef = useRef(false);
   const workspaceConfigLoadedRef = useRef(false);
 
   // File tree and connection state from useFileTree hook
@@ -192,7 +169,7 @@ export default function Home() {
     };
   }, [client]);
 
-  // Load settings.json + workspace.json + hotkeys.json when a workspace opens
+  // Load settings.json + workspace.json when a workspace opens
   useEffect(() => {
     if (!metadata || !configSyncRef.current) return;
     workspaceConfigLoadedRef.current = false;
@@ -206,13 +183,17 @@ export default function Home() {
       if (parsedSettings) {
         const merged = { ...DEFAULT_SETTINGS, ...parsedSettings };
         lastSettingsRef.current = merged;
-        skipSettingsWriteRef.current = true;
         useWorkspaceStore.getState().updatePreferences({
           showHiddenFiles: merged.showHiddenFiles,
           showCushionFiles: merged.showCushionFiles,
-          fileTreeCollapsed: merged.fileTreeCollapsed,
           autoSave: merged.autoSave,
           autoSaveDelay: merged.autoSaveDelay,
+          showLineNumber: merged.showLineNumber,
+          spellcheck: merged.spellcheck,
+          readableLineLength: merged.readableLineLength,
+          autoPairBrackets: merged.autoPairBrackets,
+          foldHeading: merged.foldHeading,
+          foldIndent: merged.foldIndent,
         });
       }
 
@@ -233,7 +214,6 @@ export default function Home() {
 
         // Restore tabs — re-open each file from disk
         if (merged.tabs.length > 0 && client) {
-          skipWorkspaceWriteRef.current = true;
           const activeFilePath = merged.activeTab;
           for (const tab of merged.tabs) {
             try {
@@ -263,35 +243,11 @@ export default function Home() {
 
       workspaceConfigLoadedRef.current = true;
 
-      // Load hotkeys.json — restore shortcut overrides
-      const parsedHotkeys = await sync.read<CushionHotkeys>('hotkeys.json');
-      if (cancelled) return;
-      if (parsedHotkeys) {
-        skipHotkeysWriteRef.current = true;
-        // Replace overrides in shortcuts store directly
-        useShortcutsStore.setState({ overrides: parsedHotkeys });
-      }
-
       // Load appearance.json — restore theme, accent color, fonts
       const parsedAppearance = await sync.read<CushionAppearance>('appearance.json');
       if (cancelled) return;
       if (parsedAppearance) {
-        skipAppearanceWriteRef.current = true;
         useAppearanceStore.getState().loadAppearance(parsedAppearance);
-      }
-
-      // Load enabled CSS snippets
-      const enabledSnippets = parsedAppearance?.enabledCssSnippets ?? DEFAULT_APPEARANCE.enabledCssSnippets;
-      if (enabledSnippets.length > 0 && client) {
-        for (const snippetName of enabledSnippets) {
-          try {
-            const { content } = await client.readSnippet(snippetName);
-            if (cancelled) return;
-            injectSnippet(snippetName, content);
-          } catch {
-            console.warn(`[ConfigSync] Snippet not found: ${snippetName}`);
-          }
-        }
       }
 
       // Load chat.json — restore AI preferences for this workspace
@@ -300,7 +256,6 @@ export default function Home() {
       if (parsedChat) {
         const merged = { ...DEFAULT_CHAT, ...parsedChat };
         const directory = metadata.projectPath;
-        skipChatWriteRef.current = true;
         useChatStore.setState((state) => ({
           displayPreferences: merged.displayPreferences,
           modelVisibility: { ...state.modelVisibility, ...merged.modelVisibility },
@@ -329,20 +284,18 @@ export default function Home() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [metadata, client]);
 
-  // Dual-write: when preferences change, also write to settings.json
+  // Write to settings.json when preferences change
   useEffect(() => {
     if (!metadata) return;
 
     const unsub = useWorkspaceStore.subscribe(
       (state) => state.preferences,
       (prefs) => {
-        if (skipSettingsWriteRef.current) {
-          skipSettingsWriteRef.current = false;
-          return;
-        }
         const sync = configSyncRef.current;
         if (!sync) return;
 
@@ -350,9 +303,14 @@ export default function Home() {
           ...lastSettingsRef.current,
           showHiddenFiles: prefs.showHiddenFiles,
           showCushionFiles: prefs.showCushionFiles,
-          fileTreeCollapsed: prefs.fileTreeCollapsed,
           autoSave: prefs.autoSave,
           autoSaveDelay: prefs.autoSaveDelay,
+          showLineNumber: prefs.showLineNumber,
+          spellcheck: prefs.spellcheck,
+          readableLineLength: prefs.readableLineLength,
+          autoPairBrackets: prefs.autoPairBrackets,
+          foldHeading: prefs.foldHeading,
+          foldIndent: prefs.foldIndent,
         };
         lastSettingsRef.current = settings;
         sync.scheduleWrite('settings.json', settings);
@@ -362,17 +320,13 @@ export default function Home() {
     return unsub;
   }, [metadata]);
 
-  // Dual-write: when tabs or active file change, also write to workspace.json
+  // Write to workspace.json when tabs or active file change
   useEffect(() => {
     if (!metadata) return;
 
     const unsub = useWorkspaceStore.subscribe(
       (state) => ({ tabs: state.tabs, currentFile: state.currentFile }),
       ({ tabs, currentFile }) => {
-        if (skipWorkspaceWriteRef.current) {
-          skipWorkspaceWriteRef.current = false;
-          return;
-        }
         const sync = configSyncRef.current;
         if (!sync) return;
 
@@ -395,28 +349,7 @@ export default function Home() {
     return unsub;
   }, [metadata, rightPanelMode, rightPanelWidth]);
 
-  // Dual-write: when hotkey overrides change, also write to hotkeys.json
-  useEffect(() => {
-    if (!metadata) return;
-
-    const unsub = useShortcutsStore.subscribe(
-      (state) => state.overrides,
-      (overrides) => {
-        if (skipHotkeysWriteRef.current) {
-          skipHotkeysWriteRef.current = false;
-          return;
-        }
-        const sync = configSyncRef.current;
-        if (!sync) return;
-
-        sync.scheduleWrite('hotkeys.json', overrides);
-      },
-    );
-
-    return unsub;
-  }, [metadata]);
-
-  // Dual-write: when appearance changes, also write to appearance.json
+  // Write to appearance.json when appearance changes
   useEffect(() => {
     if (!metadata) return;
 
@@ -429,13 +362,8 @@ export default function Home() {
         monospaceFontFamily: state.monospaceFontFamily,
         interfaceFontFamily: state.interfaceFontFamily,
         sidebarWidth: state.sidebarWidth,
-        enabledCssSnippets: state.enabledCssSnippets,
       }),
       () => {
-        if (skipAppearanceWriteRef.current) {
-          skipAppearanceWriteRef.current = false;
-          return;
-        }
         const sync = configSyncRef.current;
         if (!sync) return;
 
@@ -447,7 +375,7 @@ export default function Home() {
     return unsub;
   }, [metadata]);
 
-  // Dual-write: when chat preferences change, also write to chat.json
+  // Write to chat.json when chat preferences change
   useEffect(() => {
     if (!metadata) return;
     const directory = metadata.projectPath;
@@ -461,10 +389,6 @@ export default function Home() {
         selectedVariant: state.selectedVariantByDirectory[directory] ?? state.selectedVariant,
       }),
       (slice) => {
-        if (skipChatWriteRef.current) {
-          skipChatWriteRef.current = false;
-          return;
-        }
         const sync = configSyncRef.current;
         if (!sync) return;
 
@@ -508,6 +432,80 @@ export default function Home() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Re-read config files when externally changed on disk
+  useEffect(() => {
+    if (!client || !metadata) return;
+
+    const unsub = client.onConfigChanged(async (file: string) => {
+      const sync = configSyncRef.current;
+      if (!sync) return;
+
+      switch (file) {
+        case 'settings.json': {
+          const parsed = await sync.read<CushionSettings>('settings.json');
+          if (!parsed) return;
+          const merged = { ...DEFAULT_SETTINGS, ...parsed };
+          lastSettingsRef.current = merged;
+          useWorkspaceStore.getState().updatePreferences({
+            showHiddenFiles: merged.showHiddenFiles,
+            showCushionFiles: merged.showCushionFiles,
+            autoSave: merged.autoSave,
+            autoSaveDelay: merged.autoSaveDelay,
+            showLineNumber: merged.showLineNumber,
+            spellcheck: merged.spellcheck,
+            readableLineLength: merged.readableLineLength,
+            autoPairBrackets: merged.autoPairBrackets,
+              foldHeading: merged.foldHeading,
+            foldIndent: merged.foldIndent,
+          });
+          break;
+        }
+        case 'appearance.json': {
+          const parsed = await sync.read<CushionAppearance>('appearance.json');
+          if (!parsed) return;
+          useAppearanceStore.getState().loadAppearance(parsed);
+          break;
+        }
+        case 'chat.json': {
+          const parsed = await sync.read<CushionChat>('chat.json');
+          if (!parsed) return;
+          const merged = { ...DEFAULT_CHAT, ...parsed };
+          const directory = metadata.projectPath;
+          useChatStore.setState((state) => ({
+            displayPreferences: merged.displayPreferences,
+            modelVisibility: { ...state.modelVisibility, ...merged.modelVisibility },
+            ...(merged.selectedModel && {
+              selectedModel: merged.selectedModel,
+              selectedModelByDirectory: {
+                ...state.selectedModelByDirectory,
+                [directory]: merged.selectedModel,
+              },
+            }),
+            ...(merged.selectedAgent !== null && {
+              selectedAgent: merged.selectedAgent,
+              selectedAgentByDirectory: {
+                ...state.selectedAgentByDirectory,
+                [directory]: merged.selectedAgent,
+              },
+            }),
+            ...(merged.selectedVariant !== null && {
+              selectedVariant: merged.selectedVariant,
+              selectedVariantByDirectory: {
+                ...state.selectedVariantByDirectory,
+                [directory]: merged.selectedVariant,
+              },
+            }),
+          }));
+          break;
+        }
+        // workspace.json is not re-read on external change — tabs are ephemeral
+        // and re-reading could disrupt the user's current session
+      }
+    });
+
+    return unsub;
+  }, [client, metadata]);
 
   // Flush pending config writes on page unload
   useEffect(() => {
@@ -677,6 +675,10 @@ export default function Home() {
     if (!client) return;
     
     try {
+      if (BINARY_NAVIGATION_EXTENSIONS.test(filePath)) {
+        openFile(filePath, '');
+        return;
+      }
       const { content } = await client.readFile(filePath);
       openFile(filePath, content);
     } catch (err) {
