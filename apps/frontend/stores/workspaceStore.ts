@@ -16,6 +16,7 @@ import type {
   Frontmatter,
 } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
+import { DEFAULT_SETTINGS } from '@/lib/config-defaults';
 import { parseFrontmatter } from '@/lib/frontmatter';
 
 /**
@@ -52,6 +53,9 @@ interface WorkspaceActions {
   // Preferences
   updatePreferences: (preferences: Partial<WorkspacePreferences>) => void;
 
+  // Layout
+  setSidebarWidth: (width: number) => void;
+
   // Error handling
   setError: (error: string | null) => void;
   setLoading: (isLoading: boolean) => void;
@@ -79,20 +83,8 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   },
   recentProjects: [],
   recentFiles: [],
-  preferences: {
-    showHiddenFiles: false,
-    showCushionFiles: false,
-    sidebarWidth: 240,
-    autoSave: true,
-    autoSaveDelay: 1000,
-    showLineNumber: false,
-    spellcheck: true,
-    readableLineLength: true,
-    autoPairBrackets: true,
-    foldHeading: true,
-    foldIndent: true,
-    fileSortOrder: 'alphabetical',
-  },
+  preferences: { ...DEFAULT_SETTINGS },
+  sidebarWidth: 240,
   sessionId: '',
   isLoading: false,
   error: null,
@@ -551,6 +543,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
               ...preferences,
             },
           }));
+        },
+
+        setSidebarWidth: (width: number) => {
+          set({ sidebarWidth: width });
         },
 
         /**

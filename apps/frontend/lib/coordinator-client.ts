@@ -7,16 +7,15 @@
 import type {
   DidOpenTextDocumentParams,
   DidChangeTextDocumentParams,
-  FileTreeNode,
   FileChange,
-  Provider,
-  Model,
-  AuthMethod,
   ConnectionState,
   JSONRPCRequest,
   JSONRPCResponse,
   JSONRPCNotification,
   RPCServerNotificationParams,
+  RPCMethodName,
+  RPCParams,
+  RPCResult,
 } from '@cushion/types';
 
 const INITIAL_RECONNECT_DELAY = 1_000;
@@ -344,116 +343,106 @@ export class CoordinatorClient {
   }
 
   // ---------------------------------------------------------------------------
-  // LSP notifications
+  // Generic typed RPC call
   // ---------------------------------------------------------------------------
 
   /**
-   * LSP: textDocument/didOpen
+   * Type-safe RPC call. Params and result types are inferred from RPCMethodMap.
+   *
+   * For methods with `params: void`, pass `{}` or omit the second argument.
    */
+  call<M extends RPCMethodName>(
+    method: M,
+    ...args: RPCParams<M> extends void ? [] : [RPCParams<M>]
+  ): Promise<RPCResult<M>> {
+    return this.sendRequest(method, args[0] ?? {});
+  }
+
+  // ---------------------------------------------------------------------------
+  // LSP notifications
+  // ---------------------------------------------------------------------------
+
   didOpen(params: DidOpenTextDocumentParams) {
     this.sendNotification('textDocument/didOpen', params);
   }
 
-  /**
-   * LSP: textDocument/didChange
-   */
   didChange(params: DidChangeTextDocumentParams) {
     this.sendNotification('textDocument/didChange', params);
   }
 
   // ---------------------------------------------------------------------------
-  // Workspace RPCs
+  // Convenience wrappers (thin delegates to `call`)
   // ---------------------------------------------------------------------------
 
-  async openWorkspace(projectPath: string): Promise<{ projectName: string; gitRoot: string | null }> {
-    return this.sendRequest<{ projectName: string; gitRoot: string | null }>('workspace/open', { projectPath });
+  openWorkspace(projectPath: string) {
+    return this.call('workspace/open', { projectPath });
   }
 
-  async selectWorkspaceFolder(): Promise<{ path: string | null }> {
-    return this.sendRequest<{ path: string | null }>('workspace/select-folder', {});
+  selectWorkspaceFolder() {
+    return this.call('workspace/select-folder');
   }
 
-  async listFsRoots(): Promise<{ roots: Array<{ name: string; path: string }> }> {
-    return this.sendRequest<{ roots: Array<{ name: string; path: string }> }>('fs/roots', {});
+  listFsRoots() {
+    return this.call('fs/roots');
   }
 
-  async listFsDirs(absPath: string): Promise<{ path: string; parent: string | null; dirs: Array<{ name: string; path: string }> }> {
-    return this.sendRequest<{ path: string; parent: string | null; dirs: Array<{ name: string; path: string }> }>('fs/list-dirs', { path: absPath });
+  listFsDirs(absPath: string) {
+    return this.call('fs/list-dirs', { path: absPath });
   }
 
-  async listFiles(relativePath?: string): Promise<{ files: FileTreeNode[] }> {
-    return this.sendRequest<{ files: FileTreeNode[] }>('workspace/files', { relativePath });
+  listFiles(relativePath?: string) {
+    return this.call('workspace/files', { relativePath });
   }
 
-  async readFile(filePath: string): Promise<{ content: string; encoding: string; lineEnding: string }> {
-    return this.sendRequest<{ content: string; encoding: string; lineEnding: string }>('workspace/file', { filePath });
+  readFile(filePath: string) {
+    return this.call('workspace/file', { filePath });
   }
 
-  async saveFile(filePath: string, content: string, options?: { encoding?: string; lineEnding?: 'LF' | 'CRLF' }): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/save-file', { filePath, content, ...options });
+  saveFile(filePath: string, content: string, options?: { encoding?: string; lineEnding?: 'LF' | 'CRLF' }) {
+    return this.call('workspace/save-file', { filePath, content, ...options });
   }
 
-  async renameFile(oldPath: string, newPath: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/rename', { oldPath, newPath });
+  renameFile(oldPath: string, newPath: string) {
+    return this.call('workspace/rename', { oldPath, newPath });
   }
 
-  async deleteFile(path: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/delete', { path });
+  deleteFile(path: string) {
+    return this.call('workspace/delete', { path });
   }
 
-  async duplicateFile(path: string, newPath: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/duplicate', { path, newPath });
+  duplicateFile(path: string, newPath: string) {
+    return this.call('workspace/duplicate', { path, newPath });
   }
 
-  async createFolder(folderPath: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/create-folder', { path: folderPath });
+  createFolder(folderPath: string) {
+    return this.call('workspace/create-folder', { path: folderPath });
   }
 
-  async readFileBase64(filePath: string): Promise<{ base64: string; mimeType: string }> {
-    return this.sendRequest<{ base64: string; mimeType: string }>('workspace/file-base64', { filePath });
+  readFileBase64(filePath: string) {
+    return this.call('workspace/file-base64', { filePath });
   }
 
-  async readFileBase64Chunk(
-    filePath: string,
-    offset: number,
-    length: number,
-  ): Promise<{
-    base64: string;
-    mimeType: string;
-    offset: number;
-    bytesRead: number;
-    totalBytes: number;
-  }> {
-    return this.sendRequest<{
-      base64: string;
-      mimeType: string;
-      offset: number;
-      bytesRead: number;
-      totalBytes: number;
-    }>('workspace/file-base64-chunk', { filePath, offset, length });
+  readFileBase64Chunk(filePath: string, offset: number, length: number) {
+    return this.call('workspace/file-base64-chunk', { filePath, offset, length });
   }
 
-  async saveFileBase64(filePath: string, base64: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('workspace/save-file-base64', { filePath, base64 });
+  saveFileBase64(filePath: string, base64: string) {
+    return this.call('workspace/save-file-base64', { filePath, base64 });
   }
 
-  // ---------------------------------------------------------------------------
-  // Config RPCs
-  // ---------------------------------------------------------------------------
-
-  async readConfig(file: string): Promise<{ content: string | null; exists: boolean }> {
-    return this.sendRequest<{ content: string | null; exists: boolean }>('config/read', { file });
+  readConfig(file: string) {
+    return this.call('config/read', { file });
   }
 
-  async writeConfig(file: string, content: string): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('config/write', { file, content });
+  writeConfig(file: string, content: string) {
+    return this.call('config/write', { file, content });
   }
 
   // ---------------------------------------------------------------------------
   // Notification subscriptions
   // ---------------------------------------------------------------------------
 
-  onFilesChanged(callback: (changes: FileChange[]) => void): () => void {
+  onFilesChanged(callback: (changes: import('@cushion/types').FileChange[]) => void): () => void {
     this.filesChangedCallbacks.push(callback);
     return () => {
       this.filesChangedCallbacks = this.filesChangedCallbacks.filter((cb) => cb !== callback);
@@ -478,59 +467,59 @@ export class CoordinatorClient {
   // Provider RPCs
   // ---------------------------------------------------------------------------
 
-  async listProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
-    return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/list', {});
+  listProviders() {
+    return this.call('provider/list');
   }
 
-  async listProviderAuthMethods(): Promise<Record<string, AuthMethod[]>> {
-    return this.sendRequest<Record<string, AuthMethod[]>>('provider/auth/methods', {});
+  listProviderAuthMethods() {
+    return this.call('provider/auth/methods');
   }
 
-  async refreshProviders(): Promise<{ providers: Provider[]; connected: string[] }> {
-    return this.sendRequest<{ providers: Provider[]; connected: string[] }>('provider/refresh', {});
+  refreshProviders() {
+    return this.call('provider/refresh');
   }
 
-  async getPopularProviders(): Promise<{ ids: string[] }> {
-    return this.sendRequest<{ ids: string[] }>('provider/popular', {});
+  getPopularProviders() {
+    return this.call('provider/popular');
   }
 
-  async setProviderAuth(params: { providerID: string; apiKey: string }): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('provider/auth/set', params);
+  setProviderAuth(params: { providerID: string; apiKey: string }) {
+    return this.call('provider/auth/set', params);
   }
 
-  async removeProviderAuth(params: { providerID: string }): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('provider/auth/remove', params);
+  removeProviderAuth(params: { providerID: string }) {
+    return this.call('provider/auth/remove', params);
   }
 
-  async syncProviders(): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('provider/sync', {});
+  syncProviders() {
+    return this.call('provider/sync');
   }
 
-  async authorizeOAuth(params: { providerID: string; method: number }): Promise<{ url: string; method: 'auto' | 'code'; instructions: string }> {
-    return this.sendRequest<{ url: string; method: 'auto' | 'code'; instructions: string }>('provider/oauth/authorize', params);
+  authorizeOAuth(params: RPCParams<'provider/oauth/authorize'>) {
+    return this.call('provider/oauth/authorize', params);
   }
 
-  async oauthCallback(params: { providerID: string; method: number; code?: string }): Promise<{ success: boolean }> {
-    return this.sendRequest<{ success: boolean }>('provider/oauth/callback', params);
+  oauthCallback(params: { providerID: string; method: number; code?: string }) {
+    return this.call('provider/oauth/callback', params);
   }
 
   // ---------------------------------------------------------------------------
   // Ollama RPCs
   // ---------------------------------------------------------------------------
 
-  async listOllamaModels(): Promise<{ models: Model[]; running: boolean }> {
-    return this.sendRequest<{ models: Model[]; running: boolean }>('provider/ollama/list', {});
+  listOllamaModels() {
+    return this.call('provider/ollama/list');
   }
 
-  async pullOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
-    return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/pull', { model });
+  pullOllamaModel(model: string) {
+    return this.call('provider/ollama/pull', { model });
   }
 
-  async deleteOllamaModel(model: string): Promise<{ success: boolean; error?: string }> {
-    return this.sendRequest<{ success: boolean; error?: string }>('provider/ollama/delete', { model });
+  deleteOllamaModel(model: string) {
+    return this.call('provider/ollama/delete', { model });
   }
 
-  async writeOllamaConfig(params: { baseUrl?: string; models?: unknown[] }): Promise<{ success: boolean; message: string }> {
-    return this.sendRequest<{ success: boolean; message: string }>('provider/ollama/write-config', params);
+  writeOllamaConfig(params: { baseUrl?: string; models?: unknown[] }) {
+    return this.call('provider/ollama/write-config', params);
   }
 }

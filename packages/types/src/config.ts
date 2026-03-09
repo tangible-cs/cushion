@@ -26,7 +26,6 @@ export interface CushionAppearance {
   textFontFamily?: string;
   monospaceFontFamily?: string;
   interfaceFontFamily?: string;
-  sidebarWidth?: number;
 }
 
 export interface CushionWorkspace {
@@ -43,6 +42,7 @@ export interface CushionWorkspace {
     width: number;
   };
   lastOpenFiles?: string[];
+  sidebarWidth?: number;
 }
 
 export interface CushionChat {
