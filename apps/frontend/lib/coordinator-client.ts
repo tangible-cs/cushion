@@ -495,7 +495,7 @@ export class CoordinatorClient {
     return this.call('provider/sync');
   }
 
-  authorizeOAuth(params: { providerID: string; method: number }) {
+  authorizeOAuth(params: RPCParams<'provider/oauth/authorize'>) {
     return this.call('provider/oauth/authorize', params);
   }
 
