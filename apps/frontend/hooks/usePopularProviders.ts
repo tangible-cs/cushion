@@ -12,18 +12,43 @@ export function usePopularProviders(): string[] {
 
   useEffect(() => {
     let cancelled = false;
+    let stopState = () => {};
+    let stopReconnect = () => {};
+
+    const load = async () => {
+      try {
+        const client = await getSharedCoordinatorClient();
+        if (cancelled) return;
+
+        const result = await client.getPopularProviders();
+        if (!cancelled) setIds(result.ids);
+      } catch {
+        // Silently fall back to empty list until the coordinator reconnects.
+      }
+    };
 
     getSharedCoordinatorClient()
-      .then((client) => client.getPopularProviders())
-      .then((result) => {
-        if (!cancelled) setIds(result.ids);
+      .then((client) => {
+        if (cancelled) return;
+
+        const reload = () => {
+          void load();
+        };
+
+        stopState = client.onConnectionStateChanged((state) => {
+          if (state === 'connected') reload();
+        });
+        stopReconnect = client.onReconnected(reload);
+        reload();
       })
       .catch(() => {
-        // Silently fall back to empty list — models will sort alphabetically.
+        void load();
       });
 
     return () => {
       cancelled = true;
+      stopState();
+      stopReconnect();
     };
   }, []);
 

@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { CredentialStorage } from './storage.js';
 
 // We test CredentialStorage by pointing it at a temp config directory.
 // The module uses top-level constants for CONFIG_DIR/CONFIG_FILE, so we
@@ -322,5 +323,38 @@ describe('persistence', () => {
     const storage2 = new TestCredentialStorage(tmpDir);
     const cred = await storage2.getCredential('anthropic');
     expect(cred).toBeUndefined();
+  });
+});
+
+describe('legacy cleanup', () => {
+  test('removes stale legacy config during load', async () => {
+    await fs.writeFile(
+      configFile,
+      JSON.stringify({
+        credentials: {
+          anthropic: {
+            providerID: 'anthropic',
+            auth: { type: 'api', key: 'sk-test' },
+          },
+        },
+        ['ollama' + 'Config']: { connected: true },
+      })
+    );
+
+    const storage = new CredentialStorage(tmpDir);
+
+    expect(await storage.getConnectedProviderIDs()).toEqual(['anthropic']);
+
+    const saved = JSON.parse(await fs.readFile(configFile, 'utf-8'));
+    expect(saved['ollama' + 'Config']).toBeUndefined();
+    expect(saved.credentials.anthropic).toBeDefined();
+  });
+
+  test('uses a custom config directory', async () => {
+    const storage = new CredentialStorage(tmpDir);
+    await storage.setCredential('openai', 'sk-openai');
+
+    const saved = JSON.parse(await fs.readFile(configFile, 'utf-8'));
+    expect(saved.credentials.openai.auth.key).toBe('sk-openai');
   });
 });

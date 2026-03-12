@@ -17,6 +17,7 @@ import type { CredentialStorage } from './storage.js';
  * Cleaned up on next sync to fix OpenCode config validation errors.
  */
 const LEGACY_MARKER = '__cushion';
+const LEGACY_PROVIDER = 'ollama';
 
 /**
  * Syncs all Cushion-managed credentials into OpenCode's config file.
@@ -67,6 +68,7 @@ export async function syncCredentialsToOpenCode(
   }
 
   const managedIds = new Set(currentlySynced);
+  delete providerSection[LEGACY_PROVIDER];
 
   // Remove stale entries: previously synced by Cushion but credential now deleted
   for (const providerID of previouslySynced) {
