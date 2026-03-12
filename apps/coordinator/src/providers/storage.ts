@@ -2,20 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import type { Credential } from '@cushion/types';
-import { OLLAMA_PROVIDER_ID, OLLAMA_DEFAULT_URL } from './ollama.js';
-
-export { OLLAMA_PROVIDER_ID };
 
 const CONFIG_DIR = path.join(os.homedir(), '.cushion');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 interface Config {
   credentials: Record<string, Credential>;
-  ollamaConfig?: {
-    baseUrl?: string;
-    connected?: boolean;
-    lastConnected?: number;
-  };
   syncedProviders?: string[];
 }
 
@@ -107,52 +99,12 @@ export class CredentialStorage {
 
   async getConnectedProviderIDs(): Promise<string[]> {
     await this.ensureReady();
-    const providerIDs = Object.keys(this.config.credentials);
-    if (this.config.ollamaConfig?.connected === true) {
-      providerIDs.push(OLLAMA_PROVIDER_ID);
-    }
-    return providerIDs;
+    return Object.keys(this.config.credentials);
   }
 
   async hasCredential(providerID: string): Promise<boolean> {
     await this.ensureReady();
-    if (providerID === OLLAMA_PROVIDER_ID) {
-      return this.config.ollamaConfig?.connected === true;
-    }
     return providerID in this.config.credentials;
-  }
-
-  // --- Ollama-specific methods ---
-
-  async connectOllama(baseUrl?: string): Promise<void> {
-    await this.ensureReady();
-    this.config.ollamaConfig = {
-      baseUrl: baseUrl || OLLAMA_DEFAULT_URL,
-      connected: true,
-      lastConnected: Date.now(),
-    };
-    await this.saveConfig();
-  }
-
-  async disconnectOllama(): Promise<void> {
-    await this.ensureReady();
-    delete this.config.ollamaConfig;
-    await this.saveConfig();
-  }
-
-  async isOllamaConnected(): Promise<boolean> {
-    await this.ensureReady();
-    return this.config.ollamaConfig?.connected === true;
-  }
-
-  async getOllamaBaseUrl(): Promise<string> {
-    await this.ensureReady();
-    return this.config.ollamaConfig?.baseUrl || OLLAMA_DEFAULT_URL;
-  }
-
-  async getOllamaConfig(): Promise<{ baseUrl?: string; connected?: boolean } | undefined> {
-    await this.ensureReady();
-    return this.config.ollamaConfig;
   }
 
   async getSyncedProviders(): Promise<string[]> {

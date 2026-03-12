@@ -118,45 +118,12 @@ class TestCredentialStorage {
 
   async getConnectedProviderIDs(): Promise<string[]> {
     await this.ensureReady();
-    const providerIDs = Object.keys(this.config.credentials);
-    if (this.config.ollamaConfig?.connected === true) {
-      providerIDs.push('ollama');
-    }
-    return providerIDs;
+    return Object.keys(this.config.credentials);
   }
 
   async hasCredential(providerID: string): Promise<boolean> {
     await this.ensureReady();
-    if (providerID === 'ollama') {
-      return this.config.ollamaConfig?.connected === true;
-    }
     return providerID in this.config.credentials;
-  }
-
-  async connectOllama(baseUrl?: string): Promise<void> {
-    await this.ensureReady();
-    this.config.ollamaConfig = {
-      baseUrl: baseUrl || 'http://localhost:11434',
-      connected: true,
-      lastConnected: Date.now(),
-    };
-    await this.saveConfig();
-  }
-
-  async disconnectOllama(): Promise<void> {
-    await this.ensureReady();
-    delete this.config.ollamaConfig;
-    await this.saveConfig();
-  }
-
-  async isOllamaConnected(): Promise<boolean> {
-    await this.ensureReady();
-    return this.config.ollamaConfig?.connected === true;
-  }
-
-  async getOllamaBaseUrl(): Promise<string> {
-    await this.ensureReady();
-    return this.config.ollamaConfig?.baseUrl || 'http://localhost:11434';
   }
 }
 
@@ -330,57 +297,6 @@ describe('credential CRUD', () => {
 
     const cred = await storage.getCredential('anthropic');
     expect(cred.auth.key).toBe('sk-new');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Ollama-specific operations
-// ---------------------------------------------------------------------------
-describe('ollama operations', () => {
-  test('connect and disconnect ollama', async () => {
-    const storage = new TestCredentialStorage(tmpDir);
-
-    await storage.connectOllama('http://localhost:11434');
-    expect(await storage.isOllamaConnected()).toBe(true);
-    expect(await storage.getOllamaBaseUrl()).toBe('http://localhost:11434');
-
-    await storage.disconnectOllama();
-    expect(await storage.isOllamaConnected()).toBe(false);
-  });
-
-  test('ollama appears in connected provider IDs when connected', async () => {
-    const storage = new TestCredentialStorage(tmpDir);
-    await storage.connectOllama();
-
-    const ids = await storage.getConnectedProviderIDs();
-    expect(ids).toContain('ollama');
-  });
-
-  test('hasCredential returns true for ollama when connected', async () => {
-    const storage = new TestCredentialStorage(tmpDir);
-    await storage.connectOllama();
-    expect(await storage.hasCredential('ollama')).toBe(true);
-  });
-
-  test('hasCredential returns false for ollama when disconnected', async () => {
-    const storage = new TestCredentialStorage(tmpDir);
-    expect(await storage.hasCredential('ollama')).toBe(false);
-  });
-
-  test('custom ollama base URL is preserved', async () => {
-    const storage = new TestCredentialStorage(tmpDir);
-    await storage.connectOllama('http://custom-host:5000');
-    expect(await storage.getOllamaBaseUrl()).toBe('http://custom-host:5000');
-  });
-
-  test('ollama config persists across instances', async () => {
-    const storage1 = new TestCredentialStorage(tmpDir);
-    await storage1.connectOllama('http://custom:1234');
-
-    // New instance reads from same config dir
-    const storage2 = new TestCredentialStorage(tmpDir);
-    expect(await storage2.isOllamaConnected()).toBe(true);
-    expect(await storage2.getOllamaBaseUrl()).toBe('http://custom:1234');
   });
 });
 

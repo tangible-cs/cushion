@@ -55,10 +55,6 @@ import {
   handleProviderOAuthAuthorize,
   handleProviderOAuthCallback,
   handleProviderSync,
-  handleOllamaList,
-  handleOllamaPull,
-  handleOllamaDelete,
-  handleOllamaWriteConfig,
 } from './handlers/provider.js';
 
 function parseAllowedOrigins(): string[] | null {
@@ -316,22 +312,6 @@ export class CoordinatorServer {
 
         case 'provider/sync':
           result = await handleProviderSync(this.credentialStorage);
-          break;
-
-        case 'provider/ollama/list':
-          result = await handleOllamaList(this.credentialStorage);
-          break;
-
-        case 'provider/ollama/pull':
-          result = await handleOllamaPull(this.credentialStorage, request.params as RPCParams<'provider/ollama/pull'>);
-          break;
-
-        case 'provider/ollama/delete':
-          result = await handleOllamaDelete(this.credentialStorage, request.params as RPCParams<'provider/ollama/delete'>);
-          break;
-
-        case 'provider/ollama/write-config':
-          result = await handleOllamaWriteConfig(this.credentialStorage, request.params as RPCParams<'provider/ollama/write-config'>);
           break;
 
         // Config handlers

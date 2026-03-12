@@ -503,23 +503,4 @@ export class CoordinatorClient {
     return this.call('provider/oauth/callback', params);
   }
 
-  // ---------------------------------------------------------------------------
-  // Ollama RPCs
-  // ---------------------------------------------------------------------------
-
-  listOllamaModels() {
-    return this.call('provider/ollama/list');
-  }
-
-  pullOllamaModel(model: string) {
-    return this.call('provider/ollama/pull', { model });
-  }
-
-  deleteOllamaModel(model: string) {
-    return this.call('provider/ollama/delete', { model });
-  }
-
-  writeOllamaConfig(params: { baseUrl?: string; models?: unknown[] }) {
-    return this.call('provider/ollama/write-config', params);
-  }
 }

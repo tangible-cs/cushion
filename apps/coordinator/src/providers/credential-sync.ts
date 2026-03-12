@@ -7,12 +7,9 @@
  *
  * This module bridges the gap by writing Cushion credentials into OpenCode's
  * config so that `client.config.providers()` returns the correct provider list.
- *
- * Ollama is excluded — it has its own sync path via `ollama-config.ts`.
  */
 
-import { readOpenCodeConfig, getOpenCodeConfigPath } from './ollama-config.js';
-import { OLLAMA_PROVIDER_ID } from './ollama.js';
+import { readOpenCodeConfig, getOpenCodeConfigPath } from './opencode-config.js';
 import type { CredentialStorage } from './storage.js';
 
 /**
@@ -43,8 +40,6 @@ export async function syncCredentialsToOpenCode(
   const currentlySynced: string[] = [];
 
   for (const credential of credentials) {
-    if (credential.providerID === OLLAMA_PROVIDER_ID) continue;
-
     const apiKey =
       credential.auth.type === 'api'
         ? credential.auth.key

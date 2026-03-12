@@ -10,7 +10,6 @@ import { getCursorPosition } from '@/lib/prompt-dom';
 import { Icon } from './Icon';
 import { SessionContextUsage } from './SessionContextUsage';
 import { ModelSelector } from './ModelSelector';
-import { LocalAIButton } from './LocalAIButton';
 import { AgentSelector } from './AgentSelector';
 import {
   SuggestionList,
@@ -456,7 +455,6 @@ export function PromptInput({
                 e.currentTarget.value = '';
               }}
             />
-            <LocalAIButton disabled={disabled} />
             <SessionContextUsage />
             <button
               type="button"
