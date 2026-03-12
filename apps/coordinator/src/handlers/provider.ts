@@ -1,17 +1,8 @@
-import type { Provider, Model, AuthMethod } from '@cushion/types';
-import { CredentialStorage, OLLAMA_PROVIDER_ID } from '../providers/storage.js';
+import type { Provider, AuthMethod } from '@cushion/types';
+import { CredentialStorage } from '../providers/storage.js';
 import { getAllProviders, getProviderByID, getPopularProviderIDs } from '../providers/registry.js';
 import { getModelsDevCache } from '../providers/models-dev.js';
 import { getOAuthHandler } from '../providers/oauth.js';
-import {
-  checkOllamaHealth,
-  OLLAMA_DEFAULT_URL,
-  getOllamaModels,
-  pullOllamaModel,
-  deleteOllamaModel,
-} from '../providers/ollama.js';
-import { type DiscoveredModel, discoverModels, estimateContextWindow } from '../providers/ollama-discover.js';
-import { writeOllamaToConfig } from '../providers/ollama-config.js';
 import { syncCredentialsToOpenCode } from '../providers/credential-sync.js';
 
 export async function handleProviderList(
@@ -68,14 +59,6 @@ export async function handleProviderAuthSet(
     throw new Error(`Unknown provider: ${providerID}`);
   }
 
-  // Ollama uses baseUrl instead of API key
-  if (providerID === OLLAMA_PROVIDER_ID) {
-    const baseUrl = apiKey || OLLAMA_DEFAULT_URL;
-    await validateOllamaConnection(baseUrl);
-    await credentialStorage.connectOllama(baseUrl);
-    return { success: true };
-  }
-
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('API key cannot be empty');
   }
@@ -90,11 +73,7 @@ export async function handleProviderAuthRemove(
   credentialStorage: CredentialStorage,
   params: { providerID: string }
 ): Promise<{ success: boolean }> {
-  if (params.providerID === OLLAMA_PROVIDER_ID) {
-    await credentialStorage.disconnectOllama();
-  } else {
-    await credentialStorage.removeCredential(params.providerID);
-  }
+  await credentialStorage.removeCredential(params.providerID);
   return { success: true };
 }
 
@@ -158,76 +137,6 @@ export async function handleProviderOAuthCallback(
   }
 
   return { success: true };
-}
-
-export async function handleOllamaList(
-  credentialStorage: CredentialStorage
-): Promise<{ models: Model[]; running: boolean }> {
-  const baseUrl = await credentialStorage.getOllamaBaseUrl();
-  const running = await checkOllamaHealth(baseUrl);
-  if (!running) {
-    return { models: [], running: false };
-  }
-
-  const models = await getOllamaModels(baseUrl);
-  return { models: Object.values(models), running: true };
-}
-
-export async function handleOllamaPull(
-  credentialStorage: CredentialStorage,
-  params: { model: string }
-): Promise<{ success: boolean; error?: string }> {
-  const baseUrl = await credentialStorage.getOllamaBaseUrl();
-  return pullOllamaModel(params.model, baseUrl);
-}
-
-export async function handleOllamaDelete(
-  credentialStorage: CredentialStorage,
-  params: { model: string }
-): Promise<{ success: boolean; error?: string }> {
-  const baseUrl = await credentialStorage.getOllamaBaseUrl();
-  return deleteOllamaModel(params.model, baseUrl);
-}
-
-export async function handleOllamaWriteConfig(
-  credentialStorage: CredentialStorage,
-  params: { baseUrl?: string; models?: unknown[] }
-): Promise<{ success: boolean; message: string }> {
-  const baseUrl = params.baseUrl || await credentialStorage.getOllamaBaseUrl();
-
-  const discovery = await discoverModels(baseUrl);
-
-  if (!discovery.running) {
-    return {
-      success: false,
-      message: 'Ollama server is not running. Please start Ollama with: ollama serve',
-    };
-  }
-
-  let models: DiscoveredModel[] = discovery.models;
-  if (params.models && params.models.length > 0) {
-    const partials = params.models as Array<Record<string, unknown>>;
-    if (!partials[0].family) {
-      const discoveryMap = new Map(discovery.models.map((m) => [m.id, m]));
-      models = partials
-        .map((m) => discoveryMap.get(m.id as string))
-        .filter((m): m is DiscoveredModel => m != null);
-    } else {
-      models = partials as unknown as DiscoveredModel[];
-    }
-  }
-
-  const contextWindows: Record<string, number> = {};
-  for (const model of models) {
-    contextWindows[model.id] = estimateContextWindow(model);
-  }
-
-  await writeOllamaToConfig(baseUrl, models, contextWindows);
-
-  return {
-    success: true,
-    message: `Successfully configured ${models.length} Ollama model${models.length !== 1 ? 's' : ''} for OpenCode`,
-  };
 }
 
 async function validateApiKey(providerID: string, apiKey: string): Promise<void> {
@@ -331,9 +240,3 @@ async function validateOpenRouterKey(apiKey: string): Promise<void> {
   }
 }
 
-async function validateOllamaConnection(baseUrl: string): Promise<void> {
-  const isRunning = await checkOllamaHealth(baseUrl);
-  if (!isRunning) {
-    throw new Error('Ollama server not running. Start with: ollama serve');
-  }
-}

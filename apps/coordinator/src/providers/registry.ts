@@ -5,12 +5,10 @@
  */
 
 import { getModelsDevCache } from './models-dev';
-import { OLLAMA_PROVIDER_ID, OLLAMA_DEFAULT_URL, checkOllamaHealth, getOllamaModels } from './ollama';
 import type { Provider, Model, AuthMethod } from '@cushion/types';
 
 // Popular providers order (matching OpenCode)
 const POPULAR_PROVIDERS = [
-  'ollama',
   'opencode',
   'anthropic',
   'openai',
@@ -45,53 +43,6 @@ const PROVIDER_AUTH_OVERRIDES: Record<string, AuthMethod[]> = {
     },
   ],
 };
-
-/**
- * Create Ollama provider instance (local backend)
- */
-async function createOllamaProvider(): Promise<Provider | null> {
-  const isRunning = await checkOllamaHealth();
-  
-  if (!isRunning) {
-    // Still return provider but with empty models
-    return {
-      id: OLLAMA_PROVIDER_ID,
-      name: 'Ollama',
-      source: 'config' as const,
-      models: {},
-      authMethods: [{
-        type: 'api',
-        label: 'Local Server',
-      }],
-    };
-  }
-  
-  try {
-    const models = await getOllamaModels();
-    return {
-      id: OLLAMA_PROVIDER_ID,
-      name: 'Ollama',
-      source: 'config' as const,
-      models,
-      authMethods: [{
-        type: 'api',
-        label: 'Local Server',
-      }],
-    };
-  } catch (error) {
-    console.error('[Registry] Failed to fetch Ollama models:', error);
-    return {
-      id: OLLAMA_PROVIDER_ID,
-      name: 'Ollama',
-      source: 'config' as const,
-      models: {},
-      authMethods: [{
-        type: 'api',
-        label: 'Local Server',
-      }],
-    };
-  }
-}
 
 export async function getAllProviders(): Promise<Provider[]> {
   const cache = getModelsDevCache();
@@ -147,12 +98,6 @@ export async function getAllProviders(): Promise<Provider[]> {
       authMethods,
     };
   });
-
-  // Add Ollama provider (local)
-  const ollamaProvider = await createOllamaProvider();
-  if (ollamaProvider) {
-    providers.unshift(ollamaProvider); // Add at beginning
-  }
 
   return providers;
 }

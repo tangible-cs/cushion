@@ -8,7 +8,6 @@
 import type {
   FileTreeNode,
   Provider,
-  Model,
   AuthMethod,
   FileChange,
   DidOpenTextDocumentParams,
@@ -139,24 +138,6 @@ export interface RPCMethodMap {
   'provider/sync': {
     params: void;
     result: { success: boolean };
-  };
-
-  // Ollama
-  'provider/ollama/list': {
-    params: void;
-    result: { models: Model[]; running: boolean };
-  };
-  'provider/ollama/pull': {
-    params: { model: string };
-    result: { success: boolean; error?: string };
-  };
-  'provider/ollama/delete': {
-    params: { model: string };
-    result: { success: boolean; error?: string };
-  };
-  'provider/ollama/write-config': {
-    params: { baseUrl?: string; models?: unknown[] };
-    result: { success: boolean; message: string };
   };
 
   // Config

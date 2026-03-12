@@ -12,7 +12,8 @@ import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
-import { POPULAR_PROVIDERS } from '@/lib/model-constants';
+import { createModelSorter } from '@/lib/model-constants';
+import { usePopularProviders } from '@/hooks/usePopularProviders';
 
 const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
@@ -52,6 +53,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const [showSelectProviderDialog, setShowSelectProviderDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState<{ id: string; name: string } | null>(null);
   const [showManageDialog, setShowManageDialog] = useState(false);
+  const popularProviderIDs = usePopularProviders();
   const resolvedLevel = resolveCompactLevel(compactLevel);
 
   useEffect(() => {
@@ -104,20 +106,8 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       )
       : models;
 
-    return filtered.sort((a, b) => {
-      const aIndex = POPULAR_PROVIDERS.indexOf(a.providerID);
-      const bIndex = POPULAR_PROVIDERS.indexOf(b.providerID);
-
-      if (aIndex >= 0 && bIndex < 0) return -1;
-      if (aIndex < 0 && bIndex >= 0) return 1;
-      if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
-
-      if (a.providerName !== b.providerName) {
-        return a.providerName.localeCompare(b.providerName);
-      }
-      return a.modelName.localeCompare(b.modelName);
-    });
-  }, [providers, searchQuery, modelVisibility]);
+    return filtered.sort(createModelSorter(popularProviderIDs));
+  }, [providers, searchQuery, modelVisibility, popularProviderIDs]);
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, typeof allModels> = {};
@@ -259,7 +249,6 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
                 <div className="space-y-0.5 pb-1">
                   {models.map((model) => {
                     const isSelected = selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID;
-                    const isOllama = model.providerID === 'ollama';
 
                     return (
                       <button
@@ -270,11 +259,6 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
                       >
                         <div className="flex items-center gap-2">
                           <div className="truncate flex-1">{model.modelName}</div>
-                          {isOllama && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-[var(--accent-green-12)] text-accent-green whitespace-nowrap">
-                              Local
-                            </span>
-                          )}
                           {isSelected && <Check className="size-3.5 text-foreground shrink-0" />}
                         </div>
                       </button>

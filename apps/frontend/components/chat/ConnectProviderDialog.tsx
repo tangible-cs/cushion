@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { X, ArrowLeft, Loader2 } from 'lucide-react';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { useToast } from './Toast';
 
@@ -31,12 +31,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   const [oauthCode, setOAuthCode] = useState('');
   const [oauthMethod, setOAuthMethod] = useState<'code' | 'auto' | null>(null);
   const [confirmationCode, setConfirmationCode] = useState<string>('');
-  
-  // Ollama-specific state
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434');
-  const [checkingHealth, setCheckingHealth] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<'unknown' | 'running' | 'not-running'>('unknown');
-  const isOllama = providerId === 'ollama';
+
 
   useEffect(() => {
     async function loadAuthMethods() {
@@ -54,78 +49,10 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
       }
     }
 
-    if (!isOllama) {
-      loadAuthMethods();
-    }
-  }, [providerId, isOllama]);
+    loadAuthMethods();
+  }, [providerId]);
 
   const selectedMethod = selectedMethodIndex !== undefined ? authMethods[selectedMethodIndex] : null;
-
-  // Check Ollama health
-  const checkOllamaHealth = async (url: string) => {
-    setCheckingHealth(true);
-    setHealthStatus('unknown');
-    setError('');
-
-    try {
-      const client = await getSharedCoordinatorClient();
-      
-      // Try to list models as a health check
-      const result = await client.listOllamaModels();
-      
-      if (result.running) {
-        setHealthStatus('running');
-      } else {
-        setHealthStatus('not-running');
-        setError('Ollama server is not responding. Make sure it is running with: ollama serve');
-      }
-    } catch (err) {
-      setHealthStatus('not-running');
-      setError('Cannot connect to Ollama. Make sure it is running with: ollama serve');
-    } finally {
-      setCheckingHealth(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOllama) {
-      checkOllamaHealth(ollamaBaseUrl);
-    }
-  }, [isOllama, ollamaBaseUrl]);
-
-  const handleOllamaConnect = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const client = await getSharedCoordinatorClient();
-      
-      // For Ollama, the "API key" is actually the base URL
-      await client.setProviderAuth({ providerID: providerId, apiKey: ollamaBaseUrl });
-
-      showToast({
-        variant: 'success',
-        title: `Connected to ${providerName}`,
-        description: 'Ollama has been connected successfully',
-        duration: 4000,
-      });
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect to Ollama';
-      setError(message);
-      showToast({
-        variant: 'error',
-        title: 'Connection failed',
-        description: message,
-        duration: 5000,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleMethodSelect = async (index: number) => {
     setSelectedMethodIndex(index);
@@ -285,7 +212,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
       <div className="bg-background rounded-lg shadow-[var(--shadow-lg)] border border-border max-w-md w-full">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
-            {onBack && !isOllama && (
+            {onBack && (
               <button
                 type="button"
                 onClick={goBack}
@@ -306,75 +233,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
           </button>
         </div>
         <div className="p-4">
-          {isOllama ? (
-            <form onSubmit={handleOllamaConnect}>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Ollama runs locally on your machine. No API key required - just need to connect to the running server.
-                  </p>
-                  <label htmlFor="ollamaUrl" className="block text-sm font-medium mb-2">
-                    Ollama Server URL
-                  </label>
-                  <input
-                    id="ollamaUrl"
-                    type="text"
-                    value={ollamaBaseUrl}
-                    onChange={(e) => setOllamaBaseUrl(e.target.value)}
-                    placeholder="http://localhost:11434"
-                    className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono"
-                    disabled={loading}
-                  />
-                  {error && (
-                    <p className="text-[var(--accent-red)] text-xs mt-2">{error}</p>
-                  )}
-                </div>
-
-                {/* Health status indicator */}
-                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
-                  <div className="flex items-center gap-2">
-                    {healthStatus === 'running' ? (
-                      <CheckCircle className="size-5 text-[var(--accent-green)]" />
-                    ) : healthStatus === 'not-running' ? (
-                      <X className="size-5 text-[var(--accent-red)]" />
-                    ) : (
-                      <Loader2 className="size-5 text-muted-foreground" />
-                    )}
-                    <span className="text-sm">
-                      {healthStatus === 'running' ? 'Server is running' : 
-                       healthStatus === 'not-running' ? 'Server not running' : 
-                       'Checking status...'}
-                    </span>
-                  </div>
-                  {checkingHealth && (
-                    <Loader2 className="size-4 text-muted-foreground animate-spin" />
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Make sure Ollama is installed and running. Start it with: <code className="bg-muted px-1 py-0.5 rounded">ollama serve</code>
-                </p>
-              </div>
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm bg-[var(--accent-primary)] text-[var(--background-primary-alt)] rounded-md hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  disabled={loading || healthStatus !== 'running'}
-                >
-                  {loading && <Loader2 className="size-4 animate-spin" />}
-                  Connect
-                </button>
-              </div>
-            </form>
-          ) : selectedMethodIndex === undefined ? (
+          {selectedMethodIndex === undefined ? (
             <div>
               <p className="text-sm text-muted-foreground mb-4">
                 Select an authentication method for {providerName}

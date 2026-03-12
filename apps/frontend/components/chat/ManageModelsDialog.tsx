@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RefreshCw, X } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
-import { POPULAR_PROVIDERS } from '@/lib/model-constants';
+import { createModelSorter } from '@/lib/model-constants';
+import { usePopularProviders } from '@/hooks/usePopularProviders';
 import { ProviderIcon } from './ProviderIcon';
 import { iconNames, type IconName } from './provider-icons/types';
 import { Icon } from './Icon';
@@ -31,6 +32,7 @@ type ProviderGroup = {
 const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
+  const popularProviderIDs = usePopularProviders();
   const providers = useChatStore((state) => state.providers);
   const modelVisibility = useChatStore((state) => state.modelVisibility);
   const setModelVisibility = useChatStore((state) => state.setModelVisibility);
@@ -65,20 +67,8 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
       })
       : models;
 
-    return filtered.sort((a, b) => {
-      const aIndex = POPULAR_PROVIDERS.indexOf(a.providerID);
-      const bIndex = POPULAR_PROVIDERS.indexOf(b.providerID);
-
-      if (aIndex >= 0 && bIndex < 0) return -1;
-      if (aIndex < 0 && bIndex >= 0) return 1;
-      if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
-
-      if (a.providerName !== b.providerName) {
-        return a.providerName.localeCompare(b.providerName);
-      }
-      return a.modelName.localeCompare(b.modelName);
-    });
-  }, [providers, searchQuery]);
+    return filtered.sort(createModelSorter(popularProviderIDs));
+  }, [providers, searchQuery, popularProviderIDs]);
 
   const groupedModels = useMemo(() => {
     const groups: ProviderGroup[] = [];
