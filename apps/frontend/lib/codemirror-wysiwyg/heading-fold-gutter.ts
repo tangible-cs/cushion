@@ -200,8 +200,10 @@ class HeadingFoldGutterView {
     const resolvedEdgeOffset = Number.isFinite(edgeOffset) ? edgeOffset : 0;
     const resolvedButtonSize = Number.isFinite(buttonSize) ? buttonSize : defaultButtonSize;
 
+    const paddingTop = Number.parseFloat(lineStyle.paddingTop) || 0;
+
     const top =
-      lineRect.top - rootRect.top + (resolvedLineHeight - resolvedButtonSize) / 2;
+      lineRect.top - rootRect.top + paddingTop + (resolvedLineHeight - resolvedButtonSize) / 2;
     const left =
       lineRect.left - rootRect.left - (resolvedGutterWidth - resolvedEdgeOffset);
 
@@ -258,7 +260,12 @@ class HeadingFoldGutterView {
   private getLineFromCoords(event: MouseEvent): { lineEl: HTMLElement; lineNumber: number } | null {
     const contentRect = this.view.contentDOM.getBoundingClientRect();
     const x = contentRect.left + 4;
-    const pos = this.view.posAtCoords({ x, y: event.clientY });
+    let pos: number | null;
+    try {
+      pos = this.view.posAtCoords({ x, y: event.clientY });
+    } catch {
+      return null;
+    }
     if (pos === null || pos === undefined) return null;
 
     try {

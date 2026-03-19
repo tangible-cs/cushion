@@ -7,9 +7,9 @@
 :root {
   /* Typography */
   --md-font-family: var(--font-family-ui);
-  --md-code-font-family: 'Fira Code', 'JetBrains Mono', Consolas, Menlo, Monaco, 'Courier New', monospace;
+  --md-code-font-family: Menlo, SFMono-Regular, Consolas, 'Roboto Mono', monospace;
   --md-font-size: 16px;
-  --md-baseline: 1.6;
+  --md-baseline: 1.5;
   --md-header-factor: 2.5;
   
   /* Spacing - matches Tangent's default "normal" margins */
@@ -49,21 +49,20 @@
   --md-link-external: var(--text-accent-hover);
   --md-link-empty: var(--accent-red);
 
-  /* Colors - Code (One Dark - unchanged) */
-  --md-code-bg: #2a2a2a;
-  --md-code-text: #e6db74;
-  --md-code-border: #3a3a3a;
-  --md-code-keyword: #c678dd;
-  --md-code-string: #98c379;
-  --md-code-number: #d19a66;
-  --md-code-comment: #5c6370;
-  --md-code-function: #61afef;
-  --md-code-operator: #56b6c2;
-  --md-code-type: #e5c07b;
-  --md-code-property: #d19a66;
-  --md-code-variable: #e06c75;
-  --md-code-boolean: #d19a66;
-  --md-code-null: #d19a66;
+  /* Colors - Code (mapped to global palette) */
+  --md-code-bg: var(--color-base-25);
+  --md-code-text: var(--text-normal);
+  --md-code-keyword: var(--color-pink);
+  --md-code-string: var(--color-green);
+  --md-code-number: var(--color-purple);
+  --md-code-comment: var(--text-muted);
+  --md-code-function: var(--color-yellow);
+  --md-code-operator: var(--color-red);
+  --md-code-type: var(--color-yellow);
+  --md-code-property: var(--color-cyan);
+  --md-code-variable: var(--color-orange);
+  --md-code-boolean: var(--color-purple);
+  --md-code-null: var(--color-purple);
 
   /* Colors - Highlights (unchanged) */
   --md-highlight-yellow: rgba(255, 235, 59, 0.3);
@@ -110,21 +109,19 @@
   --md-link-external: var(--text-accent-hover);
   --md-link-empty: var(--accent-red);
 
-  /* Colors - Code (GitHub theme - unchanged) */
-  --md-code-bg: #f6f8fa;
-  --md-code-text: #24292e;
-  --md-code-border: #e1e4e8;
-  --md-code-keyword: #d73a49;
-  --md-code-string: #032f62;
-  --md-code-number: #005cc5;
-  --md-code-comment: #6a737d;
-  --md-code-function: #6f42c1;
-  --md-code-operator: #d73a49;
-  --md-code-type: #22863a;
-  --md-code-property: #005cc5;
-  --md-code-variable: #e36209;
-  --md-code-boolean: #005cc5;
-  --md-code-null: #005cc5;
+  --md-code-bg: var(--color-base-10);
+  --md-code-text: var(--text-normal);
+  --md-code-keyword: var(--color-pink);
+  --md-code-string: var(--color-green);
+  --md-code-number: var(--color-purple);
+  --md-code-comment: var(--text-muted);
+  --md-code-function: var(--color-yellow);
+  --md-code-operator: var(--color-red);
+  --md-code-type: var(--color-yellow);
+  --md-code-property: var(--color-cyan);
+  --md-code-variable: var(--color-orange);
+  --md-code-boolean: var(--color-purple);
+  --md-code-null: var(--color-purple);
 
   /* Colors - Highlights (unchanged) */
   --md-highlight-yellow: rgba(255, 235, 59, 0.4);
@@ -241,40 +238,43 @@
    ============================================ */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-1 {
-  font-size: 2em;
-  font-weight: 600;
-  line-height: 1.3;
-  padding-bottom: 0.5em;
+  font-size: 1.618em;
+  font-weight: 700;
+  line-height: 1.2;
+  padding-top: 1rem;
   color: var(--md-text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-2 {
-  font-size: 1.5em;
+  font-size: 1.462em;
   font-weight: 600;
-  line-height: 1.35;
-  padding-bottom: 0.4em;
+  line-height: 1.2;
+  padding-top: 1rem;
   color: var(--md-text);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-3 {
-  font-size: 1.25em;
+  font-size: 1.318em;
   font-weight: 600;
-  line-height: 1.4;
-  padding-bottom: 0.3em;
+  line-height: 1.3;
+  padding-top: 1rem;
   color: var(--md-text);
+  letter-spacing: -0.008em;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-4 {
-  font-size: 1.1em;
+  font-size: 1.188em;
   font-weight: 600;
-  line-height: var(--md-baseline);
+  line-height: 1.4;
+  padding-top: 1rem;
   color: var(--md-text);
+  letter-spacing: -0.005em;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-5 {
-  font-size: 1em;
+  font-size: 1.076em;
   font-weight: 600;
   line-height: var(--md-baseline);
   color: var(--md-text-muted);
@@ -283,9 +283,8 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-6 {
-  font-size: 0.9em;
-  font-weight: 500;
-  font-style: italic;
+  font-size: 1em;
+  font-weight: 600;
   line-height: var(--md-baseline);
   color: var(--md-text-muted);
 }
@@ -315,17 +314,9 @@
    Typography - Inline formatting
    ============================================ */
 
-/* DEPRECATED: Use .cm-hidden instead. Kept for backwards compatibility. */
-.cm-editor.cm-markdown-wysiwyg .cm-syntax-hidden {
-  font-size: 0;
-  line-height: 0;
-  overflow: hidden;
-  display: inline;
-}
-
 /* Lezer-provided classes (syntax highlighting) */
 .cm-editor.cm-markdown-wysiwyg .cm-strong {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--md-text);
 }
 
@@ -340,7 +331,7 @@
 
 /* Decoration-applied text styling (Tangent pattern - always applied) */
 .cm-editor.cm-markdown-wysiwyg .cm-strong-text {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--md-text);
 }
 
@@ -394,7 +385,7 @@
    ============================================ */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote {
-  border-left: 3px solid var(--md-blockquote-border);
+  border-left: 2px solid var(--md-blockquote-border);
   padding-left: 24px;
   color: var(--md-blockquote-text);
   font-style: italic;
@@ -531,9 +522,6 @@
   line-height: 1.5;
 }
 
-/* Background on a pseudo-element at z-index -3 so drawSelection()'s layer
-   (z-index -2) renders between the background and the text. Without this,
-   an opaque background on .cm-line covers the selection highlight entirely. */
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block::before {
   content: '';
   position: absolute;
@@ -562,26 +550,26 @@
 .cm-editor.cm-markdown-wysiwyg .cm-code-block-info {
   float: right;
   margin-right: 4px;
-  margin-top: 2px;
-  padding: 0;
-  font-size: 0.8em;
+  margin-top: 0;
+  padding: 2px 10px;
+  font-size: 0.85em;
   font-weight: 500;
   font-family: var(--md-font-family);
   color: var(--md-text-muted);
   text-transform: none;
   letter-spacing: 0;
-  cursor: default;
-  border-radius: 0;
-  transition: color 0.2s ease;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s ease, background-color 0.2s ease;
   background-color: transparent;
   user-select: none;
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-code-block-info:hover {
   color: var(--md-text);
+  background-color: var(--md-code-info-hover-bg);
 }
 
-/* Syntax highlighting colors for code blocks */
 .cm-editor.cm-markdown-wysiwyg .cm-code-block .tok-keyword {
   color: var(--md-code-keyword);
   font-weight: 500;
@@ -636,6 +624,32 @@
   color: var(--md-code-boolean);
 }
 
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end {
+  color: transparent !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start *,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-end * {
+  color: transparent !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-revealed {
+  color: var(--md-text-faint) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-fence-revealed * {
+  color: var(--md-text-faint) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start .cm-code-block-info {
+  color: var(--md-text-muted) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start .cm-code-block-info:hover {
+  color: var(--md-text) !important;
+}
+
 /* ============================================
    Horizontal Rule
    ============================================ */
@@ -675,90 +689,139 @@
 
 .cm-editor.cm-markdown-wysiwyg .cm-image-widget {
   display: block;
-  margin: 16px 0;
+  padding: 2px 0;
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-image-widget img {
+/* Collapse the host .cm-line that contains only a replace-widget image.
+   CM6 leaves a widgetBuffer <br> that inherits line-height → extra gap. */
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(> .cm-image-widget) {
+  line-height: 0 !important;
+  font-size: 0;
+}
+
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget .cm-image {
   max-width: 100%;
+  width: auto;
+  height: auto;
   border-radius: var(--md-border-radius);
   box-shadow: var(--md-image-shadow);
   transition: box-shadow 0.2s ease;
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-image-widget img:hover {
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget .cm-image:hover {
   box-shadow: var(--md-image-shadow-hover);
 }
 
-/* ============================================
-   Embeds (![[file]])
-   ============================================ */
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-widget {
-  display: inline-block;
-  max-width: 100%;
-  margin: 12px 0;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-widget.cm-embed-block {
-  display: block;
-  width: 100%;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-widget.cm-embed-inline {
-  vertical-align: middle;
-  margin: 0 6px;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-placeholder {
-  padding: 10px 12px;
-  border: 1px dashed var(--md-border);
-  border-radius: var(--md-border-radius);
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-loading {
+  min-height: 48px;
   background: var(--md-bg-secondary);
-  color: var(--md-text-muted);
-  font-size: 0.85em;
+  border-radius: var(--md-border-radius);
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-embed-placeholder.cm-embed-error {
-  border-color: var(--md-link-empty);
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-loading .cm-image {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-error {
+  min-height: 48px;
+  background: var(--md-bg-secondary);
+  border-radius: var(--md-border-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--md-link-empty);
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-image,
-.cm-editor.cm-markdown-wysiwyg .cm-embed-video,
-.cm-editor.cm-markdown-wysiwyg .cm-embed-pdf {
-  max-width: 100%;
-  border-radius: var(--md-border-radius);
-  box-shadow: var(--md-image-shadow);
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-video {
-  background: #000;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-audio {
-  width: 100%;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-pdf {
-  width: 100%;
-  min-height: 320px;
-  border: 1px solid var(--md-border);
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-embed-caption {
-  margin-top: 6px;
-  color: var(--md-text-muted);
   font-size: 0.85em;
-  text-align: center;
-  font-style: italic;
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-embed-markdown {
-  background: var(--md-bg-secondary);
-  border: 1px solid var(--md-border);
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-error::after {
+  content: 'Failed to load image';
+}
+
+/* Image container — inline-block so button is relative to actual image size */
+.cm-editor.cm-markdown-wysiwyg .cm-image-container {
+  display: inline-block;
+  position: relative;
+}
+
+/* Source toggle button */
+.cm-editor.cm-markdown-wysiwyg .cm-image-source-toggle {
+  display: none;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--md-border-radius-sm);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--md-code-font-family);
+  font-size: 11px;
+  z-index: 1;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-container.cm-image-selected .cm-image-source-toggle {
+  display: flex;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-source-toggle:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: rgba(255, 255, 255, 1);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-image-source-toggle {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-image-source-toggle:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+/* Accent border on image when selected (Obsidian style) */
+.cm-editor.cm-markdown-wysiwyg .cm-image-container.cm-image-selected .cm-image {
+  outline: 2px solid var(--md-accent);
+  outline-offset: -2px;
   border-radius: var(--md-border-radius);
-  padding: 12px 16px;
-  color: var(--md-text);
+}
+
+/* Resize handle — small accent-filled circle at bottom-right corner */
+.cm-editor.cm-markdown-wysiwyg .cm-resize-handle {
+  display: none;
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  cursor: se-resize;
+  background: var(--md-accent);
+  border: none;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+/* Show handle when image is selected (same trigger as </> button) */
+.cm-editor.cm-markdown-wysiwyg .cm-image-container.cm-image-selected .cm-resize-handle {
+  display: block;
+}
+
+/* During active resize — prevent pointer events on image, keep handle visible */
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-resizing .cm-image {
+  pointer-events: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-image-widget.cm-image-resizing .cm-resize-handle {
+  display: block;
 }
 
 /* ============================================
@@ -818,21 +881,25 @@
    Math (KaTeX)
    ============================================ */
 
-/* Math syntax when cursor is on line */
 .cm-editor.cm-markdown-wysiwyg .cm-math-syntax {
   color: var(--md-accent);
   font-family: var(--md-code-font-family);
   font-size: 0.95em;
 }
 
-/* Inline math widget */
 .cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget {
   display: inline;
-  padding: 0 2px;
+  padding: 1px 4px;
   vertical-align: baseline;
+  border-radius: var(--md-border-radius-sm);
+  transition: background-color 0.15s ease;
+  cursor: pointer;
 }
 
-/* KaTeX styles override for dark theme */
+.cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget:hover {
+  background: var(--md-accent-bg);
+}
+
 .cm-editor.cm-markdown-wysiwyg .cm-math-inline-widget .katex {
   color: var(--md-text);
   font-size: 1em;
@@ -842,17 +909,66 @@
   color: var(--md-text);
 }
 
-/* Block math widget */
 .cm-editor.cm-markdown-wysiwyg .cm-math-block-widget {
   display: block;
   text-align: center;
-  padding: 0;
+  padding: 2px 0;
   margin: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  font-size: var(--md-font-size);
+  line-height: var(--md-baseline);
 }
 
-/* KaTeX block styles override */
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(> .cm-math-block-widget) {
+  line-height: 0 !important;
+  font-size: 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-container {
+  position: relative;
+  padding: 16px 24px;
+  border-radius: var(--md-border-radius);
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-container:hover {
+  border-color: var(--md-border);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-source-toggle {
+  display: none;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  background: var(--md-bg-secondary);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-border-radius-sm);
+  color: var(--md-text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--md-code-font-family);
+  font-size: 11px;
+  z-index: 1;
+  opacity: 0.9;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-container:hover .cm-math-source-toggle {
+  display: flex;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-math-source-toggle:hover {
+  background: var(--md-accent-bg-hover);
+  color: var(--md-text);
+  opacity: 1;
+}
+
 .cm-editor.cm-markdown-wysiwyg .cm-math-block-widget .katex {
   color: var(--md-text);
   font-size: 1.1em;
@@ -862,8 +978,6 @@
   margin: 0;
 }
 
-
-/* Math error state */
 .cm-editor.cm-markdown-wysiwyg .cm-math-error {
   color: var(--md-link-empty);
   background: var(--md-accent-bg);
@@ -873,14 +987,31 @@
   font-size: 0.9em;
 }
 
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-block-start,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-block-end {
+  font-family: var(--md-code-font-family);
+  color: transparent !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-block-start *,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-block-end * {
+  color: transparent !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-fence-revealed {
+  color: var(--md-text-faint) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-math-fence-revealed * {
+  color: var(--md-text-faint) !important;
+}
+
 /* ============================================
    Syntax Reveal (when cursor on line)
    ============================================ */
 
 .cm-editor.cm-markdown-wysiwyg .cm-syntax-revealed {
   color: var(--md-text-faint);
-  font-family: var(--md-code-font-family);
-  font-size: 0.9em;
 }
 
 /* ============================================
@@ -1265,4 +1396,331 @@
 /* Light theme folded indicator */
 .light .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-folded::after {
   color: var(--md-text-muted);
+}
+
+/* ============================================
+   Shared Embed Source Toggle
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-source-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--md-border-radius-sm);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--md-code-font-family);
+  font-size: 11px;
+  z-index: 1;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-source-toggle:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: rgba(255, 255, 255, 1);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-embed-source-toggle {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.light .cm-editor.cm-markdown-wysiwyg .cm-embed-source-toggle:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-widget:hover .cm-embed-source-toggle,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-container:hover .cm-embed-source-toggle,
+.cm-editor.cm-markdown-wysiwyg .cm-unsupported-embed-widget:hover .cm-embed-source-toggle {
+  display: flex;
+}
+
+/* ============================================
+   PDF Widget
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-widget {
+  display: block;
+  position: relative;
+  padding: 4px 0;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-border-radius);
+  overflow: hidden;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(> .cm-pdf-widget) {
+  line-height: 0 !important;
+  font-size: 0;
+}
+
+/* ── Toolbar ─────────────────────────────── */
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 4px 12px;
+  background: var(--md-bg-secondary);
+  border-bottom: 1px solid var(--md-border);
+  font-size: 13px;
+  color: var(--md-text-muted);
+  user-select: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--md-border-radius-sm);
+  color: var(--md-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-btn:hover:not(:disabled) {
+  background: var(--md-accent-bg-hover);
+  color: var(--md-text);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page-input {
+  width: 36px;
+  padding: 2px 4px;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-border-radius-sm);
+  background: var(--md-bg);
+  color: var(--md-text);
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page-input:focus {
+  border-color: var(--md-accent);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page-sep {
+  margin: 0 2px;
+  color: var(--md-text-faint);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page-total {
+  min-width: 16px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-zoom-label {
+  min-width: 40px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+/* ── Scroll container ────────────────────── */
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-scroll-container {
+  overflow-y: auto;
+  overflow-x: auto;
+  background: var(--md-bg-tertiary);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+/* ── Individual page ─────────────────────── */
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page {
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-page .cm-pdf-canvas {
+  display: block;
+}
+
+/* ── Error state ─────────────────────────── */
+
+.cm-editor.cm-markdown-wysiwyg .cm-pdf-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  color: var(--md-text-faint);
+  font-size: 14px;
+}
+
+/* ============================================
+   Note Embed Widget
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-widget {
+  display: block;
+  padding: 4px 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(> .cm-note-embed-widget) {
+  line-height: 0 !important;
+  font-size: 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-container {
+  position: relative;
+  border-left: 3px solid var(--md-accent);
+  background: var(--md-bg-secondary);
+  border-radius: 0 var(--md-border-radius) var(--md-border-radius) 0;
+  padding: 12px 16px;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-header {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--md-border);
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-link {
+  color: var(--md-link-color);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-link:hover {
+  color: var(--md-link-hover);
+  text-decoration: underline;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content {
+  font-size: var(--md-font-size);
+  line-height: var(--md-baseline);
+  color: var(--md-text);
+  overflow: hidden;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h1,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h2,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h3,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h4,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h5,
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content h6 {
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content p {
+  margin: 0.25em 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content code {
+  background: var(--md-code-bg);
+  padding: 1px 4px;
+  border-radius: var(--md-border-radius-sm);
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content pre {
+  background: var(--md-code-bg);
+  padding: 8px 12px;
+  border-radius: var(--md-border-radius);
+  overflow-x: auto;
+  font-family: var(--md-code-font-family);
+  font-size: 0.9em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-content blockquote {
+  border-left: 2px solid var(--md-blockquote-border);
+  padding-left: 12px;
+  color: var(--md-blockquote-text);
+  margin: 0.5em 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-loading {
+  color: var(--md-text-faint);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-error {
+  color: var(--md-link-empty);
+  font-size: 0.85em;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-note-embed-max-depth {
+  padding: 8px 12px;
+  background: var(--md-bg-secondary);
+  border-left: 3px solid var(--md-text-faint);
+  border-radius: 0 var(--md-border-radius) var(--md-border-radius) 0;
+  color: var(--md-text-faint);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+/* ============================================
+   Unsupported Embed Widget
+   ============================================ */
+
+.cm-editor.cm-markdown-wysiwyg .cm-unsupported-embed-widget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--md-bg-secondary);
+  border-radius: var(--md-border-radius);
+  border: 1px solid var(--md-border);
+  position: relative;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line:has(> .cm-unsupported-embed-widget) {
+  line-height: 0 !important;
+  font-size: 0;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-file-icon {
+  font-size: 0.8em;
+  color: var(--md-text-faint);
+  background: var(--md-bg-tertiary);
+  padding: 4px 8px;
+  border-radius: var(--md-border-radius-sm);
+  font-family: var(--md-code-font-family);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-embed-filename {
+  color: var(--md-text-muted);
+  font-size: 0.9em;
 }

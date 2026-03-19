@@ -18,7 +18,6 @@ import { fileTreeField } from './wiki-link-plugin';
 import { searchFiles, flattenFileTree } from '../wiki-link-resolver';
 import { getBaseName, getDirectory } from '../path-utils';
 import { createWikiLink } from '../wiki-link';
-import { isCursorInTableCell } from './table/table-context';
 
 const CODE_LANGUAGES = [
   'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx',
@@ -57,7 +56,7 @@ function getWikiLinkHref(filePath: string): string {
 
 export function buildWikiLinkCompletionInsert(
   href: string,
-  options?: { displayText?: string; inTableCell?: boolean }
+  options?: { displayText?: string }
 ): string {
   return createWikiLink(href, options).slice(2);
 }
@@ -143,8 +142,7 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
           endPos = toPos + 1;
         }
 
-        const inTableCell = isCursorInTableCell(view.state, fromPos);
-        const insert = buildWikiLinkCompletionInsert(href, { inTableCell });
+        const insert = buildWikiLinkCompletionInsert(href);
         view.dispatch({
           changes: { from: fromPos, to: endPos, insert },
           selection: { anchor: fromPos + insert.length },
@@ -171,8 +169,7 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
           endPos = toPos + 1;
         }
 
-        const inTableCell = isCursorInTableCell(view.state, fromPos);
-        const insert = buildWikiLinkCompletionInsert(query, { inTableCell });
+        const insert = buildWikiLinkCompletionInsert(query);
         view.dispatch({
           changes: { from: fromPos, to: endPos, insert },
           selection: { anchor: fromPos + insert.length },

@@ -1,8 +1,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { markDecorationsField, widgetDecorationsField, widgetUpdateScheduler, linkClickHandler } from './hide-markup';
+import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, embedRevealedField } from './hide-markup';
 import { focusState, focusListener } from './reveal-on-cursor';
-import { embedResolverField, setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 import {
   wikiLinkExtension,
   updateWikiLinkFileTree,
@@ -10,10 +9,10 @@ import {
   type WikiLinkNavigateCallback,
 } from './wiki-link-plugin';
 import { combinedAutocomplete } from './combined-autocomplete';
-import { codeBlockExtension } from './code-block';
 import { slashCommandExtension } from './slash-command';
 import { headingFoldExtension } from './heading-fold';
 import { headingFoldGutterExtension } from './heading-fold-gutter';
+import { tableExtension } from './table/table-extension';
 
 export { focusModeExtension, setFocusMode, isFocusModeEnabled } from './focus-mode';
 
@@ -30,8 +29,6 @@ export {
   setWikiLinkNavigateCallback,
   type WikiLinkNavigateCallback,
 } from './wiki-link-plugin';
-
-export { setEmbedResolver, type EmbedResolver, type EmbedResolverResult } from './embed-resolver';
 
 export {
   headingFoldExtension,
@@ -88,26 +85,17 @@ const markdownProseTheme = EditorView.theme({
 const wysiwygWidgetTheme = EditorView.baseTheme({
   '.cm-image-widget': {
     display: 'block',
-    margin: '16px 0',
   },
-  '.cm-image-widget img': {
+  '.cm-image-widget .cm-image': {
     maxWidth: '100%',
-    maxHeight: '500px',
+    width: 'auto',
+    height: 'auto',
     borderRadius: 'var(--md-border-radius)',
     boxShadow: 'var(--md-image-shadow)',
-    transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+    transition: 'box-shadow 0.2s ease',
   },
-  '.cm-image-widget img:hover': {
+  '.cm-image-widget .cm-image:hover': {
     boxShadow: 'var(--md-image-shadow-hover)',
-  },
-  '.cm-checkbox-widget': {
-    width: '16px',
-    height: '16px',
-    margin: '0 8px 0 0',
-    verticalAlign: 'middle',
-    cursor: 'pointer',
-    accentColor: 'var(--md-accent)',
-    borderRadius: '3px',
   },
   '.cm-list-bullet': {
     color: 'var(--md-accent)',
@@ -160,17 +148,6 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
   '.cm-line.cm-hr-line': {
     padding: '0',
   },
-  '.cm-link-text': {
-    color: 'var(--md-link-color)',
-    textDecoration: 'none',
-    cursor: 'pointer',
-    transition: 'color 0.15s ease',
-    borderBottom: '1px solid transparent',
-  },
-  '.cm-link-text:hover': {
-    color: 'var(--md-link-hover)',
-    borderBottomColor: 'var(--md-link-hover)',
-  },
   '.cm-inline-code': {
     fontFamily: 'var(--md-code-font-family)',
     fontSize: '0.9em',
@@ -181,7 +158,7 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     border: '1px solid var(--md-code-border)',
   },
   '.cm-strong-text': {
-    fontWeight: '600',
+    fontWeight: '500',
   },
   '.cm-emphasis-text': {
     fontStyle: 'italic',
@@ -196,37 +173,38 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     padding: '1px 0',
   },
   '.cm-heading-1': {
-    fontSize: '2em',
-    fontWeight: '600',
-    lineHeight: '1.3',
-    letterSpacing: '-0.02em',
+    fontSize: '1.618em',
+    fontWeight: '700',
+    lineHeight: '1.2',
+    letterSpacing: '-0.015em',
   },
   '.cm-heading-2': {
-    fontSize: '1.5em',
+    fontSize: '1.462em',
     fontWeight: '600',
-    lineHeight: '1.35',
-    letterSpacing: '-0.01em',
+    lineHeight: '1.2',
+    letterSpacing: '-0.011em',
   },
   '.cm-heading-3': {
-    fontSize: '1.25em',
+    fontSize: '1.318em',
     fontWeight: '600',
-    lineHeight: '1.4',
+    lineHeight: '1.3',
+    letterSpacing: '-0.008em',
   },
   '.cm-heading-4': {
-    fontSize: '1.1em',
+    fontSize: '1.188em',
     fontWeight: '600',
+    letterSpacing: '-0.005em',
   },
   '.cm-heading-5': {
-    fontSize: '1em',
+    fontSize: '1.076em',
     fontWeight: '600',
     color: 'var(--md-text-muted)',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
   },
   '.cm-heading-6': {
-    fontSize: '0.9em',
-    fontWeight: '500',
-    fontStyle: 'italic',
+    fontSize: '1em',
+    fontWeight: '600',
     color: 'var(--md-text-muted)',
   },
   '.cm-blockquote': {
@@ -235,38 +213,6 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
     marginLeft: '8px',
     color: 'var(--md-blockquote-text)',
     fontStyle: 'italic',
-  },
-  '.cm-table-widget': {
-    width: '100%',
-    borderCollapse: 'collapse',
-    margin: '4px 0',
-    fontSize: '0.95em',
-  },
-  '.cm-table-widget th, .cm-table-widget td': {
-    padding: '6px 12px',
-    borderBottom: '1px solid var(--md-border)',
-  },
-  '.cm-table-widget th': {
-    fontWeight: '600',
-    borderBottom: '2px solid var(--md-accent)',
-  },
-  '.cm-table-widget tbody tr:last-child td': {
-    borderBottom: 'none',
-  },
-  '.cm-table-row': {
-    backgroundColor: 'var(--md-code-bg)',
-    padding: '2px 12px',
-    fontFamily: 'var(--md-code-font-family)',
-    fontSize: '0.9em',
-  },
-  '.cm-table-header.cm-table-first-row': {
-    borderRadius: '4px 4px 0 0',
-  },
-  '.cm-table-last-row': {
-    borderRadius: '0 0 4px 4px',
-  },
-  '.cm-table-delimiter': {
-    color: 'var(--md-text-faint)',
   },
   '.cm-frontmatter': {
     fontFamily: 'var(--md-code-font-family)',
@@ -287,16 +233,15 @@ export function wysiwygExtension(): Extension {
     wysiwygWidgetTheme,
     focusState,
     focusListener,
-    embedResolverField,
-    markDecorationsField,
+    embedRevealedField,
+    markDecorationsPlugin,
     widgetDecorationsField,
-    widgetUpdateScheduler,
     linkClickHandler,
     wikiLinkExtension(),
     combinedAutocomplete(),
     slashCommandExtension(),
-    codeBlockExtension(),
     headingFoldExtension(),
     headingFoldGutterExtension(),
+    tableExtension(),
   ];
 }

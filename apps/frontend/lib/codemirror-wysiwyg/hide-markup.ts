@@ -4,19 +4,19 @@ import {
   Decoration,
   DecorationSet,
   EditorView,
+  WidgetType,
 } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import type { SyntaxNode } from '@lezer/common';
-import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
-import { cursorInRange, isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
-import { resolveWikiLink } from '../wiki-link-resolver';
-import { fileTreeField, setFileTreeEffect } from './wiki-link-plugin';
-import { embedResolverField, setEmbedResolverEffect } from './embed-resolver';
+import { EditorState, Range, StateField } from '@codemirror/state';
+import { isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
 import { ImageWidget } from './widgets/image-widget';
-import { EmbedWidget } from './widgets/embed-widget';
-import { CheckboxWidget } from './widgets/checkbox-widget';
+import { PdfWidget } from './widgets/pdf-widget';
+import { NoteEmbedWidget } from './widgets/note-embed-widget';
+import { UnsupportedEmbedWidget } from './widgets/unsupported-embed-widget';
+import { classifyEmbed, embedSourceRevealEffect, type EmbedType } from './embed-utils';
 import { MathWidget } from './widgets/math-widget';
-import { TableWidget } from './widgets/table-widget';
+import { fileTreeField } from './wiki-link-plugin';
+import { resolveWikiLink } from '../wiki-link-resolver';
 
 function getListNestingDepth(syntaxNode: { parent: any; type: { name: string } }): number {
   let depth = 0;
@@ -112,44 +112,115 @@ function isExternalLinkUrl(url: string): boolean {
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(url.trim());
 }
 
-const wikiEmbedRegex = /!\[\[([^\[\]|#\n]+)(#[^\[\]|#\n]*)?(\|[^\[\]\n]*)?\]\]/g;
-
-function isInsideCode(state: EditorState, pos: number): boolean {
-  let node: SyntaxNode | null = syntaxTree(state).resolve(pos, -1);
-  while (node) {
-    const name = node.type.name;
-    if (name === 'InlineCode' || name === 'CodeText' || name === 'CodeBlock' || name === 'FencedCode') {
-      return true;
-    }
-    node = node.parent;
-  }
-  return false;
-}
-
-function isEmbedBlock(state: EditorState, from: number, to: number): boolean {
-  const line = state.doc.lineAt(from);
-  const before = line.text.slice(0, Math.max(0, from - line.from));
-  const after = line.text.slice(Math.max(0, to - line.from));
-  return before.trim().length === 0 && after.trim().length === 0;
-}
-
-
 function getBulletSymbol(depth: number): string {
   const bullets = ['•', '◦', '▪'];
   return bullets[Math.min(depth, 2)];
 }
 
-const cursorSettledEffect = StateEffect.define<null>();
+const languageLabelMap: Record<string, string> = {
+  js: 'JavaScript', javascript: 'JavaScript',
+  ts: 'TypeScript', typescript: 'TypeScript',
+  jsx: 'JSX', tsx: 'TSX',
+  py: 'Python', python: 'Python',
+  rb: 'Ruby', ruby: 'Ruby',
+  rs: 'Rust', rust: 'Rust',
+  go: 'Go', java: 'Java',
+  kt: 'Kotlin', kotlin: 'Kotlin',
+  cs: 'C#', csharp: 'C#',
+  cpp: 'C++', 'c++': 'C++', c: 'C',
+  sh: 'Shell', shell: 'Shell',
+  bash: 'Bash', zsh: 'Zsh',
+  ps1: 'PowerShell', powershell: 'PowerShell',
+  yml: 'YAML', yaml: 'YAML',
+  json: 'JSON', toml: 'TOML',
+  md: 'Markdown', markdown: 'Markdown',
+  html: 'HTML', css: 'CSS', scss: 'SCSS', sass: 'Sass', less: 'Less',
+  sql: 'SQL', gql: 'GraphQL', graphql: 'GraphQL',
+  dockerfile: 'Dockerfile', docker: 'Docker',
+  xml: 'XML', svg: 'SVG', lua: 'Lua', r: 'R', swift: 'Swift',
+  php: 'PHP', perl: 'Perl', elixir: 'Elixir', erlang: 'Erlang',
+  haskell: 'Haskell', hs: 'Haskell', clojure: 'Clojure',
+  scala: 'Scala', zig: 'Zig', nim: 'Nim', dart: 'Dart',
+};
 
-function buildMarkDecorations(state: EditorState): DecorationSet {
+function formatCodeBlockLanguage(lang: string): string {
+  const lower = lang.toLowerCase();
+  if (languageLabelMap[lower]) return languageLabelMap[lower];
+  return lower.length <= 3 ? lower.toUpperCase() : lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+class CodeBlockInfoWidget extends WidgetType {
+  constructor(readonly lang: string, readonly code: string) {
+    super();
+  }
+
+  eq(other: CodeBlockInfoWidget) {
+    return this.lang === other.lang && this.code === other.code;
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-code-block-info';
+    span.textContent = formatCodeBlockLanguage(this.lang);
+    span.title = 'Click to copy';
+    span.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigator.clipboard.writeText(this.code);
+      const original = span.textContent;
+      span.textContent = 'Copied!';
+      setTimeout(() => { span.textContent = original; }, 2000);
+    });
+    return span;
+  }
+
+  ignoreEvent() { return true; }
+}
+
+export const embedRevealedField = StateField.define<number | null>({
+  create() { return null; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(embedSourceRevealEffect)) return e.value;
+    }
+    if (value !== null && tr.docChanged) {
+      try {
+        return tr.changes.mapPos(value, 1);
+      } catch {
+        return null;
+      }
+    }
+    if (value !== null && tr.selection) {
+      try {
+        const line = tr.state.doc.lineAt(value);
+        const cursorOnLine = tr.state.selection.ranges.some(r => {
+          const headLine = tr.state.doc.lineAt(r.head).number;
+          return headLine === line.number;
+        });
+        if (!cursorOnLine) return null;
+      } catch {
+        return null;
+      }
+    }
+    return value;
+  },
+});
+
+function buildMarkDecorations(view: EditorView): DecorationSet {
+  const state = view.state;
   const decorations: Range<Decoration>[] = [];
-  const text = state.doc.toString();
   const tree = syntaxTree(state);
-  tree.iterate({
-    enter(node) {
+  for (const { from, to } of view.visibleRanges) {
+    tree.iterate({
+      from, to,
+      enter(node) {
       const type = node.type.name;
       const from = node.from;
       const to = node.to;
+
+      if (type === 'Table') {
+        return false;
+      }
 
       if (type === 'FrontMatter' || type === 'Frontmatter') {
         const startLine = state.doc.lineAt(from).number;
@@ -231,6 +302,10 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
           );
           hideSubNodeMarks(node, 'CodeMark', decorations, 'code');
         }
+        return false;
+      }
+
+      if (type === 'InlineMath') {
         return false;
       }
 
@@ -439,36 +514,246 @@ function buildMarkDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'FencedCode') {
+        const startLine = state.doc.lineAt(from);
+        const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
+
+        const cursorOnFence = state.selection.ranges.some(r => {
+          const headLine = state.doc.lineAt(r.head).number;
+          return headLine === startLine.number || headLine === endLine.number;
+        });
+
+        for (let i = startLine.number; i <= endLine.number; i++) {
+          const line = state.doc.line(i);
+          let cls = 'cm-code-block';
+          if (i === startLine.number) cls += ' cm-code-block-start';
+          if (i === endLine.number) cls += ' cm-code-block-end';
+          if (cursorOnFence && (i === startLine.number || i === endLine.number)) {
+            cls += ' cm-code-fence-revealed';
+          }
+          decorations.push(Decoration.line({ class: cls }).range(line.from));
+        }
+
+        return false;
+      }
+
+      if (type === 'BlockMath') {
         return false;
       }
 
       return true;
     },
-  });
-
-  detectMathMarks(state, decorations, text);
+    });
+  }
 
   decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
   return Decoration.set(decorations, true);
 }
 
+function addEmbedDecoration(
+  decorations: Range<Decoration>[],
+  from: number, to: number,
+  src: string, alt: string,
+  isRevealed: boolean,
+  width: number | null,
+  embedType: EmbedType,
+  heading: string | null,
+): void {
+  let widget: WidgetType;
+  switch (embedType) {
+    case 'image':
+      widget = new ImageWidget(src, alt, isRevealed, width);
+      break;
+    case 'pdf':
+      widget = new PdfWidget(src, alt, isRevealed, heading);
+      break;
+    case 'note':
+      widget = new NoteEmbedWidget(src, heading, alt, isRevealed);
+      break;
+    case 'unsupported':
+      widget = new UnsupportedEmbedWidget(src, alt, isRevealed);
+      break;
+  }
+  if (isRevealed) {
+    decorations.push(
+      Decoration.widget({ widget, block: true, side: 1 }).range(to),
+    );
+  } else {
+    decorations.push(
+      Decoration.replace({ widget, inclusive: false }).range(from, to),
+    );
+  }
+}
+
+const dimensionPattern = /^(\d+)(?:x(\d+))?$/;
+
 function buildWidgetDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
-  const text = state.doc.toString();
   const tree = syntaxTree(state);
+  const revealedPos = state.field(embedRevealedField, false) ?? null;
+
   tree.iterate({
     enter(node) {
       const type = node.type.name;
       const from = node.from;
       const to = node.to;
 
+      if (type === 'Table') {
+        return false;
+      }
+
       if (type === 'Image') {
-        if (!cursorInRange(state, from, to)) {
-          const text = state.doc.sliceString(from, to);
-          const match = text.match(/^!\[([^\]]*)\]\((.+?)\)$/);
-          if (match) {
+        const cursorOnEmbed = state.selection.ranges.some(r =>
+          r.from <= to && r.to >= from
+        );
+        if (cursorOnEmbed) return false;
+
+        const isRevealed = revealedPos !== null && from === revealedPos;
+        const text = state.doc.sliceString(from, to);
+
+        const stdMatch = text.match(/^!\[([^\]]*)\]\((.+?)\)$/);
+        if (stdMatch) {
+          let alt = stdMatch[1];
+          let width: number | null = null;
+          const lastPipe = alt.lastIndexOf('|');
+          if (lastPipe !== -1) {
+            const dimMatch = alt.slice(lastPipe + 1).match(dimensionPattern);
+            if (dimMatch) {
+              width = parseInt(dimMatch[1], 10);
+              alt = alt.slice(0, lastPipe);
+            }
+          }
+          const href = stdMatch[2];
+          let heading: string | null = null;
+          const hashIdx = href.indexOf('#');
+          if (hashIdx !== -1) {
+            heading = decodeURIComponent(href.slice(hashIdx + 1));
+          }
+          const embedType = classifyEmbed(href);
+          addEmbedDecoration(decorations, from, to, href, alt, isRevealed, width, embedType, heading);
+          return false;
+        }
+
+        const wikiMatch = text.match(/^!\[\[(.+?)(?:\|(.+?))?\]\]$/);
+        if (wikiMatch) {
+          const href = wikiMatch[1];
+          let heading: string | null = null;
+          const hashIdx = href.indexOf('#');
+          let linkPath = href;
+          if (hashIdx !== -1) {
+            heading = href.slice(hashIdx + 1);
+            linkPath = href.slice(0, hashIdx);
+          }
+          const fileTree = state.field(fileTreeField, false) || [];
+          const resolved = resolveWikiLink(linkPath, fileTree);
+          const filePath = resolved.targets[0] || linkPath;
+          let wikiAlt = wikiMatch[2] || '';
+          let wikiWidth: number | null = null;
+          if (wikiAlt) {
+            const dimMatch = wikiAlt.match(dimensionPattern);
+            if (dimMatch) {
+              wikiWidth = parseInt(dimMatch[1], 10);
+              wikiAlt = '';
+            }
+          }
+          const embedType = classifyEmbed(filePath);
+          addEmbedDecoration(decorations, from, to, filePath, wikiAlt, isRevealed, wikiWidth, embedType, heading);
+        }
+        return false;
+      }
+
+      if (type === 'InlineMath') {
+        const cursorOnRange = state.selection.ranges.some(r =>
+          r.head >= from && r.head <= to
+        );
+        if (!cursorOnRange) {
+          const latex = state.doc.sliceString(from + 1, to - 1);
+          if (latex.length > 0) {
             decorations.push(
-              Decoration.replace({ widget: new ImageWidget(match[2], match[1]) }).range(from, to),
+              Decoration.replace({
+                widget: new MathWidget(latex, false),
+                inclusive: false,
+              }).range(from, to),
+            );
+          }
+        } else {
+          const cursor = node.node.cursor();
+          cursor.iterate((child) => {
+            if (child.type.name === 'InlineMathMark') {
+              decorations.push(
+                Decoration.mark({ class: 'cm-math-syntax' }).range(child.from, child.to),
+              );
+            }
+          });
+        }
+        return false;
+      }
+
+      if (type === 'BlockMath') {
+        const startLine = state.doc.lineAt(from);
+        const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
+        if (endLine.number - startLine.number < 2) return false;
+
+        const contentFrom = state.doc.line(startLine.number + 1).from;
+        const contentTo = state.doc.line(endLine.number - 1).to;
+        const latex = contentFrom <= contentTo
+          ? state.doc.sliceString(contentFrom, contentTo)
+          : '';
+        if (latex.length === 0) return false;
+
+        const cursorInBlock = state.selection.ranges.some(r => {
+          const headLine = state.doc.lineAt(r.head).number;
+          return headLine >= startLine.number && headLine <= endLine.number;
+        });
+
+        if (cursorInBlock) {
+          for (let i = startLine.number; i <= endLine.number; i++) {
+            const line = state.doc.line(i);
+            let cls = 'cm-math-block';
+            if (i === startLine.number) cls += ' cm-math-block-start';
+            if (i === endLine.number) cls += ' cm-math-block-end';
+            if (i === startLine.number || i === endLine.number) {
+              cls += ' cm-math-fence-revealed';
+            }
+            decorations.push(Decoration.line({ class: cls }).range(line.from));
+          }
+          decorations.push(
+            Decoration.widget({
+              widget: new MathWidget(latex, true, true),
+              block: true,
+              side: 1,
+            }).range(to),
+          );
+        } else {
+          decorations.push(
+            Decoration.replace({
+              widget: new MathWidget(latex, true, false, contentFrom, contentTo),
+              inclusive: false,
+            }).range(from, to),
+          );
+        }
+        return false;
+      }
+
+      if (type === 'FencedCode') {
+        const codeInfoNode = node.node.getChild('CodeInfo');
+        if (codeInfoNode) {
+          const lang = state.doc.sliceString(codeInfoNode.from, codeInfoNode.to).trim();
+          if (lang) {
+            const startLine = state.doc.lineAt(from);
+            const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
+            let code = '';
+            if (endLine.number - startLine.number > 1) {
+              const contentFrom = state.doc.line(startLine.number + 1).from;
+              const contentTo = state.doc.line(endLine.number - 1).to;
+              if (contentFrom <= contentTo) {
+                code = state.doc.sliceString(contentFrom, contentTo);
+              }
+            }
+            decorations.push(
+              Decoration.widget({
+                widget: new CodeBlockInfoWidget(lang, code),
+                side: -1,
+              }).range(from),
             );
           }
         }
@@ -479,244 +764,49 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
         return false;
       }
 
-      if (type === 'TaskMarker') {
-        const markerText = state.doc.sliceString(from, to);
-        const isChecked = markerText.includes('x') || markerText.includes('X');
-        const line = state.doc.lineAt(from);
-        const taskNode = node.node.parent;
-        const listItem = taskNode?.parent;
-        const listRoot = listItem?.parent;
-        const listType = listRoot?.type?.name;
-        const isBulletList = listType === 'BulletList';
-
-        const listMatch = line.text.match(/^(\s*)([-*+]|\d+[.)])\s/);
-        const listPrefixStart = listMatch ? line.from + listMatch[1].length : from;
-        const listPrefixEnd = listMatch ? line.from + listMatch[0].length : from;
-        const cursorInMarker = listMatch ? cursorInRange(state, listPrefixStart, listPrefixEnd) : false;
-
-        if (!cursorInRange(state, from, to) && !cursorInMarker) {
-          const stateValue = isChecked ? 'checked' : 'open';
-          const replaceFrom = isBulletList ? listPrefixStart : from;
-
-          decorations.push(
-            Decoration.replace({
-              widget: new CheckboxWidget(stateValue, from),
-            }).range(replaceFrom, to),
-          );
-        }
-        return false;
-      }
-
-      if (type === 'Table') {
-        const cursorInside = cursorInRange(state, from, to);
-        const startLine = state.doc.lineAt(from).number;
-        const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
-
-        if (cursorInside) {
-          for (let i = startLine; i <= endLine; i++) {
-            const line = state.doc.line(i);
-            const classes = ['cm-table-row'];
-            if (i === startLine) classes.push('cm-table-header', 'cm-table-first-row');
-            if (i === startLine + 1) classes.push('cm-table-delimiter');
-            if (i === endLine) classes.push('cm-table-last-row');
-            decorations.push(
-              Decoration.line({ class: classes.join(' ') }).range(line.from),
-            );
-          }
-        } else {
-          const rawText = state.doc.sliceString(from, to);
-          decorations.push(
-            Decoration.replace({
-              widget: new TableWidget(rawText),
-            }).range(from, to),
-          );
-        }
-        return false;
-      }
-
       return true;
     },
   });
-
-  detectMathWidgets(state, decorations, text);
-  detectWikiEmbeds(state, decorations, text);
 
   decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
   return Decoration.set(decorations, true);
 }
 
-function collectMathFences(state: EditorState, text: string) {
-  const fenceRegex = /^[ \t]*\$\$[ \t]*$/gm;
-  const fences: { from: number; to: number; line: number }[] = [];
-  let m;
-  while ((m = fenceRegex.exec(text)) !== null) {
-    const line = state.doc.lineAt(m.index);
-    if (isInsideCode(state, m.index)) continue;
-    fences.push({ from: line.from, to: line.to, line: line.number });
-  }
-  return fences;
-}
-
-function pairMathFences(state: EditorState, fences: { from: number; to: number; line: number }[]) {
-  const blocks: {
-    openFrom: number; openTo: number; openLine: number;
-    closeFrom: number; closeTo: number; closeLine: number;
-    latex: string; rangeFrom: number; rangeTo: number;
-  }[] = [];
-
-  for (let i = 0; i < fences.length - 1; i += 2) {
-    const open = fences[i];
-    const close = fences[i + 1];
-    const contentFrom = open.to + 1;
-    const contentTo = close.from - 1;
-    if (contentFrom > contentTo) continue;
-    const latex = state.doc.sliceString(contentFrom, contentTo + 1).trim();
-    if (!latex) continue;
-    blocks.push({
-      openFrom: open.from, openTo: open.to, openLine: open.line,
-      closeFrom: close.from, closeTo: close.to, closeLine: close.line,
-      latex, rangeFrom: open.from, rangeTo: close.to,
-    });
-  }
-  return blocks;
-}
-
-function detectMathMarks(state: EditorState, decorations: Range<Decoration>[], text: string): void {
-  const fences = collectMathFences(state, text);
-  const blocks = pairMathFences(state, fences);
-  const multiLineMathRanges = blocks.map(b => ({ from: b.rangeFrom, to: b.rangeTo }));
-
-  for (const block of blocks) {
-    if (isSelectRange(state, { from: block.rangeFrom, to: block.rangeTo })) {
-      decorations.push(
-        Decoration.mark({ class: 'cm-math-syntax' }).range(block.rangeFrom, block.rangeTo),
-      );
+export const markDecorationsPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildMarkDecorations(view);
     }
-  }
-
-  let match;
-  const inlineMathRegex = /\$([^$\n]+?)\$/g;
-  while ((match = inlineMathRegex.exec(text)) !== null) {
-    const from = match.index;
-    const to = inlineMathRegex.lastIndex;
-    const isPartOfBlockMath =
-      (from > 0 && text[from - 1] === '$') ||
-      (to < text.length && text[to] === '$');
-    if (isPartOfBlockMath) continue;
-    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-    if (isInsideCode(state, from)) continue;
-    if (isSelectRange(state, { from, to })) {
-      decorations.push(
-        Decoration.mark({ class: 'cm-math-syntax' }).range(from, to),
-      );
+    update(update: ViewUpdate) {
+      const treeChanged = syntaxTree(update.state) !== syntaxTree(update.startState);
+      const focusEvent = update.transactions.some(tr => isFocusEvent(tr));
+      if (
+        update.docChanged ||
+        update.selectionSet ||
+        update.viewportChanged ||
+        treeChanged ||
+        focusEvent
+      ) {
+        this.decorations = buildMarkDecorations(update.view);
+      }
     }
-  }
-}
-
-function detectMathWidgets(state: EditorState, decorations: Range<Decoration>[], text: string): void {
-  const fences = collectMathFences(state, text);
-  const blocks = pairMathFences(state, fences);
-  const multiLineMathRanges = blocks.map(b => ({ from: b.rangeFrom, to: b.rangeTo }));
-
-  for (const block of blocks) {
-    if (!cursorInRange(state, block.rangeFrom, block.rangeTo)) {
-      decorations.push(
-        Decoration.replace({
-          widget: new MathWidget(block.latex, true),
-        }).range(block.openFrom, block.closeTo),
-      );
-    }
-  }
-
-  let match;
-  const inlineMathRegex = /\$([^$\n]+?)\$/g;
-  while ((match = inlineMathRegex.exec(text)) !== null) {
-    const from = match.index;
-    const to = inlineMathRegex.lastIndex;
-    const latex = match[1].trim();
-    const isPartOfBlockMath =
-      (from > 0 && text[from - 1] === '$') ||
-      (to < text.length && text[to] === '$');
-    if (isPartOfBlockMath) continue;
-    if (multiLineMathRanges.some(r => from >= r.from && to <= r.to)) continue;
-    if (isInsideCode(state, from)) continue;
-    if (!cursorInRange(state, from, to)) {
-      decorations.push(
-        Decoration.replace({
-          widget: new MathWidget(latex, false),
-        }).range(from, to),
-      );
-    }
-  }
-}
-
-function detectWikiEmbeds(state: EditorState, decorations: Range<Decoration>[], text: string): void {
-  const fileTree = state.field(fileTreeField, false) || [];
-  const resolver = state.field(embedResolverField, false) ?? null;
-
-  wikiEmbedRegex.lastIndex = 0;
-  let match;
-
-  while ((match = wikiEmbedRegex.exec(text)) !== null) {
-    const from = match.index;
-    const to = wikiEmbedRegex.lastIndex;
-
-    if (cursorInRange(state, from, to)) continue;
-    if (isInsideCode(state, from)) continue;
-
-    const href = match[1].trim();
-    const contentId = match[2] ? match[2].slice(1).trim() : undefined;
-    const displayText = match[3] ? match[3].slice(1).trim() : undefined;
-
-    const resolved = resolveWikiLink(href, fileTree);
-    const resolvedPath = resolved.targets[0] || null;
-    const block = isEmbedBlock(state, from, to);
-
-    decorations.push(
-      Decoration.replace({
-        widget: new EmbedWidget({
-          href,
-          resolvedPath,
-          linkState: resolved.state,
-          displayText,
-          contentId,
-          block,
-          resolver,
-        }),
-      }).range(from, to),
-    );
-  }
-}
-
-export const markDecorationsField = StateField.define<DecorationSet>({
-  create(state) {
-    return buildMarkDecorations(state);
   },
-  update(value, tr) {
-    const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
-    if (tr.docChanged || tr.selection || treeChanged || isFocusEvent(tr)) {
-      return buildMarkDecorations(tr.state);
-    }
-    return value;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
+  { decorations: (v) => v.decorations },
+);
 
 export const widgetDecorationsField = StateField.define<DecorationSet>({
   create(state) {
     return buildWidgetDecorations(state);
   },
   update(value, tr) {
-    if (tr.docChanged) {
+    if (tr.docChanged || tr.selection) {
       return buildWidgetDecorations(tr.state);
     }
-    if (tr.effects.some(e => e.is(cursorSettledEffect))) {
+    if (syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
       return buildWidgetDecorations(tr.state);
     }
-    if (tr.effects.some(e => e.is(setFileTreeEffect))) {
-      return buildWidgetDecorations(tr.state);
-    }
-    if (tr.effects.some(e => e.is(setEmbedResolverEffect))) {
+    if (tr.effects.some(e => e.is(embedSourceRevealEffect))) {
       return buildWidgetDecorations(tr.state);
     }
     return value;
@@ -724,36 +814,6 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-export const widgetUpdateScheduler = ViewPlugin.fromClass(
-  class {
-    pendingUpdate: number | null = null;
-
-    update(update: ViewUpdate) {
-      if (update.docChanged) {
-        if (this.pendingUpdate !== null) {
-          cancelAnimationFrame(this.pendingUpdate);
-          this.pendingUpdate = null;
-        }
-        return;
-      }
-
-      const treeChanged = syntaxTree(update.state) !== syntaxTree(update.startState);
-      if (update.selectionSet || treeChanged) {
-        if (this.pendingUpdate !== null) cancelAnimationFrame(this.pendingUpdate);
-        this.pendingUpdate = requestAnimationFrame(() => {
-          this.pendingUpdate = null;
-          update.view.dispatch({ effects: cursorSettledEffect.of(null) });
-        });
-      }
-    }
-
-    destroy() {
-      if (this.pendingUpdate !== null) {
-        cancelAnimationFrame(this.pendingUpdate);
-      }
-    }
-  },
-);
 
 export const linkClickHandler = EditorView.domEventHandlers({
   click(event, view) {
