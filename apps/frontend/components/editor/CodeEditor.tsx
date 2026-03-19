@@ -57,10 +57,8 @@ import {
   setWikiLinkNavigateCallback,
   setFocusMode,
   type WikiLinkNavigateCallback,
-  setEmbedResolver,
-  type EmbedResolver,
 } from '@/lib/codemirror-wysiwyg';
-import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath } from '@/lib/markdown-extensions';
+import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath, BlockMath } from '@/lib/markdown-extensions';
 import { createListKeymap } from '@/lib/codemirror-wysiwyg/list-commands';
 import { createFormatKeymap } from '@/lib/codemirror-wysiwyg/format-commands';
 import { modernSearchExtension } from '@/lib/codemirror-search-panel';
@@ -77,8 +75,6 @@ interface CodeEditorProps {
   fileTree?: FileTreeNode[];
   /** Callback when a wiki-link is clicked (Ctrl+Click) */
   onWikiLinkNavigate?: WikiLinkNavigateCallback;
-  /** Resolver for embed content (e.g., ![[file]]) */
-  embedResolver?: EmbedResolver;
   /** Whether focus mode is enabled */
   focusModeEnabled?: boolean;
   /** Handle image pastes in markdown */
@@ -119,7 +115,7 @@ async function getLanguageExtension(filePath: string, language?: string): Promis
   if (ext === 'md' || ext === 'markdown') {
     return markdown({
       codeLanguages: languages,
-      extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, DisableSetextHeading],
+      extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, BlockMath, DisableSetextHeading],
     });
   }
 
@@ -160,7 +156,6 @@ export function CodeEditor({
   onSave,
   fileTree,
   onWikiLinkNavigate,
-  embedResolver,
   focusModeEnabled = false,
   onPasteImages,
   searchPanelContainerRef,
@@ -170,7 +165,6 @@ export function CodeEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
-  const embedResolverRef = useRef(embedResolver);
   const focusModeEnabledRef = useRef(focusModeEnabled);
   const onPasteImagesRef = useRef(onPasteImages);
   const typewriterRafRef = useRef<number | null>(null);
@@ -243,7 +237,6 @@ export function CodeEditor({
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
-  embedResolverRef.current = embedResolver;
   focusModeEnabledRef.current = focusModeEnabled;
   onPasteImagesRef.current = onPasteImages;
 
@@ -386,12 +379,10 @@ export function CodeEditor({
       { tag: [tags.operator, tags.operatorKeyword, tags.escape, tags.regexp, tags.special(tags.string)], color: 'var(--md-code-operator)' },
       { tag: tags.url, color: 'var(--md-link-color)' },
       { tag: [tags.meta, tags.comment], color: 'var(--md-code-comment)', fontStyle: 'italic' },
-      { tag: tags.strong, fontWeight: 'bold' },
+      { tag: tags.strong, fontWeight: '500' },
       { tag: tags.emphasis, fontStyle: 'italic' },
       { tag: tags.strikethrough, textDecoration: 'line-through' },
-      // Note: tags.link removed - we use .cm-link decoration for links with actual URLs
-      // This prevents [0,1,2] from being styled as a link by the syntax highlighter
-      { tag: tags.heading, fontWeight: 'bold', color: 'var(--md-text)' },
+      { tag: tags.heading, fontWeight: '600', color: 'var(--md-text)' },
       { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: 'var(--md-code-boolean)' },
       { tag: tags.processingInstruction, color: 'var(--md-text)' },
       { tag: [tags.string, tags.inserted], color: 'var(--md-code-string)' },
@@ -596,11 +587,6 @@ export function CodeEditor({
       if (focusModeEnabledRef.current) {
         scheduleTypewriterCentering(view);
       }
-
-      setEmbedResolver(view, (path, options) => {
-        if (!embedResolverRef.current) return Promise.resolve(null);
-        return embedResolverRef.current(path, options);
-      });
 
       if (fileTree && fileTree.length > 0) {
         updateWikiLinkFileTree(view, fileTree);

@@ -438,6 +438,7 @@ export default function Home() {
 
        {/* RIGHT: Chat panel - also uses negative margin for smooth transition */}
         <aside
+          suppressHydrationWarning
           className="relative h-screen flex-shrink-0 border-l border-border bg-sidebar-bg transition-[margin] duration-300 ease-in-out"
           style={{
             width: resolvedRightPanelWidth,

@@ -14,6 +14,7 @@ import {
   EditorView,
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
 import { isSelectRange, isFocusEvent } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
 import { resolveWikiLink, flattenFileTree } from '../wiki-link-resolver';
@@ -82,13 +83,23 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const fileTree = state.field(fileTreeField, false) || [];
   
+  // Collect Table ranges from syntax tree to skip wiki-link decoration inside tables
+  const tableRanges: { from: number; to: number }[] = [];
+  const tree = syntaxTree(state);
+  for (const node of tree.topNode.getChildren('Table')) {
+    tableRanges.push({ from: node.from, to: node.to });
+  }
+
   // Find all wiki-links using regex
   const regex = new RegExp(wikiLinkRegex.source, 'g');
   let match;
-  
+
   while ((match = regex.exec(text)) !== null) {
     const start = match.index;
     const end = match.index + match[0].length;
+
+    // Skip wiki-links inside table ranges
+    if (tableRanges.some(t => start >= t.from && end <= t.to)) continue;
 
     const isEmbed = start > 0 && text[start - 1] === '!' && text[start - 2] !== '\\';
     if (isEmbed) continue;

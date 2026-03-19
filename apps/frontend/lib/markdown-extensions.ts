@@ -36,9 +36,6 @@ export const TaskListWithCanceled: MarkdownConfig = {
   ],
 };
 
-/**
- * Highlight/Mark extension for ==highlighted text== syntax
- */
 export const Highlight: MarkdownConfig = {
   defineNodes: [
     { name: 'Highlight', style: tags.special(tags.emphasis) },
@@ -80,11 +77,6 @@ export const DisableSetextHeading: MarkdownConfig = {
   remove: ['SetextHeading'],
 };
 
-/**
- * Inline math extension for $...$ syntax
- * Requires non-whitespace after opening $ and before closing $
- * Does NOT handle $$...$$ - block math uses multi-line format only
- */
 export const InlineMath: MarkdownConfig = {
   defineNodes: [
     { name: 'InlineMath', style: tags.special(tags.string) },
@@ -94,35 +86,26 @@ export const InlineMath: MarkdownConfig = {
     {
       name: 'InlineMath',
       parse(cx: InlineContext, next: number, pos: number) {
-        // Check for $ at current position (but NOT $$)
-        if (next !== 36 /* $ */) return -1;
-        if (cx.char(pos + 1) === 36 /* $ */) return -1; // Skip $$ (multi-line block math only)
+        if (next !== 36) return -1;
+        if (cx.char(pos + 1) === 36) return -1;
 
-        // Character after opening $ must not be whitespace (prevents $100 false positives)
         const afterOpen = cx.char(pos + 1);
-        if (afterOpen === 32 /* space */ || afterOpen === 9 /* tab */ || afterOpen === 10 /* newline */) {
-          return -1;
-        }
+        if (afterOpen === 32 || afterOpen === 9 || afterOpen === 10) return -1;
 
-        // Look for closing $
         let end = pos + 1;
         while (end < cx.end) {
-          if (cx.char(end) === 36 /* $ */) {
-            // Check it's not $$ (part of block math)
+          if (cx.char(end) === 36) {
             if (cx.char(end + 1) === 36) {
               end += 2;
               continue;
             }
-            // Character before closing $ must not be whitespace
             const beforeClose = cx.char(end - 1);
             if (beforeClose === 32 || beforeClose === 9 || beforeClose === 10) {
               end++;
               continue;
             }
-            // Found valid closing $
             const content = cx.slice(pos + 1, end);
             if (content.length > 0) {
-              // Inline math doesn't parse inline content (it's LaTeX)
               return cx.addElement(
                 cx.elt('InlineMath', pos, end + 1, [
                   cx.elt('InlineMathMark', pos, pos + 1),
@@ -136,6 +119,42 @@ export const InlineMath: MarkdownConfig = {
         }
         return -1;
       },
+    },
+  ],
+};
+
+export const BlockMath: MarkdownConfig = {
+  defineNodes: [
+    { name: 'BlockMath', block: true },
+    { name: 'BlockMathMark' },
+  ],
+  parseBlock: [
+    {
+      name: 'BlockMath',
+      endLeaf(_, line) {
+        return /^\$\$\s*$/.test(line.text);
+      },
+      parse(cx: BlockContext, line) {
+        if (!/^\$\$\s*$/.test(line.text)) return false;
+        const start = cx.lineStart;
+        const openEnd = cx.lineStart + line.text.length;
+        const children = [cx.elt('BlockMathMark', start, openEnd)];
+
+        while (cx.nextLine()) {
+          if (/^\$\$\s*$/.test(line.text)) {
+            const closeStart = cx.lineStart;
+            const closeEnd = cx.lineStart + line.text.length;
+            children.push(cx.elt('BlockMathMark', closeStart, closeEnd));
+            cx.addElement(cx.elt('BlockMath', start, closeEnd, children));
+            cx.nextLine();
+            return true;
+          }
+        }
+
+        cx.addElement(cx.elt('BlockMath', start, cx.lineStart, children));
+        return true;
+      },
+      before: 'FencedCode',
     },
   ],
 };

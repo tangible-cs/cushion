@@ -20,7 +20,7 @@ import {
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
-import type { WikiLinkNavigateCallback, EmbedResolver, EmbedResolverResult } from '@/lib/codemirror-wysiwyg';
+import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 
 interface EditorPanelProps {
   client: CoordinatorClient;
@@ -175,7 +175,6 @@ export function EditorPanel({
   const openedUrisRef = useRef<Set<string>>(new Set());
   const [pdfData, setPdfData] = useState<PdfDataState | null>(null);
   const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
-  const embedCacheRef = useRef(new Map<string, Promise<EmbedResolverResult | null>>());
 
   useEffect(() => {
     historyRef.current = {
@@ -184,7 +183,6 @@ export function EditorPanel({
       navigating: false,
     };
     openedUrisRef.current.clear();
-    embedCacheRef.current.clear();
     setPdfData(null);
     setImageData(null);
     forceUpdate((n) => n + 1);
@@ -348,30 +346,6 @@ export function EditorPanel({
     }
   }, [currentFile, client, markFileSaved]);
 
-
-  const handleEmbedResolve = useCallback<EmbedResolver>(async (path, options) => {
-    const hint = options?.hint ?? 'binary';
-    const cacheKey = `${hint}:${path}`;
-    const cached = embedCacheRef.current.get(cacheKey);
-    if (cached) return cached;
-
-    const promise = (async () => {
-      try {
-        if (hint === 'text') {
-          const { content } = await client.readFile(path);
-          return { type: 'text', text: content } as const;
-        }
-        const { base64, mimeType } = await client.readFileBase64(path);
-        return { type: 'binary', dataUrl: `data:${mimeType};base64,${base64}`, mimeType } as const;
-      } catch (err) {
-        console.error('[EditorPanel] Embed resolve failed:', err);
-        return null;
-      }
-    })();
-
-    embedCacheRef.current.set(cacheKey, promise);
-    return promise;
-  }, [client]);
 
   const handlePasteImages = useCallback(
     ({ files, view, filePath }: { files: File[]; view: EditorView; filePath: string }) => {
@@ -631,7 +605,6 @@ export function EditorPanel({
               focusModeEnabled={focusModeEnabled}
               fileTree={fileTree}
               onWikiLinkNavigate={handleWikiLinkNavigate}
-              embedResolver={handleEmbedResolve}
               onPasteImages={handlePasteImages}
               searchPanelContainerRef={searchPanelContainerRef}
             />

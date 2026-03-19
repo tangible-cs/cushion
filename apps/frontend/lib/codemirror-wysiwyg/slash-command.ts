@@ -86,51 +86,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
-    id: 'math-block',
-    label: 'Math Block',
-    description: 'Display math, centered (multi-line)',
-    icon: 'math',
-    keywords: ['math', 'latex', 'equation', 'formula', 'katex', 'display'],
-    apply: (view, from, to) => {
-      const insert = '$$\n\n$$';
-      view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from + 3 }, // cursor on empty line between $$
-      });
-      view.focus();
-    },
-  },
-  {
-    id: 'inline-math',
-    label: 'Inline Math',
-    description: 'Inline math expression ($...$)',
-    icon: 'math',
-    keywords: ['math', 'latex', 'inline', 'formula'],
-    apply: (view, from, to) => {
-      const insert = '$$';
-      view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from + 1 }, // cursor between the two $
-      });
-      view.focus();
-    },
-  },
-  {
-    id: 'table',
-    label: 'Table',
-    description: 'Insert a table',
-    icon: 'table',
-    keywords: ['table', 'grid', 'columns', 'rows'],
-    apply: (view, from, to) => {
-      const insert = '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |\n';
-      view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from + insert.indexOf('|  |') + 2 },
-      });
-      view.focus();
-    },
-  },
-  {
     id: 'divider',
     label: 'Divider',
     description: 'Insert a horizontal rule',
@@ -162,6 +117,21 @@ const SLASH_COMMANDS: SlashCommand[] = [
     keywords: ['heading', 'h3'],
     apply: replaceWithText('### '),
   },
+  {
+    id: 'table',
+    label: 'Table',
+    description: 'Insert a table',
+    icon: 'table',
+    keywords: ['table', 'grid', 'rows', 'columns'],
+    apply: (view, from, to) => {
+      const insert = '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |\n';
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: { anchor: from + 2 },
+      });
+      view.focus();
+    },
+  },
 ];
 
 // --- SVG Icons ---
@@ -174,7 +144,6 @@ const ICONS: Record<string, string> = {
   'code': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
   'minus': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   'heading': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16"/><path d="M18 4v16"/><path d="M6 12h12"/></svg>',
-  'math': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l6-16h4l6 16"/><path d="M8 12h8"/></svg>',
   'table': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>',
 };
 
