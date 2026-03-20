@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, type ReactNode, type MouseEvent } from 'react';
 import { cn } from '@/lib/utils';

@@ -1,0 +1,29 @@
+appId: com.cushion.app
+productName: Cushion
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+extraResources:
+  - from: ../coordinator/dist
+    to: coordinator/dist
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
+mac:
+  target: dmg
+  category: public.app-category.productivity
+  extendInfo:
+    CFBundleDocumentTypes:
+      - CFBundleTypeName: Folder
+        CFBundleTypeRole: Viewer
+        LSHandlerRank: Alternate
+linux:
+  target: AppImage
+  category: Office
+  mimeTypes:
+    - inode/directory

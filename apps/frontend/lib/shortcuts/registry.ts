@@ -33,12 +33,20 @@ export const shortcutRegistry = [
     defaultBindings: ['Mod+O'],
   },
   {
+    id: 'app.note.new',
+    label: 'New note',
+    description: 'Create a new note at root level.',
+    scope: 'app',
+    category: 'App',
+    defaultBindings: ['Mod+N'],
+  },
+  {
     id: 'app.chat.newSession',
     label: 'New chat session',
     description: 'Start a new chat session in the right panel.',
     scope: 'app',
     category: 'App',
-    defaultBindings: ['Mod+N'],
+    defaultBindings: ['Mod+Shift+N'],
   },
   {
     id: 'app.graph.toggle',

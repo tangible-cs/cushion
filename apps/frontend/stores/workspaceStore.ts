@@ -42,6 +42,7 @@ interface WorkspaceActions {
 
   // Tab management
   addTab: (filePath: string, isPreview?: boolean) => void;
+  addNewTab: () => void;
   removeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   pinTab: (tabId: string) => void;
@@ -218,6 +219,9 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             }));
 
             get().addRecentProject();
+
+            // Feature 3: notify Electron so the OS shows recent workspaces
+            window.electronAPI?.notifyWorkspaceOpened?.(projectPath);
           } catch (error) {
             const errorMessage =
               error instanceof Error ? error.message : 'Unknown error';
@@ -234,6 +238,11 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
          * Ask the coordinator to show a native folder picker
          */
         selectWorkspaceFolder: async () => {
+          // In Electron, use the native dialog directly
+          if (window.electronAPI?.selectFolder) {
+            return window.electronAPI.selectFolder();
+          }
+
           if (!coordinatorClient) {
             throw new Error('Coordinator client not initialized');
           }
@@ -252,20 +261,42 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         /**
          * Open a file
          */
-        openFile: (filePath: string, content: string) => {
+        openFile: (filePath: string, content: string, forceNewTab: boolean = false) => {
           const { metadata, openFiles, tabs } = get();
 
           if (!metadata) {
             return;
           }
 
-          const existingFile = openFiles.get(filePath);
-          if (existingFile) {
-            const existingTab = tabs.find((t) => t.filePath === filePath);
-            if (!existingTab) {
-              get().addTab(filePath, false);
+          // If file already has a tab, just switch to it
+          const existingTab = tabs.find((t) => t.filePath === filePath);
+          if (existingTab) {
+            // Convert preview tab to permanent when navigating back to it
+            if (existingTab.isPreview) {
+              get().convertPreviewTab(filePath);
             }
-            set({ currentFile: filePath });
+            get().setActiveTab(existingTab.id);
+
+            // Still need to load the file if not in openFiles
+            if (!openFiles.get(filePath)) {
+              const frontmatter = extractFrontmatter(filePath, content);
+              const fileState: FileState = {
+                filePath,
+                absolutePath: `${metadata.projectPath}/${filePath}`,
+                content,
+                savedContent: content,
+                isDirty: false,
+                version: 1,
+                language: detectLanguage(filePath),
+                encoding: 'utf-8',
+                lineEnding: 'LF',
+                lastSaved: Date.now(),
+                frontmatter,
+              };
+              const newOpenFiles = new Map(openFiles);
+              newOpenFiles.set(filePath, fileState);
+              set({ openFiles: newOpenFiles });
+            }
             return;
           }
 
@@ -289,10 +320,24 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const newOpenFiles = new Map(openFiles);
           newOpenFiles.set(filePath, fileState);
 
-          const existingTab = tabs.find((t) => t.filePath === filePath);
-          if (!existingTab) {
-            get().addTab(filePath, false);
+          // Replace __new_tab__ placeholder if one is active
+          const newTabPlaceholder = tabs.find((t) => t.filePath === '__new_tab__');
+          if (newTabPlaceholder) {
+            const newTabs = tabs.map((t) =>
+              t.id === newTabPlaceholder.id
+                ? { ...t, filePath, isActive: true, isPreview: !forceNewTab }
+                : { ...t, isActive: false }
+            );
+            set({
+              tabs: newTabs,
+              openFiles: newOpenFiles,
+              currentFile: filePath,
+            });
+            return;
           }
+
+          // Ctrl+click = new permanent tab; normal click = preview (reuses existing preview tab)
+          get().addTab(filePath, !forceNewTab);
 
           set({
             openFiles: newOpenFiles,
@@ -344,6 +389,12 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           newOpenFiles.set(filePath, updatedFile);
 
           set({ openFiles: newOpenFiles });
+
+          // Editing a file converts its preview tab to permanent (Obsidian behavior)
+          const previewTab = get().tabs.find((t) => t.filePath === filePath && t.isPreview);
+          if (previewTab) {
+            get().convertPreviewTab(filePath);
+          }
         },
 
         /**
@@ -427,14 +478,15 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         addTab: (filePath: string, isPreview: boolean = false) => {
           const { tabs } = get();
 
+          // Preview mode: reuse existing preview tab if there is one
           if (isPreview) {
             const previewTabIndex = tabs.findIndex((t) => t.isPreview);
             if (previewTabIndex !== -1) {
-              const newTabs = [...tabs];
-              newTabs[previewTabIndex] = {
-                ...newTabs[previewTabIndex],
-                filePath,
-              };
+              const newTabs = tabs.map((t, i) =>
+                i === previewTabIndex
+                  ? { ...t, filePath, isActive: true }
+                  : { ...t, isActive: false }
+              );
               set({ tabs: newTabs, currentFile: filePath });
               return;
             }
@@ -455,6 +507,29 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({
             tabs: newTabs,
             currentFile: filePath,
+          });
+        },
+
+        /**
+         * Add an empty "New tab"
+         */
+        addNewTab: () => {
+          const { tabs } = get();
+          const newTab: TabState = {
+            id: `tab-${Date.now()}-${Math.random()}`,
+            filePath: '__new_tab__',
+            isActive: true,
+            isPinned: false,
+            isPreview: false,
+            order: tabs.length,
+          };
+
+          const newTabs = tabs.map((t) => ({ ...t, isActive: false }));
+          newTabs.push(newTab);
+
+          set({
+            tabs: newTabs,
+            currentFile: '__new_tab__',
           });
         },
 

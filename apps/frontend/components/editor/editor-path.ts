@@ -28,6 +28,10 @@ export function buildEditorBreadcrumb({
   projectName,
   currentFile,
 }: BuildEditorBreadcrumbInput): EditorBreadcrumb {
+  if (currentFile === '__new_tab__') {
+    return { text: 'New tab', title: 'New tab' };
+  }
+
   const root = projectName?.trim() ?? '';
   const fileSegments = currentFile ? normalizePath(currentFile) : [];
 

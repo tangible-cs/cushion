@@ -1,4 +1,3 @@
-'use client';
 
 import React from 'react';
 import type { FilePart, AgentPart } from '@opencode-ai/sdk/v2/client';

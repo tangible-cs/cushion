@@ -1,10 +1,7 @@
-'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { Copy, Check } from 'lucide-react';
-
 // Configure DOMPurify for security
 const SANITIZE_CONFIG = {
   USE_PROFILES: { html: true, mathMl: true },

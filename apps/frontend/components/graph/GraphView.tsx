@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
@@ -521,17 +520,18 @@ export function GraphView({ linkIndex, currentFile, onNodeClick, onClose }: Grap
       </div>
 
       {/* Tooltip for hovered node */}
-      {hoveredNode && (
-        <div className="absolute top-4 left-4 z-20 bg-surface-elevated border border-border rounded-lg px-3 py-2 text-sm shadow-lg">
-          <div className="font-medium">
-            {placedNodes.find(n => n.id === hoveredNode)?.label}
+      {hoveredNode && (() => {
+        const node = placedNodes.find(n => n.id === hoveredNode);
+        if (!node) return null;
+        return (
+          <div className="absolute top-4 left-4 z-20 bg-surface-elevated border border-border rounded-lg px-3 py-2 text-sm shadow-lg">
+            <div className="font-medium">{node.label}</div>
+            <div className="text-xs text-foreground-muted mt-1">
+              {node.incomingCount || 0} incoming · {node.outgoingCount || 0} outgoing
+            </div>
           </div>
-          <div className="text-xs text-foreground-muted mt-1">
-            {placedNodes.find(n => n.id === hoveredNode)?.incomingCount || 0} incoming · {' '}
-            {placedNodes.find(n => n.id === hoveredNode)?.outgoingCount || 0} outgoing
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

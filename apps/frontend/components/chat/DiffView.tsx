@@ -1,4 +1,3 @@
-'use client';
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { File as FileIcon, Minus, Plus } from 'lucide-react';

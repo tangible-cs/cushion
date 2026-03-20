@@ -4,7 +4,7 @@
  * Fetches provider/model data from models.dev API (matching OpenCode)
  */
 
-import { getModelsDevCache } from './models-dev';
+import { getModelsDevCache } from './models-dev.js';
 import type { Provider, Model, AuthMethod } from '@cushion/types';
 
 // Popular providers order (matching OpenCode)

@@ -1,4 +1,3 @@
-'use client';
 
 import { X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';

@@ -8,7 +8,10 @@
     "dev": "concurrently -k --names coordinator,frontend --prefix-colors blue,green \"bun run --filter coordinator dev\" \"bun run --filter frontend dev\"",
     "dev:frontend": "bun run --filter frontend dev",
     "dev:coordinator": "bun run --filter coordinator dev",
+    "dev:electron": "bun run --filter @cushion/types build && bun run --filter coordinator build && bun run --filter electron-app dev",
     "build": "bun run --filter @cushion/types build && bun run --filter frontend build && bun run --filter coordinator build",
+    "build:electron": "bun run --filter @cushion/types build && bun run --filter coordinator build && bun run --filter electron-app build",
+    "package:electron": "bun run build:electron && bun run --filter electron-app package",
     "type-check": "bun run --filter '*' type-check",
     "lint": "bun run --filter '*' lint && bun run lint:colors && bun run verify:pdfjs-assets",
     "lint:colors": "bun run scripts/color-guardrails.mjs",
@@ -16,7 +19,7 @@
     "verify:pdfjs-assets": "bun run scripts/verify-pdfjs-assets.mjs",
     "test": "bun run --filter '*' test",
     "ci": "bun run lint && bun run type-check && bun run test",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next apps/*/dist"
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

@@ -11,9 +11,12 @@ docs/
 # Build outputs
 dist/
 build/
-.next/
 out/
 .turbo/
+
+# Electron
+apps/electron/out/
+apps/electron/release/
 
 # Environment files
 .env
@@ -38,7 +41,6 @@ scripts/
 
 # Cache
 .cache/
-.vercel/
 
 # Build artifacts
 apps/coordinator/bin/*.exe

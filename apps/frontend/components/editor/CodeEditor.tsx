@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
@@ -620,6 +619,18 @@ export function CodeEditor({
     // Re-create editor when filePath or language changes; content is initial only per file
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, language]);
+
+  // Sync external content changes (e.g. file changed on disk) into CodeMirror
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const currentDoc = view.state.doc.toString();
+    if (content !== currentDoc) {
+      view.dispatch({
+        changes: { from: 0, to: currentDoc.length, insert: content },
+      });
+    }
+  }, [content]);
 
   useEffect(() => {
     const view = viewRef.current;

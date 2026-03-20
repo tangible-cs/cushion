@@ -1,10 +1,8 @@
-'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { CodeEditor } from './CodeEditor';
 import { EditorNavRow } from './EditorNavRow';
-import { EditorTabRow } from './EditorTabRow';
 import { buildEditorBreadcrumb } from './editor-path';
 import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
 import { ImageViewer } from './ImageViewer';
@@ -20,18 +18,17 @@ import {
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 
 interface EditorPanelProps {
   client: CoordinatorClient;
   onFileRenamed?: () => void;
   fileTree?: FileTreeNode[];
-  sidebarCollapsed?: boolean;
-  onExpandSidebar?: () => void;
   focusModeEnabled?: boolean;
   onToggleFocusMode?: () => void;
-  rightPanelOpen?: boolean;
-  onToggleRightPanel?: () => void;
+  onNewNote?: () => void;
+  onGoToFile?: () => void;
 }
 
 const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
@@ -45,8 +42,6 @@ const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
   'image/x-icon': 'ico',
   'image/vnd.microsoft.icon': 'ico',
 };
-
-const BINARY_WIKI_LINK_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
 
 
 function formatPasteTimestamp(date: Date): string {
@@ -103,24 +98,20 @@ export function EditorPanel({
   client,
   onFileRenamed,
   fileTree,
-  sidebarCollapsed,
-  onExpandSidebar,
   focusModeEnabled,
   onToggleFocusMode,
-  rightPanelOpen,
-  onToggleRightPanel,
+  onNewNote,
+  onGoToFile,
 }: EditorPanelProps) {
   const workspacePath = useWorkspaceStore((s) => s.metadata?.projectPath ?? null);
   const projectName = useWorkspaceStore((s) => s.metadata?.projectName ?? null);
   const currentFile = useWorkspaceStore((s) => s.currentFile);
-  const tabs = useWorkspaceStore((s) => s.tabs);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
   const preferences = useWorkspaceStore((s) => s.preferences);
   const updateFileContent = useWorkspaceStore((s) => s.updateFileContent);
   const markFileSaved = useWorkspaceStore((s) => s.markFileSaved);
   const setCurrentFile = useWorkspaceStore((s) => s.setCurrentFile);
   const closeFile = useWorkspaceStore((s) => s.closeFile);
-  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const openFile = useWorkspaceStore((s) => s.openFile);
 
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({
@@ -394,33 +385,6 @@ export function EditorPanel({
     [client]
   );
 
-  const handleSelectTab = useCallback(
-    (filePath: string) => {
-      const tab = tabs.find((t) => t.filePath === filePath);
-      if (tab) {
-        setActiveTab(tab.id);
-      } else {
-        setCurrentFile(filePath);
-      }
-    },
-    [tabs, setActiveTab, setCurrentFile]
-  );
-
-  const handleCloseTab = useCallback(
-    (filePath: string) => {
-      openedUrisRef.current.delete(filePath);
-      closeFile(filePath);
-
-      const remaining = useWorkspaceStore.getState().tabs;
-      if (remaining.length > 0) {
-        setCurrentFile(remaining[0].filePath);
-      } else {
-        setCurrentFile(null);
-      }
-    },
-    [closeFile, setCurrentFile]
-  );
-
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const searchPanelContainerRef = useRef<HTMLDivElement>(null);
 
@@ -496,7 +460,7 @@ export function EditorPanel({
     async (href, resolvedPath, createIfMissing) => {
       if (resolvedPath) {
         try {
-          if (BINARY_WIKI_LINK_EXTENSIONS.test(resolvedPath)) {
+          if (BINARY_FILE_EXTENSIONS.test(resolvedPath)) {
             openFile(resolvedPath, '');
             return;
           }
@@ -525,16 +489,6 @@ export function EditorPanel({
       {/* Header rows */}
       {!focusModeEnabled && (
         <>
-          <EditorTabRow
-            sidebarCollapsed={sidebarCollapsed}
-            onExpandSidebar={onExpandSidebar}
-            tabs={tabs}
-            currentFile={currentFile}
-            onSelectTab={handleSelectTab}
-            onCloseTab={handleCloseTab}
-            rightPanelOpen={rightPanelOpen}
-            onToggleRightPanel={onToggleRightPanel}
-          />
           <EditorNavRow
             canGoBack={canGoBack}
             canGoForward={canGoForward}
@@ -557,7 +511,9 @@ export function EditorPanel({
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
-        {isPdf && pdfData ? (
+        {isPdf && !pdfData ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">Loading PDF…</div>
+        ) : isPdf && pdfData ? (
           <PdfViewer
             filePath={pdfData.filePath}
             base64Data={pdfData.mode === 'base64' ? pdfData.base64 : undefined}
@@ -579,6 +535,8 @@ export function EditorPanel({
               }
             }}
           />
+        ) : isImage && !imageData ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">Loading image…</div>
         ) : isImage && imageData ? (
           <ImageViewer
             filePath={currentFile!}
@@ -610,8 +568,41 @@ export function EditorPanel({
             />
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            Open a file from the sidebar
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
+            <button
+              onClick={onNewNote}
+              className="text-accent hover:underline cursor-pointer"
+            >
+              Create new note (Ctrl + N)
+            </button>
+            <button
+              onClick={onGoToFile}
+              className="text-accent hover:underline cursor-pointer"
+            >
+              Go to file (Ctrl + O)
+            </button>
+            {currentFile === '__new_tab__' && (
+              <button
+                onClick={() => {
+                  const store = useWorkspaceStore.getState();
+                  const tab = store.tabs.find(
+                    (t) => t.filePath === '__new_tab__' && t.isActive
+                  );
+                  if (tab) {
+                    store.removeTab(tab.id);
+                    const remaining = useWorkspaceStore.getState().tabs;
+                    if (remaining.length > 0) {
+                      store.setActiveTab(remaining[remaining.length - 1].id);
+                    } else {
+                      store.setCurrentFile(null);
+                    }
+                  }
+                }}
+                className="text-accent hover:underline cursor-pointer"
+              >
+                Close
+              </button>
+            )}
           </div>
         )}
       </div>

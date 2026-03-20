@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -195,13 +194,16 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
-          {groups.popular.length > 0 && (
-            <div>
+          {([
+            { label: 'Popular providers', items: groups.popular },
+            { label: 'Other providers', items: groups.other },
+          ] as const).map(({ label, items }) => items.length > 0 && (
+            <div key={label}>
               <div className="sticky top-0 z-10 relative px-2 py-2 text-[13px] font-medium text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-[var(--surface-elevated)] after:to-transparent">
-                Popular providers
+                {label}
               </div>
               <div className="space-y-0.5 pb-1">
-                {groups.popular.map((provider) => {
+                {items.map((provider) => {
                   const isConnected = connected.has(provider.id);
                   const providerIcon = resolveProviderIcon(provider.id);
                   const description = getProviderDescription(provider.id);
@@ -240,54 +242,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
                 })}
               </div>
             </div>
-          )}
-
-          {groups.other.length > 0 && (
-            <div>
-              <div className="sticky top-0 z-10 relative px-2 py-2 text-[13px] font-medium text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-[var(--surface-elevated)] after:to-transparent">
-                Other providers
-              </div>
-              <div className="space-y-0.5 pb-1">
-                {groups.other.map((provider) => {
-                  const isConnected = connected.has(provider.id);
-                  const providerIcon = resolveProviderIcon(provider.id);
-                  const description = getProviderDescription(provider.id);
-                  const isRecommended = RECOMMENDED_PROVIDER_IDS.has(provider.id);
-
-                  return (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      onClick={() => onProviderSelect(provider.id, provider.name)}
-                      className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-[var(--overlay-10)] focus-visible:bg-[var(--overlay-10)] focus-visible:outline-none"
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <ProviderIcon id={providerIcon} className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="min-w-0 flex-1 truncate text-[14px] text-foreground">{provider.name}</span>
-                            {isRecommended && (
-                              <span className="whitespace-nowrap rounded-full bg-[var(--accent-primary-12)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-primary)]">
-                                Recommended
-                              </span>
-                            )}
-                            {isConnected && (
-                              <span className="whitespace-nowrap rounded-full bg-[var(--accent-green-12)] px-1.5 py-0.5 text-[10px] font-medium text-accent-green">
-                                Connected
-                              </span>
-                            )}
-                          </div>
-                          {description && (
-                            <p className="mt-0.5 text-xs text-[var(--foreground-subtle)]">{description}</p>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          ))}
 
           {filteredProviders.length === 0 && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">No providers found</div>

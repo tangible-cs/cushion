@@ -1,4 +1,3 @@
-'use client';
 
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Share2, Target } from 'lucide-react';

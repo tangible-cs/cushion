@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link2, GitBranch } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -21,18 +19,19 @@ import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useConfigSync } from '@/hooks/useConfigSync';
+import { EditorTabRow } from '@/components/editor/EditorTabRow';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
   'app.quickSwitcher.open',
+  'app.note.new',
   'app.chat.newSession',
   'app.graph.toggle',
   'app.backlinks.toggle',
   'app.overlay.close',
   'app.focusMode.exit',
 ] as const;
-
-const BINARY_NAVIGATION_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
 
 type OverlayCloseTarget = {
   isOpen: boolean;
@@ -47,6 +46,11 @@ function closeTopmostOverlay(targets: readonly OverlayCloseTarget[]): boolean {
   }
   return false;
 }
+
+const TITLEBAR_OVERLAY_COLORS = {
+  dark: { color: '#262626', symbolColor: '#dadada' },
+  light: { color: '#f6f6f6', symbolColor: '#222222' },
+} as const;
 
 function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: string) {
   const html = document.documentElement;
@@ -65,10 +69,12 @@ function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: stri
     html.style.removeProperty('--accent-s');
     html.style.removeProperty('--accent-l');
   }
+
+  window.electronAPI?.updateTitleBarTheme(TITLEBAR_OVERLAY_COLORS[resolvedTheme]);
 }
 
 export default function Home() {
-  const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects } = useWorkspaceStore();
+  const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects, tabs, setActiveTab, addNewTab, closeFile, setCurrentFile, sidebarWidth } = useWorkspaceStore();
   const openFiles = useWorkspaceStore((state) => state.openFiles);
   const connectChat = useChatStore((state) => state.connect);
   const disconnectChat = useChatStore((state) => state.disconnect);
@@ -222,6 +228,26 @@ export default function Home() {
     }
   }, [metadata]);
 
+  const handleNewNote = useCallback(async () => {
+    if (!client) return;
+
+    try {
+      let name = 'Untitled.md';
+      let counter = 1;
+      const existing = new Set(fileTree?.map((n) => n.name) ?? []);
+      while (existing.has(name)) {
+        name = `Untitled ${counter}.md`;
+        counter++;
+      }
+      await client.saveFile(name, '');
+      fileBrowserRef.current?.refreshFileList();
+      fetchFileTree();
+      openFile(name, '', true);
+    } catch (err) {
+      console.error('[Page] Failed to create new note:', err);
+    }
+  }, [client, openFile, fetchFileTree, fileTree]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -240,6 +266,11 @@ export default function Home() {
       if (matchShortcut(e, appShortcuts['app.quickSwitcher.open'])) {
         e.preventDefault();
         setShowQuickSwitcher(true);
+        return;
+      }
+      if (matchShortcut(e, appShortcuts['app.note.new'])) {
+        e.preventDefault();
+        handleNewNote();
         return;
       }
       if (matchShortcut(e, appShortcuts['app.chat.newSession'])) {
@@ -261,7 +292,7 @@ export default function Home() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [appShortcuts, closeTopmostAppOverlay, focusModeEnabled, setActiveSession]);
+  }, [appShortcuts, closeTopmostAppOverlay, focusModeEnabled, setActiveSession, handleNewNote]);
 
   useEffect(() => {
     if (rightPanelMode !== 'none') {
@@ -270,8 +301,8 @@ export default function Home() {
   }, [rightPanelMode]);
 
   const handleFileOpen = useCallback(
-    (filePath: string, content: string) => {
-      openFile(filePath, content);
+    (filePath: string, content: string, forceNewTab?: boolean) => {
+      openFile(filePath, content, forceNewTab);
     },
     [openFile]
   );
@@ -297,6 +328,31 @@ export default function Home() {
     setFocusModeEnabled((prev) => !prev);
   }, []);
 
+  const handleSelectTab = useCallback(
+    (filePath: string) => {
+      const tab = tabs.find((t) => t.filePath === filePath);
+      if (tab) {
+        setActiveTab(tab.id);
+      } else {
+        setCurrentFile(filePath);
+      }
+    },
+    [tabs, setActiveTab, setCurrentFile]
+  );
+
+  const handleCloseTab = useCallback(
+    (filePath: string) => {
+      closeFile(filePath);
+      const remaining = useWorkspaceStore.getState().tabs;
+      if (remaining.length > 0) {
+        setCurrentFile(remaining[0].filePath);
+      } else {
+        setCurrentFile(null);
+      }
+    },
+    [closeFile, setCurrentFile]
+  );
+
   const isSidebarHidden = sidebarCollapsed || focusModeEnabled;
 
   useEffect(() => {
@@ -309,9 +365,7 @@ export default function Home() {
   }, [focusModeEnabled]);
 
   const rightPanelMin = 280;
-  const rightPanelMax = typeof window !== 'undefined'
-    ? Math.max(rightPanelMin, Math.floor(window.innerWidth * 0.45))
-    : 520;
+  const rightPanelMax = Math.max(rightPanelMin, Math.floor(window.innerWidth * 0.45));
   const resolvedRightPanelWidth = Math.min(rightPanelMax, Math.max(rightPanelMin, rightPanelWidth));
   const isRightPanelHidden = focusModeEnabled || rightPanelMode === 'none';
 
@@ -327,9 +381,9 @@ export default function Home() {
 
   const handleNavigateToFile = useCallback(async (filePath: string) => {
     if (!client) return;
-    
+
     try {
-      if (BINARY_NAVIGATION_EXTENSIONS.test(filePath)) {
+      if (BINARY_FILE_EXTENSIONS.test(filePath)) {
         openFile(filePath, '');
         return;
       }
@@ -342,13 +396,13 @@ export default function Home() {
 
   const handleCreateFile = useCallback(async (fileName: string) => {
     if (!client) return;
-    
+
     try {
       const filePath = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
       await client.saveFile(filePath, '');
       fileBrowserRef.current?.refreshFileList();
       fetchFileTree();
-      openFile(filePath, '');
+      openFile(filePath, '', true);
     } catch (err) {
       console.error('[Page] Failed to create file:', err);
     }
@@ -357,9 +411,42 @@ export default function Home() {
   const backlinksShortcutLabel = formatShortcutList(appShortcuts['app.backlinks.toggle']);
   const graphShortcutLabel = formatShortcutList(appShortcuts['app.graph.toggle']);
 
+  // Feature 3/4: listen for workspace-open events from Electron
+  useEffect(() => {
+    if (!window.electronAPI?.onOpenWorkspace) return;
+    window.electronAPI.onOpenWorkspace((path) => {
+      openWorkspace(path).catch((err) => {
+        console.error('[Home] Failed to open workspace from OS:', err);
+      });
+    });
+  }, [openWorkspace]);
+
   return (
     <ToastProvider>
-      <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex">
+      <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
+      {/* Top bar — full width, serves as title bar in Electron */}
+      {!focusModeEnabled && (
+        <EditorTabRow
+          sidebarOpen={!isSidebarHidden && !!metadata}
+          sidebarWidth={sidebarWidth}
+          onOpenWorkspace={handleOpenWorkspace}
+          onToggleSidebar={() => {
+            if (focusModeEnabled) {
+              setFocusModeEnabled(false);
+            }
+            setSidebarCollapsed((prev) => !prev);
+          }}
+          tabs={tabs}
+          currentFile={currentFile}
+          onSelectTab={handleSelectTab}
+          onCloseTab={handleCloseTab}
+          onAddTab={addNewTab}
+          rightPanelOpen={rightPanelMode !== 'none'}
+          rightPanelWidth={resolvedRightPanelWidth}
+          onToggleRightPanel={toggleRightPanel}
+        />
+      )}
+      <div className="flex-1 flex overflow-hidden min-h-0">
       {/* Connection status banner */}
       {connectionState === 'reconnecting' && (
         <div
@@ -393,17 +480,10 @@ export default function Home() {
                 client={client}
                 onFileRenamed={handleFileRenamed}
                 fileTree={fileTree}
-                sidebarCollapsed={isSidebarHidden && !!metadata}
-                onExpandSidebar={() => {
-                  if (focusModeEnabled) {
-                    setFocusModeEnabled(false);
-                  }
-                  setSidebarCollapsed(false);
-                }}
                 focusModeEnabled={focusModeEnabled}
                 onToggleFocusMode={toggleFocusMode}
-                rightPanelOpen={rightPanelMode !== 'none'}
-                onToggleRightPanel={toggleRightPanel}
+                onNewNote={handleNewNote}
+                onGoToFile={() => setShowQuickSwitcher(true)}
               />
             ) : (
               <EditorPlaceholder />
@@ -438,8 +518,7 @@ export default function Home() {
 
        {/* RIGHT: Chat panel - also uses negative margin for smooth transition */}
         <aside
-          suppressHydrationWarning
-          className="relative h-screen flex-shrink-0 border-l border-border bg-sidebar-bg transition-[margin] duration-300 ease-in-out"
+          className="relative h-full flex-shrink-0 border-l border-border bg-sidebar-bg transition-[margin] duration-300 ease-in-out"
           style={{
             width: resolvedRightPanelWidth,
             marginRight: isRightPanelHidden ? -resolvedRightPanelWidth : 0,
@@ -507,6 +586,7 @@ export default function Home() {
         onSelectFile={handleNavigateToFile}
         onCreateFile={handleCreateFile}
       />
+    </div>
     </div>
     </ToastProvider>
   );

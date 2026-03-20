@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, RotateCcw, Search, Plus, X } from 'lucide-react';
@@ -32,7 +31,7 @@ export function ShortcutsSettings() {
     return map;
   }, [overrides]);
 
-  const conflictMap = useMemo(() => {
+  const { conflictsPerShortcut } = useMemo(() => {
     const map = new Map<string, ShortcutId[]>();
     shortcutRegistry.forEach((shortcut) => {
       const bindings = resolvedBindings.get(shortcut.id) || [];
@@ -44,7 +43,27 @@ export function ShortcutsSettings() {
           map.set(key, [...list, shortcut.id]);
         });
     });
-    return map;
+
+    // Pre-compute conflicts per shortcut
+    const perShortcut = new Map<ShortcutId, ShortcutId[]>();
+    shortcutRegistry.forEach((shortcut) => {
+      const bindings = resolvedBindings.get(shortcut.id) || [];
+      const conflicts: ShortcutId[] = [];
+      bindings.forEach((binding) => {
+        const normalized = normalizeShortcutForConflict(binding);
+        if (!normalized) return;
+        const conflictKey = `${shortcut.scope}:${normalized}`;
+        const matches = map.get(conflictKey) || [];
+        matches.forEach((id) => {
+          if (id !== shortcut.id && !conflicts.includes(id)) {
+            conflicts.push(id);
+          }
+        });
+      });
+      if (conflicts.length > 0) perShortcut.set(shortcut.id, conflicts);
+    });
+
+    return { conflictMap: map, conflictsPerShortcut: perShortcut };
   }, [resolvedBindings]);
 
   const filteredGroups = useMemo(() => {
@@ -139,20 +158,7 @@ export function ShortcutsSettings() {
               {group.shortcuts.map((shortcut) => {
                 const bindings = resolvedBindings.get(shortcut.id) || [];
                 const isRecording = recordingId === shortcut.id;
-                const conflicts: ShortcutId[] = [];
-
-                bindings.forEach((binding) => {
-                  const normalized = normalizeShortcutForConflict(binding);
-                  if (!normalized) return;
-                  const conflictKey = `${shortcut.scope}:${normalized}`;
-                  const matches = conflictMap.get(conflictKey) || [];
-                  matches.forEach((id) => {
-                    if (id !== shortcut.id && !conflicts.includes(id)) {
-                      conflicts.push(id);
-                    }
-                  });
-                });
-
+                const conflicts = conflictsPerShortcut.get(shortcut.id) || [];
                 const conflictLabels = conflicts.map((id) => shortcutById.get(id)?.label ?? id);
 
                 return (

@@ -1,4 +1,3 @@
-'use client';
 
 import { useState } from 'react';
 import { Keyboard, Palette, Settings as SettingsIcon, SlidersHorizontal, X } from 'lucide-react';
