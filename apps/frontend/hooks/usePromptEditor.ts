@@ -27,6 +27,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
   const contextItems = useChatStore((state) => state.contextItems);
+  const removeContextItem = useChatStore((state) => state.removeContextItem);
   const agents = useChatStore((state) => state.agents);
 
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -80,12 +81,23 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     const hasNonText = rawParts.some((part) => part.type !== 'text');
     const shouldReset = trimmed.length === 0 && !hasNonText;
 
+    const syncContextItems = () => {
+      if (contextItems.length === 0) return;
+      const remainingPaths = new Set(
+        rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
+      );
+      for (const item of contextItems) {
+        if (!remainingPaths.has(item.path)) removeContextItem(item.id);
+      }
+    };
+
     if (shouldReset) {
       setTriggerState(null);
       if (promptText !== '') {
         mirror.current.input = true;
         setPromptText('');
       }
+      syncContextItems();
       return;
     }
 
@@ -96,6 +108,8 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
       mirror.current.input = true;
       setPromptText(rawText);
     }
+
+    syncContextItems();
   };
 
   const refreshTriggerFromSelection = () => {

@@ -1,12 +1,12 @@
 
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw, Search, X } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { createModelSorter } from '@/lib/model-constants';
 import { usePopularProviders } from '@/hooks/usePopularProviders';
 import { ProviderIcon } from './ProviderIcon';
-import { iconNames, type IconName } from './provider-icons/types';
+import { resolveProviderIcon } from './provider-icons/types';
 import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 
@@ -27,8 +27,6 @@ type ProviderGroup = {
   providerName: string;
   models: ModelEntry[];
 };
-
-const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
   const popularProviderIDs = usePopularProviders();
@@ -107,12 +105,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
     }
   };
 
-  const isModelVisible = (model: SelectedModel) => {
-    const state = modelVisibility[`${model.providerID}:${model.modelID}`];
-    if (state === 'hide') return false;
-    if (state === 'show') return true;
-    return true;
-  };
+  const isModelVisible = useChatStore((s) => s.isModelVisible);
 
   const handleRefresh = async () => {
     if (refreshing) return;
@@ -164,7 +157,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
         </div>
         <div className="px-4 pb-3">
           <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
-            <Icon name="magnifying-glass-menu" size="small" className="shrink-0 text-muted-foreground" />
+            <Search size={16} className="shrink-0 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search models"

@@ -378,10 +378,27 @@ export const useChatStore = create<ChatState & ChatActions>()(
         },
       }));
     },
+
+    toggleAutoAccept: () => {
+      const next = !get().autoAccept;
+      set({ autoAccept: next });
+      if (next) {
+        // Retroactively auto-respond to any pending permissions
+        const { permissions, activeSessionId } = get();
+        const pending = activeSessionId ? permissions[activeSessionId] ?? [] : [];
+        for (const perm of pending) {
+          get().respondToPermission({
+            sessionID: perm.sessionID,
+            permissionID: perm.id,
+            response: 'once',
+          }).catch(() => undefined);
+        }
+      }
+    },
       }),
       {
         name: 'cushion-chat',
-        version: 3,
+        version: 4,
         partialize: (state) => ({
           baseUrl: state.baseUrl,
           contextBySession: state.contextBySession,
@@ -393,10 +410,14 @@ export const useChatStore = create<ChatState & ChatActions>()(
           selectedVariantByDirectory: state.selectedVariantByDirectory,
           modelVisibility: state.modelVisibility,
           displayPreferences: state.displayPreferences,
+          autoAccept: state.autoAccept,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;
-          if (version >= 3) return state as ChatState;
+          if (version >= 4) return state as ChatState;
+          if (version === 3) {
+            return { ...state, autoAccept: false } as ChatState;
+          }
           const legacy = state as ChatState & {
             contextByDirectory?: Record<string, PromptContextItem[]>;
             promptSessionOrder?: string[];

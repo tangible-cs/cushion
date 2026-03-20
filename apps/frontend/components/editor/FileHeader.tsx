@@ -163,8 +163,8 @@ export function FileHeader({
     }
   }, []);
 
-  // Tangent uses --headerFontSizeFactor of ~2.5, we use 3 for bigger title
-  const fontSizeFactor = 3;
+  // Tangent uses --headerFontSizeFactor of ~2.5
+  const fontSizeFactor = 2;
   const contentPaddingX = 'var(--md-content-padding-x, 1.25em)';
   const horizontalPadding = `calc(${contentPaddingX} / ${fontSizeFactor})`;
   const headerMaxWidth =
@@ -190,7 +190,7 @@ export function FileHeader({
         margin: '0 auto',
         boxSizing: 'border-box',
         /* Scale padding from body text space to title space */
-        paddingTop: `calc(4em / ${fontSizeFactor})`,
+        paddingTop: `calc(2em / ${fontSizeFactor})`,
         paddingBottom: `calc(0.8em / ${fontSizeFactor})`,
         paddingLeft: horizontalPadding,
         paddingRight: horizontalPadding,

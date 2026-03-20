@@ -1,0 +1,1012 @@
+/*
+ * OpenCode Chat Color System
+ * ---------------------------
+ * Extracted from OpenCode's Tauri app (packages/ui/src/styles/).
+ * Provides the full semantic token layer + chat component overrides.
+ *
+ * Toggle: import/remove this file from globals.css to switch themes.
+ * When active, these tokens override the Cushion defaults *inside* the
+ * chat sidebar only (scoped to [data-chat-theme="opencode"]).
+ *
+ * To activate: add data-chat-theme="opencode" to the chat sidebar root,
+ * AND import this file in globals.css.
+ */
+
+/* ================================================================
+   1. OPENCODE SEMANTIC TOKENS — Light
+   ================================================================ */
+[data-chat-theme="opencode"] {
+  /* ---- Typography ---- */
+  --oc-font-size-small: 13px;
+  --oc-font-size-base: 14px;
+  --oc-font-size-large: 16px;
+
+  /* ---- Motion ---- */
+  --tool-motion-spring-ms: 480ms;
+  --tool-motion-fade-ms: 240ms;
+  --tool-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tool-motion-blur: 2px;
+
+  /* ---- Backgrounds ---- */
+  --oc-background-base: #f9f9f9;
+  --oc-background-weak: #f3f3f3;
+  --oc-background-strong: #ffffff;
+  --oc-background-stronger: #f9f9f9;
+
+  /* ---- Surfaces ---- */
+  --oc-surface-base: rgba(0, 0, 0, 0.031);
+  --oc-surface-base-hover: rgba(0, 0, 0, 0.059);
+  --oc-surface-base-active: rgba(0, 0, 0, 0.051);
+  --oc-surface-inset-base: rgba(0, 0, 0, 0.034);
+  --oc-surface-raised-base: rgba(0, 0, 0, 0.031);
+  --oc-surface-raised-base-hover: rgba(0, 0, 0, 0.051);
+  --oc-surface-raised-strong: #ffffff;
+  --oc-surface-raised-stronger: #ffffff;
+  --oc-surface-raised-stronger-non-alpha: #ffffff;
+  --oc-surface-float-base: #161616;
+  --oc-surface-weak: rgba(0, 0, 0, 0.051);
+  --oc-surface-weaker: rgba(0, 0, 0, 0.071);
+  --oc-surface-strong: #ffffff;
+
+  /* Brand / interactive / status surfaces */
+  --oc-surface-brand-base: #dcde8d;
+  --oc-surface-brand-hover: #d0d283;
+  --oc-surface-interactive-base: #f0ecff;
+  --oc-surface-interactive-hover: #e4dfff;
+  --oc-surface-interactive-weak: #f8f7ff;
+  --oc-surface-success-base: #dbfed7;
+  --oc-surface-success-weak: #f0feee;
+  --oc-surface-success-strong: #12c905;
+  --oc-surface-warning-base: #fcf3cb;
+  --oc-surface-warning-weak: #fdfaec;
+  --oc-surface-warning-strong: #fbdd46;
+  --oc-surface-critical-base: #fff2f0;
+  --oc-surface-critical-weak: #fff8f6;
+  --oc-surface-critical-strong: #fc533a;
+  --oc-surface-info-base: #fdecfe;
+  --oc-surface-info-weak: #fef7ff;
+  --oc-surface-info-strong: #a753ae;
+
+  /* Diff surfaces */
+  --oc-surface-diff-add-base: #e3fae1;
+  --oc-surface-diff-add-weak: #f4fcf3;
+  --oc-surface-diff-add-strong: #c2eebf;
+  --oc-surface-diff-add-stronger: #9ff29a;
+  --oc-surface-diff-delete-base: #feefeb;
+  --oc-surface-diff-delete-weak: #fff8f6;
+  --oc-surface-diff-delete-strong: #fdc3b7;
+  --oc-surface-diff-delete-stronger: #fc533a;
+  --oc-surface-diff-hidden-base: #eaf4ff;
+  --oc-surface-diff-hidden-strong: #cae3ff;
+
+  /* ---- Text ---- */
+  --oc-text-base: #6f6f6f;
+  --oc-text-weak: #8f8f8f;
+  --oc-text-weaker: #c7c7c7;
+  --oc-text-strong: #171717;
+  --oc-text-interactive-base: #7c3aed;
+  --oc-text-on-brand-base: rgba(0, 0, 0, 0.574);
+  --oc-text-on-critical-base: #ed4831;
+  --oc-text-on-critical-weak: #fe806a;
+  --oc-text-on-critical-strong: #601a0f;
+  --oc-text-on-success-base: #2dba26;
+  --oc-text-on-warning-base: rgba(0, 0, 0, 0.574);
+  --oc-text-on-info-base: rgba(0, 0, 0, 0.574);
+  --oc-text-diff-add-base: #3a8437;
+  --oc-text-diff-delete-base: #ed4831;
+  --oc-text-invert-strong: #ffffff;
+
+  /* ---- Buttons ---- */
+  --oc-button-primary-base: #171717;
+  --oc-button-secondary-base: #ffffff;
+  --oc-button-secondary-hover: #f3f3f3;
+  --oc-button-ghost-hover: rgba(0, 0, 0, 0.031);
+
+  /* ---- Borders ---- */
+  --oc-border-base: rgba(0, 0, 0, 0.162);
+  --oc-border-hover: rgba(0, 0, 0, 0.236);
+  --oc-border-weak-base: #e5e5e5;
+  --oc-border-strong-base: rgba(0, 0, 0, 0.151);
+  --oc-border-weaker-base: #f0f0f0;
+  --oc-border-interactive-base: #c4a3fd;
+  --oc-border-success-base: #96ec8e;
+  --oc-border-critical-base: #fdc3b7;
+  --oc-border-critical-selected: #fc533a;
+  --oc-border-warning-base: #e8d479;
+  --oc-border-info-base: #f4bdf8;
+
+  /* ---- Icons ---- */
+  --oc-icon-base: #8f8f8f;
+  --oc-icon-hover: #6f6f6f;
+  --oc-icon-active: #171717;
+  --oc-icon-weak-base: #dbdbdb;
+  --oc-icon-weaker: #dbdbdb;
+  --oc-icon-strong-base: #171717;
+  --oc-icon-interactive-base: #7c3aed;
+  --oc-icon-success-base: #7add71;
+  --oc-icon-critical-base: #ed4831;
+  --oc-icon-warning-base: #ebb76e;
+  --oc-icon-info-base: #e6a8ea;
+  --oc-icon-diff-add-base: #3a8437;
+  --oc-icon-diff-delete-base: #ed4831;
+  --oc-icon-diff-modified-base: #ff8c00;
+  --oc-icon-agent-plan-base: #a753ae;
+  --oc-icon-agent-docs-base: #fcb239;
+  --oc-icon-agent-ask-base: #8b5cf6;
+  --oc-icon-agent-build-base: #7c3aed;
+
+  /* ---- Input ---- */
+  --oc-input-base: #ffffff;
+  --oc-input-hover: #f3f3f3;
+  --oc-input-active: #fdfcff;
+
+  /* ---- Syntax highlighting ---- */
+  --oc-syntax-comment: var(--oc-text-weak);
+  --oc-syntax-string: #6d28d9;
+  --oc-syntax-keyword: var(--oc-text-weak);
+  --oc-syntax-primitive: #fb4804;
+  --oc-syntax-operator: var(--oc-text-base);
+  --oc-syntax-variable: var(--oc-text-strong);
+  --oc-syntax-property: #ed6dc8;
+  --oc-syntax-type: #596600;
+  --oc-syntax-constant: #007b80;
+  --oc-syntax-success: #2dba26;
+  --oc-syntax-warning: #efa72e;
+  --oc-syntax-critical: #ed4831;
+  --oc-syntax-info: #0092a8;
+  --oc-syntax-diff-add: #3a8437;
+  --oc-syntax-diff-delete: #ca2d17;
+
+  /* ---- Shadows ---- */
+  --oc-shadow-xs:
+    0 1px 2px -0.5px hsl(0 0% 0% / 0.04),
+    0 0.5px 1.5px 0 hsl(0 0% 0% / 0.025),
+    0 1px 3px 0 hsl(0 0% 0% / 0.05);
+  --oc-shadow-xs-border:
+    0 0 0 1px var(--oc-border-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
+    0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
+  --oc-shadow-xs-border-base:
+    0 0 0 1px var(--oc-border-weak-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
+    0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
+
+  /* ---- Radii ---- */
+  --oc-radius-xs: 0.125rem;
+  --oc-radius-sm: 0.25rem;
+  --oc-radius-md: 0.375rem;
+  --oc-radius-lg: 0.5rem;
+  --oc-radius-xl: 0.625rem;
+
+  /* =============================================================
+     MAP OC TOKENS → CUSHION CSS VARIABLES
+     These overrides make all existing chat components pick up
+     OpenCode colors without touching component CSS.
+     ============================================================= */
+  --background: var(--oc-background-base);
+  --sidebar-bg: var(--oc-background-base);
+  --surface: var(--oc-background-stronger);
+  --surface-elevated: var(--oc-surface-strong);
+  --surface-tertiary: var(--oc-background-weak);
+  --foreground: var(--oc-text-strong);
+  --foreground-muted: var(--oc-text-base);
+  --text-normal: var(--oc-text-strong);
+  --text-muted: var(--oc-text-base);
+  --text-faint: var(--oc-text-weak);
+  --muted-foreground: var(--oc-text-base);
+  --border: var(--oc-border-weak-base);
+  --background-modifier-border: var(--oc-border-weak-base);
+  --background-modifier-border-hover: var(--oc-border-weaker-base);
+  --background-modifier-border-focus: var(--oc-border-base);
+  --interactive-accent: var(--oc-text-interactive-base);
+  --interactive-accent-hover: #0240d9;
+  --accent-primary: var(--oc-text-interactive-base);
+  --accent-green: var(--oc-surface-success-strong);
+  --accent-red: var(--oc-surface-critical-strong);
+  --accent-yellow: var(--oc-surface-warning-strong);
+  --accent-green-12: var(--oc-surface-success-weak);
+  --accent-red-12: var(--oc-surface-critical-weak);
+  --overlay-10: var(--oc-surface-base);
+  --overlay-20: var(--oc-surface-base-hover);
+  --text-accent: var(--oc-text-interactive-base);
+}
+
+/* ================================================================
+   2. OPENCODE SEMANTIC TOKENS — Dark
+   ================================================================ */
+.dark [data-chat-theme="opencode"],
+[data-chat-theme="opencode"].dark {
+  --oc-background-base: #262626;
+  --oc-background-weak: #1e1e1e;
+  --oc-background-strong: #121212;
+  --oc-background-stronger: #262626;
+
+  --oc-surface-base: rgba(255, 255, 255, 0.031);
+  --oc-surface-base-hover: rgba(255, 255, 255, 0.039);
+  --oc-surface-base-active: rgba(255, 255, 255, 0.059);
+  --oc-surface-inset-base: rgba(0, 0, 0, 0.5);
+  --oc-surface-raised-base: rgba(255, 255, 255, 0.059);
+  --oc-surface-raised-base-hover: rgba(255, 255, 255, 0.078);
+  --oc-surface-raised-strong: rgba(255, 255, 255, 0.078);
+  --oc-surface-raised-stronger: rgba(255, 255, 255, 0.129);
+  --oc-surface-raised-stronger-non-alpha: #1c1c1c;
+  --oc-surface-float-base: #161616;
+  --oc-surface-weak: rgba(255, 255, 255, 0.078);
+  --oc-surface-weaker: rgba(255, 255, 255, 0.102);
+  --oc-surface-strong: rgba(255, 255, 255, 0.169);
+
+  --oc-surface-brand-base: #fab283;
+  --oc-surface-brand-hover: #eda779;
+  --oc-surface-interactive-base: #1f0952;
+  --oc-surface-interactive-weak: #150b30;
+  --oc-surface-success-base: #062d04;
+  --oc-surface-success-weak: #0a1e08;
+  --oc-surface-success-strong: #12c905;
+  --oc-surface-warning-base: #fdf3cf;
+  --oc-surface-warning-weak: #fdfaed;
+  --oc-surface-warning-strong: #fcd53a;
+  --oc-surface-critical-base: #1f0603;
+  --oc-surface-critical-weak: #28110c;
+  --oc-surface-critical-strong: #fc533a;
+  --oc-surface-info-base: #feecfe;
+  --oc-surface-info-weak: #fdf7fe;
+  --oc-surface-info-strong: #edb2f1;
+
+  --oc-surface-diff-add-base: #1a2919;
+  --oc-surface-diff-add-weak: #1f351e;
+  --oc-surface-diff-add-strong: #264024;
+  --oc-surface-diff-add-stronger: #9bcd97;
+  --oc-surface-diff-delete-base: #42120b;
+  --oc-surface-diff-delete-weak: #580f06;
+  --oc-surface-diff-delete-strong: #6a1206;
+  --oc-surface-diff-delete-stronger: #faa494;
+  --oc-surface-diff-hidden-base: #0c1928;
+  --oc-surface-diff-hidden-strong: #073966;
+
+  --oc-text-base: rgba(255, 255, 255, 0.618);
+  --oc-text-weak: rgba(255, 255, 255, 0.422);
+  --oc-text-weaker: rgba(255, 255, 255, 0.284);
+  --oc-text-strong: rgba(255, 255, 255, 0.936);
+  --oc-text-interactive-base: #be9dfe;
+  --oc-text-on-brand-base: rgba(255, 255, 255, 0.603);
+  --oc-text-on-critical-base: #fc533a;
+  --oc-text-on-critical-weak: #b72d1a;
+  --oc-text-on-critical-strong: #ffe0da;
+  --oc-text-on-success-base: #12c905;
+  --oc-text-on-warning-base: rgba(255, 255, 255, 0.603);
+  --oc-text-on-info-base: rgba(255, 255, 255, 0.603);
+  --oc-text-diff-add-base: #9bcd97;
+  --oc-text-diff-delete-base: #fc533a;
+  --oc-text-invert-strong: #ededed;
+
+  --oc-button-primary-base: #ededed;
+  --oc-button-secondary-base: #1c1c1c;
+  --oc-button-secondary-hover: rgba(255, 255, 255, 0.039);
+  --oc-button-ghost-hover: rgba(255, 255, 255, 0.031);
+
+  --oc-border-base: rgba(255, 255, 255, 0.195);
+  --oc-border-hover: rgba(255, 255, 255, 0.284);
+  --oc-border-weak-base: #282828;
+  --oc-border-strong-base: rgba(255, 255, 255, 0.266);
+  --oc-border-weaker-base: #202020;
+  --oc-border-interactive-base: #c4a3fd;
+  --oc-border-success-base: #96ec8e;
+  --oc-border-critical-base: #6a1206;
+  --oc-border-critical-selected: #fc533a;
+  --oc-border-warning-base: #e9d282;
+  --oc-border-info-base: #eac5ec;
+
+  --oc-icon-base: #7e7e7e;
+  --oc-icon-hover: #a0a0a0;
+  --oc-icon-active: #ededed;
+  --oc-icon-weak-base: #343434;
+  --oc-icon-weaker: #343434;
+  --oc-icon-strong-base: #ededed;
+  --oc-icon-interactive-base: #7c3aed;
+  --oc-icon-success-base: #12c905;
+  --oc-icon-critical-base: #fc533a;
+  --oc-icon-warning-base: #fbb73c;
+  --oc-icon-info-base: #68446b;
+  --oc-icon-diff-add-base: #9bcd97;
+  --oc-icon-diff-delete-base: #fc533a;
+  --oc-icon-diff-modified-base: #ffba92;
+  --oc-icon-agent-plan-base: #edb2f1;
+  --oc-icon-agent-docs-base: #fbb73c;
+  --oc-icon-agent-ask-base: #a78bfa;
+  --oc-icon-agent-build-base: #be9dfe;
+
+  --oc-input-base: #1c1c1c;
+  --oc-input-hover: #1c1c1c;
+  --oc-input-active: #120923;
+
+  --oc-syntax-string: #be9dfe;
+  --oc-syntax-primitive: #ffba92;
+  --oc-syntax-property: #ff9ae2;
+  --oc-syntax-type: #ecf58c;
+  --oc-syntax-constant: #93e9f6;
+  --oc-syntax-success: #35c02d;
+  --oc-syntax-warning: #f5b238;
+  --oc-syntax-critical: #f54f36;
+  --oc-syntax-info: #93e9f6;
+  --oc-syntax-diff-add: #9bcd97;
+  --oc-syntax-diff-delete: #faa494;
+
+  --oc-shadow-xs:
+    0 1px 2px -0.5px hsl(0 0% 0% / 0.06),
+    0 0.5px 1.5px 0 hsl(0 0% 0% / 0.08),
+    0 1px 3px 0 hsl(0 0% 0% / 0.1);
+  --oc-shadow-xs-border:
+    0 0 0 1px var(--oc-border-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
+    0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
+
+  /* Re-map Cushion vars for dark */
+  --background: var(--oc-background-base);
+  --sidebar-bg: var(--oc-background-base);
+  --surface: var(--oc-background-stronger);
+  --surface-elevated: var(--oc-surface-raised-stronger-non-alpha);
+  --surface-tertiary: var(--oc-background-weak);
+  --foreground: var(--oc-text-strong);
+  --foreground-muted: var(--oc-text-base);
+  --text-normal: var(--oc-text-strong);
+  --text-muted: var(--oc-text-base);
+  --text-faint: var(--oc-text-weak);
+  --muted-foreground: var(--oc-text-base);
+  --border: var(--oc-border-weak-base);
+  --background-modifier-border: var(--oc-border-weak-base);
+  --background-modifier-border-hover: var(--oc-border-weaker-base);
+  --background-modifier-border-focus: var(--oc-border-base);
+  --interactive-accent: var(--oc-text-interactive-base);
+  --interactive-accent-hover: #7ea9ff;
+  --accent-primary: var(--oc-text-interactive-base);
+  --accent-green: var(--oc-surface-success-strong);
+  --accent-red: var(--oc-surface-critical-strong);
+  --accent-yellow: var(--oc-surface-warning-strong);
+  --accent-green-12: var(--oc-surface-success-weak);
+  --accent-red-12: var(--oc-surface-critical-weak);
+  --overlay-10: var(--oc-surface-base);
+  --overlay-20: var(--oc-surface-base-hover);
+  --text-accent: var(--oc-text-interactive-base);
+}
+
+/* ================================================================
+   3. CHAT COMPONENT OVERRIDES
+   Scoped to [data-chat-theme="opencode"] so they only affect
+   the chat sidebar when the theme is active.
+   ================================================================ */
+
+/* --- Chat sidebar background --- */
+[data-chat-theme="opencode"] {
+  background-color: var(--oc-background-base);
+}
+
+/* --- User message bubble --- */
+[data-chat-theme="opencode"] [data-slot="user-message-text"] {
+  background: var(--oc-surface-raised-base);
+  border-color: var(--oc-border-base);
+  color: var(--oc-text-strong);
+}
+
+/* --- Sticky turn headers --- */
+[data-chat-theme="opencode"] [data-slot="session-turn-sticky"] {
+  background-color: var(--oc-background-stronger);
+}
+
+[data-chat-theme="opencode"] [data-slot="session-turn-sticky"]::before {
+  background-color: var(--oc-background-stronger);
+}
+
+[data-chat-theme="opencode"] [data-slot="session-turn-sticky"]::after {
+  background: linear-gradient(to bottom, var(--oc-background-stronger), transparent);
+}
+
+/* --- Markdown in chat --- */
+[data-chat-theme="opencode"] [data-component="markdown"] {
+  color: var(--oc-text-strong);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] a {
+  color: var(--oc-text-interactive-base);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] :not(pre) > code {
+  color: var(--oc-syntax-string);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] blockquote {
+  border-left-color: var(--oc-border-weak-base);
+  color: var(--oc-text-weak);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] pre,
+[data-chat-theme="opencode"] [data-component="markdown"] .shiki {
+  border-color: var(--oc-border-weak-base);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] th {
+  color: var(--oc-text-strong);
+  border-bottom-color: var(--oc-border-weak-base);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] td {
+  border-bottom-color: var(--oc-border-weaker-base);
+}
+
+[data-chat-theme="opencode"] [data-component="markdown"] li::marker {
+  color: var(--oc-text-weak);
+}
+
+/* --- Reasoning / thinking --- */
+[data-chat-theme="opencode"] [data-component="reasoning-part"] {
+  color: var(--oc-text-base);
+}
+
+[data-chat-theme="opencode"] [data-component="reasoning-part"] [data-component="markdown"] {
+  color: var(--oc-text-weak);
+}
+
+/* --- Tool triggers (BasicTool) --- */
+[data-chat-theme="opencode"] [data-slot="basic-tool-tool-title"] {
+  color: var(--oc-text-strong);
+}
+
+[data-chat-theme="opencode"] [data-slot="basic-tool-tool-subtitle"] {
+  color: var(--oc-text-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="basic-tool-tool-spinner"] {
+  color: var(--oc-text-weak);
+}
+
+/* --- Tool status title --- */
+[data-chat-theme="opencode"] [data-component="tool-status-title"] [data-slot="tool-status-done"] {
+  color: var(--oc-text-strong);
+}
+
+/* --- Text shimmer --- */
+[data-chat-theme="opencode"] [data-component="text-shimmer"] {
+  --text-shimmer-base-color: var(--oc-text-weak);
+  --text-shimmer-peak-color: var(--oc-text-strong);
+}
+
+/* --- Collapsible triggers --- */
+[data-chat-theme="opencode"] [data-component="collapsible"] [data-slot="collapsible-trigger"] {
+  color: var(--oc-text-base);
+}
+
+[data-chat-theme="opencode"] [data-component="collapsible"] [data-slot="collapsible-arrow-icon"] {
+  color: var(--oc-icon-weak-base);
+}
+
+/* --- Collapsible arrow: hidden by default, revealed on hover/expanded --- */
+[data-chat-theme="opencode"] [data-slot="collapsible-arrow"] {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+[data-chat-theme="opencode"] [data-slot="collapsible-arrow-icon"] {
+  transform: translateZ(0) rotate(-90deg);
+  transition: transform 0.15s ease;
+  will-change: transform;
+}
+
+[data-chat-theme="opencode"] [data-slot="collapsible-trigger"]:hover [data-slot="collapsible-arrow"],
+[data-chat-theme="opencode"] [data-slot="collapsible-trigger"][aria-expanded="true"] [data-slot="collapsible-arrow"] {
+  opacity: 1;
+}
+
+[data-chat-theme="opencode"] [data-slot="collapsible-trigger"][aria-expanded="true"] [data-slot="collapsible-arrow-icon"] {
+  transform: translateZ(0) rotate(0deg);
+}
+
+/* --- Sticky tool headers for long-output tools --- */
+[data-chat-theme="opencode"] [data-component="edit-tool"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"],
+[data-chat-theme="opencode"] [data-component="write-tool"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"],
+[data-chat-theme="opencode"] [data-component="apply-patch-tool"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"],
+[data-chat-theme="opencode"] [data-component="bash-tool"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"] {
+  position: sticky;
+  top: var(--sticky-accordion-top, 0px);
+  z-index: 20;
+  padding-bottom: 8px;
+  background-color: var(--oc-background-stronger);
+}
+
+/* --- File accordion arrow (apply-patch / tool-file) --- */
+[data-chat-theme="opencode"] [data-slot="file-accordion-arrow"] {
+  color: var(--oc-icon-weak-base);
+  transform: translateZ(0) rotate(-90deg);
+  transition: transform 0.15s ease;
+  will-change: transform;
+  display: flex;
+  align-items: center;
+}
+
+[data-chat-theme="opencode"] [data-slot="file-accordion-arrow"][data-open] {
+  transform: translateZ(0) rotate(0deg);
+}
+
+/* --- Error cards --- */
+[data-chat-theme="opencode"] [data-component="tool-error-card"] {
+  background-color: var(--oc-surface-critical-weak);
+  border-color: var(--oc-border-critical-base);
+  color: var(--oc-text-on-critical-base);
+}
+
+[data-chat-theme="opencode"] [data-component="tool-error-card"] [data-component="icon"] {
+  color: var(--oc-icon-critical-base);
+}
+
+[data-chat-theme="opencode"] [data-component="generation-error"] {
+  background-color: var(--oc-surface-critical-weak);
+  border-color: var(--oc-border-critical-base);
+  color: var(--oc-text-on-critical-base);
+}
+
+/* --- Diagnostics (LSP errors) --- */
+[data-chat-theme="opencode"] [data-component="diagnostics"] {
+  background-color: var(--oc-surface-critical-weak);
+  border-top-color: var(--oc-border-critical-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="diagnostic-label"] {
+  color: var(--oc-text-on-critical-base);
+}
+
+/* --- Copy button: hidden by default, revealed on hover --- */
+[data-chat-theme="opencode"] [data-component="markdown-code"] [data-slot="markdown-copy-button"],
+[data-chat-theme="opencode"] [data-component="tool-output"] [data-component="copy-button"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  will-change: opacity;
+}
+
+[data-chat-theme="opencode"] [data-component="markdown-code"]:hover [data-slot="markdown-copy-button"],
+[data-chat-theme="opencode"] [data-component="markdown-code"]:focus-within [data-slot="markdown-copy-button"],
+[data-chat-theme="opencode"] [data-component="tool-output"]:hover [data-component="copy-button"],
+[data-chat-theme="opencode"] [data-component="tool-output"]:focus-within [data-component="copy-button"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* --- Copy button --- */
+[data-chat-theme="opencode"] [data-component="copy-button"] {
+  border-color: var(--oc-border-weak-base);
+  background: var(--oc-background-base);
+  color: var(--oc-text-base);
+}
+
+[data-chat-theme="opencode"] [data-component="copy-button"]:hover {
+  background: var(--oc-background-stronger);
+  color: var(--oc-text-strong);
+}
+
+[data-chat-theme="opencode"] [data-component="copy-button"][data-copied="true"] {
+  color: var(--oc-surface-success-strong);
+  border-color: var(--oc-border-success-base);
+}
+
+/* --- Diff change indicators --- */
+[data-chat-theme="opencode"] [data-slot="apply-patch-change"][data-type="added"] {
+  color: var(--oc-icon-diff-add-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="apply-patch-change"][data-type="removed"] {
+  color: var(--oc-icon-diff-delete-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="apply-patch-change"][data-type="modified"] {
+  color: var(--oc-icon-diff-modified-base);
+}
+
+/* --- Diff view backgrounds --- */
+[data-chat-theme="opencode"] {
+  --diffs-bg: var(--oc-surface-raised-stronger-non-alpha);
+  --diffs-bg-context: color-mix(in lab, var(--oc-background-stronger) 96%, var(--oc-text-strong));
+}
+
+/* --- Message divider (compaction) --- */
+[data-chat-theme="opencode"] [data-slot="compaction-part-line"] {
+  background: var(--oc-border-weak-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="compaction-part-label"] {
+  color: var(--oc-text-base);
+}
+
+/* --- Session turn thinking --- */
+[data-chat-theme="opencode"] [data-slot="session-turn-thinking"] {
+  color: var(--oc-text-weak);
+}
+
+/* --- Dock surface (prompt input area) --- */
+[data-chat-theme="opencode"] .chat-dock-panel {
+  background-color: var(--oc-surface-raised-stronger-non-alpha);
+  box-shadow: var(--oc-shadow-xs-border);
+  border-color: var(--oc-border-weak-base);
+}
+
+/* --- Card component (used for tool error cards, etc.) --- */
+[data-chat-theme="opencode"] [data-component="card"]::before {
+  background-color: var(--oc-icon-active);
+}
+
+[data-chat-theme="opencode"] [data-component="card"][data-kind="tool-error-card"]::before {
+  background-color: var(--oc-icon-critical-base);
+}
+
+[data-chat-theme="opencode"] [data-component="card"] [data-slot="card-description"] {
+  color: var(--oc-text-base);
+}
+
+/* --- Scrollbar thumb --- */
+[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--oc-surface-base-hover);
+}
+
+[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--oc-surface-weak);
+}
+
+/* --- User message meta & text-part meta --- */
+[data-chat-theme="opencode"] [data-slot="user-message-meta"],
+[data-chat-theme="opencode"] [data-slot="text-part-meta"] {
+  color: var(--oc-text-base);
+}
+
+/* --- Session turn collapsible trigger content --- */
+[data-chat-theme="opencode"] [data-slot="session-turn-collapsible-trigger-content"] {
+  color: var(--oc-text-base);
+}
+
+/* ================================================================
+   4. QUESTION DOCK
+   OpenCode-style question dock with shell + tray layout.
+   ================================================================ */
+
+[data-chat-theme="opencode"] [data-component="question-dock"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-shell"] {
+  background-color: var(--oc-surface-raised-stronger-non-alpha);
+  box-shadow: var(--oc-shadow-xs-border);
+  border-radius: 12px;
+  overflow: clip;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 8px 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-tray"] {
+  background-color: var(--oc-background-base);
+  border: 1px solid var(--oc-border-weak-base);
+  border-radius: 0 0 12px 12px;
+  margin-top: -0.875rem;
+  overflow: clip;
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32px 8px 8px;
+}
+
+/* --- Header --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-header"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-title"] {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--oc-text-strong);
+  min-width: 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-progress"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-segment"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-segment"]::after {
+  content: "";
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--oc-icon-weak-base);
+  transition: background-color 0.2s ease;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-segment"][data-active]::after {
+  background-color: var(--oc-icon-strong-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-segment"][data-answered]::after {
+  background-color: var(--oc-icon-interactive-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-segment"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* --- Content --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-content"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-text"] {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--oc-text-strong);
+  padding: 0 10px;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-hint"] {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--oc-text-weak);
+  padding: 0 10px;
+}
+
+/* --- Options list --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-options"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 1px 1px 8px;
+  flex: 1;
+  min-height: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-options"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* --- Option button --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-option"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 8px 8px 10px;
+  background-color: var(--oc-surface-raised-stronger-non-alpha);
+  border: 1px solid var(--oc-border-weak-base);
+  border-radius: 6px;
+  box-shadow: none;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font-size: 14px;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option"]:hover:not([data-picked]) {
+  background-color: var(--oc-background-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option"][data-picked] {
+  background-color: var(--oc-surface-interactive-weak);
+  border-color: transparent;
+  box-shadow: var(--oc-shadow-xs-border);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* --- Checkbox / radio indicator --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-option-check"] {
+  display: inline-flex;
+  transform: translateY(2px);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"] {
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  border-radius: var(--oc-radius-sm);
+  border: 1px solid var(--oc-border-weak-base);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"] [data-slot="question-dock-check-icon"] {
+  opacity: 0;
+  color: var(--oc-icon-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-type="radio"] {
+  border-radius: 999px;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-radio-dot"] {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--oc-background-stronger);
+  opacity: 0;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-picked] {
+  border-color: var(--oc-icon-interactive-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-picked] [data-slot="question-dock-check-icon"] {
+  opacity: 1;
+  color: var(--oc-text-invert-strong);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-picked][data-type="checkbox"] {
+  background-color: var(--oc-icon-interactive-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-picked][data-type="radio"] {
+  background-color: var(--oc-icon-interactive-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-box"][data-picked] [data-slot="question-dock-option-radio-dot"] {
+  opacity: 1;
+}
+
+/* --- Option label / description --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-option-main"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-label"] {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--oc-text-strong);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-option-desc"] {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--oc-text-base);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* --- Custom textarea input --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-custom-input"] {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--oc-text-base);
+  min-width: 0;
+  cursor: text;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-custom-input"]::placeholder {
+  color: var(--oc-text-weak);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-custom-input"]:focus-visible {
+  outline: 1px solid var(--oc-border-interactive-base);
+  outline-offset: 2px;
+  border-radius: var(--oc-radius-xs);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-custom-input"]:disabled {
+  opacity: 0.6;
+}
+
+/* --- Footer buttons --- */
+[data-chat-theme="opencode"] [data-slot="question-dock-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"] {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="ghost"] {
+  background: transparent;
+  color: var(--oc-text-base);
+  border-color: transparent;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="ghost"]:hover:not(:disabled) {
+  background: var(--oc-button-ghost-hover);
+  color: var(--oc-text-strong);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="secondary"] {
+  background: var(--oc-button-secondary-base);
+  color: var(--oc-text-strong);
+  border-color: var(--oc-border-weak-base);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="secondary"]:hover:not(:disabled) {
+  background: var(--oc-button-secondary-hover);
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="primary"] {
+  background: var(--oc-button-primary-base);
+  color: var(--oc-background-base);
+  border-color: transparent;
+}
+
+[data-chat-theme="opencode"] [data-slot="question-dock-btn"][data-variant="primary"]:hover:not(:disabled) {
+  opacity: 0.9;
+}

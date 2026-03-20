@@ -1,11 +1,13 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
-import { FileText, FilePlus, Folder } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, Plus, X } from 'lucide-react';
 import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { FileTreeNode } from '@cushion/types';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getBaseName, getDirectory } from '@/lib/path-utils';
 import { cn } from '@/lib/utils';
+import { FolderIcon, FileIcon } from '@/components/shared/FileIcons';
 
 interface QuickSwitcherProps {
   isOpen: boolean;
@@ -80,6 +82,7 @@ function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: 
   return <>{parts}</>;
 }
 
+
 export function QuickSwitcher({
   isOpen,
   onClose,
@@ -98,7 +101,6 @@ export function QuickSwitcher({
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
-      // Small delay to ensure the modal is rendered
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
@@ -108,7 +110,6 @@ export function QuickSwitcher({
     const items: SearchResult[] = [];
 
     if (query.trim()) {
-      // Search with query
       const matches = searchFiles(query, fileTree, 15);
 
       for (const path of matches) {
@@ -125,7 +126,6 @@ export function QuickSwitcher({
         });
       }
 
-      // Add "Create new file" option if query doesn't exactly match a file
       const queryLower = query.toLowerCase();
       const exactMatch = items.some(
         item => item.displayName.toLowerCase() === queryLower
@@ -140,10 +140,7 @@ export function QuickSwitcher({
         });
       }
     } else {
-      // Show recent/all files when no query
       const allFiles = flattenFileTree(fileTree);
-      // Sort by modification time would be ideal, but we just show first 15 for now
-      // Prefer .md files
       const sorted = allFiles
         .sort((a, b) => {
           const aIsMd = a.endsWith('.md') ? 1 : 0;
@@ -250,109 +247,124 @@ export function QuickSwitcher({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-overlay flex items-start justify-center pt-[15vh]">
-      {/* Backdrop */}
+  return createPortal(
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)] p-4" onClick={onClose}>
       <div
-        className="absolute inset-0 bg-[var(--overlay-50)]"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-lg bg-modal-bg rounded-xl shadow-[var(--shadow-lg)] border border-modal-border overflow-hidden"
-        style={{ maxHeight: '60vh' }}
+        className="flex h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[var(--shadow-lg)]"
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Search input */}
-        <div className="p-3 border-b border-modal-border">
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type to search for a file..."
-            className="w-full px-3 py-2 bg-modal-bg rounded-lg border border-modal-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-foreground-muted text-base"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-          />
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+          <h2 className="text-[15px] font-medium text-foreground">Quick switcher</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-6 flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--overlay-10)] hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
         </div>
 
-        {/* Results list */}
-        <div
-          ref={listRef}
-          className="overflow-y-auto thin-scrollbar"
-          style={{ maxHeight: 'calc(60vh - 70px)' }}
-        >
+        {/* Search bar */}
+        <div className="px-4 pb-3">
+          <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
+            <Search size={16} className="shrink-0 text-muted-foreground" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search files..."
+              className="h-full w-full border-none bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            {query.trim().length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="size-5 flex items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
           {results.length === 0 ? (
-            <div className="p-6 text-center text-foreground-muted">
-              No files found. Try a different search.
+            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+              No files found
             </div>
           ) : (
-            results.map((item, index) => (
-              <div
-                key={item.type === 'create' ? `create-${item.path}` : item.path}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors rounded-md mx-2",
-                  index === selectedIndex
-                    ? "bg-[var(--overlay-10)] text-foreground"
-                    : "hover:bg-[var(--overlay-10)]"
-                )}
-                onClick={() => handleItemClick(item)}
-                onMouseEnter={() => setSelectedIndex(index)}
-              >
-                {/* Icon */}
-                <div className={cn("flex-shrink-0", index === selectedIndex ? "text-foreground" : "text-foreground-muted")}>
-                  {item.type === 'create' ? (
-                    <FilePlus size={18} />
-                  ) : item.path.endsWith('.md') ? (
-                    <FileText size={18} />
-                  ) : (
-                    <Folder size={18} />
+            <div ref={listRef} className="space-y-0.5">
+              {results.map((item, index) => (
+                <div
+                  key={item.type === 'create' ? `create-${item.path}` : item.path}
+                  className={cn(
+                    'flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors',
+                    index === selectedIndex
+                      ? 'bg-[var(--overlay-10)] text-foreground'
+                      : 'hover:bg-[var(--overlay-10)]'
                   )}
-                </div>
-
-                {/* File info */}
-                <div className="flex-1 min-w-0">
-                  <div className="truncate">
+                  onClick={() => handleItemClick(item)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <div className={cn('shrink-0', index === selectedIndex ? 'text-foreground' : 'text-muted-foreground')}>
                     {item.type === 'create' ? (
-                      <span>
-                        Create "<span className="font-medium">{item.displayName}</span>"
-                      </span>
+                      <Plus size={20} />
+                    ) : item.directory ? (
+                      <FolderIcon />
                     ) : (
-                      <HighlightedText
-                        text={item.displayName}
-                        matchIndices={index === selectedIndex ? undefined : item.matchIndices}
-                      />
+                      <FileIcon />
                     )}
                   </div>
-                  {item.directory && (
-                    <div className="text-xs truncate text-foreground-muted">
-                      {item.directory}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] text-foreground">
+                      {item.type === 'create' ? (
+                        <span>
+                          Create "<span className="font-medium">{item.displayName}</span>"
+                        </span>
+                      ) : (
+                        <HighlightedText
+                          text={item.displayName}
+                          matchIndices={index === selectedIndex ? undefined : item.matchIndices}
+                        />
+                      )}
                     </div>
-                  )}
+                    {item.directory && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {item.directory}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Footer with shortcuts */}
-        <div className="px-4 py-2 border-t border-modal-border flex gap-4 text-xs text-foreground-muted">
+        {/* Footer shortcuts */}
+        <div className="px-4 py-2.5 flex gap-4 text-xs text-muted-foreground">
           {(prevLabel || nextLabel) && (
             <span>
-              {prevLabel && <kbd className="px-1 py-0.5 bg-surface-elevated rounded">{prevLabel}</kbd>}
-              {nextLabel && <kbd className="px-1 py-0.5 bg-surface-elevated rounded ml-1">{nextLabel}</kbd>}
+              {prevLabel && <kbd className="px-1 py-0.5 rounded bg-surface text-[11px]">{prevLabel}</kbd>}
+              {nextLabel && <kbd className="px-1 py-0.5 rounded bg-surface text-[11px] ml-1">{nextLabel}</kbd>}
               {' '}Navigate
             </span>
           )}
-          {openLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{openLabel}</kbd> Open</span>}
-          {autocompleteLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{autocompleteLabel}</kbd> Autocomplete</span>}
-          {closeLabel && <span><kbd className="px-1 py-0.5 bg-surface-elevated rounded">{closeLabel}</kbd> Close</span>}
+          {openLabel && <span><kbd className="px-1 py-0.5 rounded bg-surface text-[11px]">{openLabel}</kbd> Open</span>}
+          {autocompleteLabel && <span><kbd className="px-1 py-0.5 rounded bg-surface text-[11px]">{autocompleteLabel}</kbd> Autocomplete</span>}
+          {closeLabel && <span><kbd className="px-1 py-0.5 rounded bg-surface text-[11px]">{closeLabel}</kbd> Close</span>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

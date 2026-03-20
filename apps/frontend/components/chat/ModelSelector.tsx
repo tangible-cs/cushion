@@ -1,20 +1,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Search } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 import { ProviderIcon } from './ProviderIcon';
-import { iconNames, type IconName } from './provider-icons/types';
+import { resolveProviderIcon } from './provider-icons/types';
 import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { createModelSorter } from '@/lib/model-constants';
 import { usePopularProviders } from '@/hooks/usePopularProviders';
-
-const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 type ModelSelectorProps = {
   disabled?: boolean;
@@ -60,12 +58,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
     setSearchQuery('');
   }, [isOpen]);
 
-  const isModelVisible = (model: SelectedModel) => {
-    const state = modelVisibility[`${model.providerID}:${model.modelID}`];
-    if (state === 'hide') return false;
-    if (state === 'show') return true;
-    return true;
-  };
+  const isModelVisible = useChatStore((s) => s.isModelVisible);
 
   const selectedProviderId = selectedModel?.providerID ?? '';
   const provider = providers.find((item) => item.id === selectedProviderId);
@@ -200,7 +193,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
         <PopoverContent className="h-80 overflow-hidden p-2 flex flex-col !bg-surface-elevated !border-border">
           <div className="mb-2 flex items-center gap-2">
             <div className="flex h-8 flex-1 items-center gap-2 rounded-md bg-surface px-2">
-              <Icon name="magnifying-glass-menu" size="small" className="text-muted-foreground shrink-0" />
+              <Search size={16} className="text-muted-foreground shrink-0" />
               <input
                 type="text"
                 placeholder="Search models"

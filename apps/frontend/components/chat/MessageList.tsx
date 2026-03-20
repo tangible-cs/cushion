@@ -1,5 +1,6 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useAutoScroll } from './useAutoScroll';
@@ -7,6 +8,7 @@ import { Icon } from './Icon';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Turn } from './Turn';
 import { DisplayOptionsPopover } from './DisplayOptionsPopover';
+import { MessageDivider } from './MessageDivider';
 import { groupMessagesIntoTurns, EMPTY_MESSAGES } from './message-helpers';
 
 type MessageListProps = {
@@ -22,6 +24,7 @@ export function MessageList({ className }: MessageListProps) {
   const loadMoreMessages = useChatStore((state) => state.loadMoreMessages);
   const setActiveSession = useChatStore((state) => state.setActiveSession);
   const showThinking = useChatStore((s) => s.displayPreferences.showThinking);
+  const compactedSessions = useChatStore((s) => s.compactedSessions);
   const [sessionQuery, setSessionQuery] = useState('');
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
 
@@ -31,7 +34,6 @@ export function MessageList({ className }: MessageListProps) {
     return sessions.find((session) => session.id === resolvedSessionId);
   }, [resolvedSessionId, sessions]);
   const sessionTitle = activeSession?.title ?? '';
-  const showTitle = true;
   const titleLabel = sessionTitle.trim().length > 0 ? sessionTitle : 'New session';
   const filteredSessions = useMemo(() => {
     const query = sessionQuery.trim().toLowerCase();
@@ -67,8 +69,11 @@ export function MessageList({ className }: MessageListProps) {
     overflowAnchor: 'auto',
   });
 
+  const prevTurnCount = useRef(turns.length);
   useEffect(() => {
-    if (isWorking) {
+    const grew = turns.length > prevTurnCount.current;
+    prevTurnCount.current = turns.length;
+    if (grew || isWorking) {
       autoScroll.forceScrollToBottom();
     }
   }, [turns.length, isWorking, autoScroll.forceScrollToBottom]);
@@ -98,10 +103,9 @@ export function MessageList({ className }: MessageListProps) {
         ref={autoScroll.scrollRef}
         onScroll={autoScroll.handleScroll}
         data-slot="session-turn-content"
-        style={{ '--session-title-height': showTitle ? '40px' : '0px' } as React.CSSProperties}
+        style={{ '--session-title-height': '40px' } as React.CSSProperties}
       >
-        {showTitle && (
-          <div className="sticky top-0 z-30 bg-sidebar-bg px-4">
+        <div className="sticky top-0 z-30 bg-sidebar-bg px-4">
             <div className="h-10 flex items-center justify-between gap-2">
               <Popover open={sessionMenuOpen} onOpenChange={setSessionMenuOpen}>
                 <PopoverTrigger asChild>
@@ -120,7 +124,7 @@ export function MessageList({ className }: MessageListProps) {
                 <PopoverContent className="max-h-80 overflow-hidden p-2 flex flex-col !bg-surface-elevated !border-border">
                   <div className="mb-2 flex items-center gap-2">
                     <div className="flex h-8 flex-1 items-center gap-2 rounded-md bg-surface px-2">
-                      <Icon name="magnifying-glass-menu" size="small" className="shrink-0 text-muted-foreground" />
+                      <Search size={16} className="shrink-0 text-muted-foreground" />
                       <input
                         value={sessionQuery}
                         onChange={(event) => setSessionQuery(event.target.value)}
@@ -203,7 +207,6 @@ export function MessageList({ className }: MessageListProps) {
               </div>
             </div>
           </div>
-        )}
         {meta?.hasMore && (
           <div className="flex justify-center bg-sidebar-bg py-2">
             <button
@@ -227,7 +230,11 @@ export function MessageList({ className }: MessageListProps) {
           {emptyState ? (
             <div className="px-4 py-4 text-sm text-muted-foreground">{emptyState}</div>
           ) : (
-            turns.map((turn) => (
+            <>
+            {compactedSessions[sessionId] && (
+              <MessageDivider label="Session compacted" />
+            )}
+            {turns.map((turn) => (
               <Turn
                 key={turn.userMessage.id}
                 turn={turn}
@@ -236,7 +243,8 @@ export function MessageList({ className }: MessageListProps) {
                 onInteract={autoScroll.handleInteraction}
                 showThinking={showThinking}
               />
-            ))
+            ))}
+            </>
           )}
         </div>
       </div>

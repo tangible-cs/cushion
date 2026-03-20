@@ -130,7 +130,6 @@ export function Turn({ turn, sessionId, isWorking, onInteract, showThinking = tr
     return { meta, interrupted: isInterrupted(lastAssistant) };
   }, [lastAssistant, isWorking, turn.assistantMessages, turn.userMessage, providers]);
 
-  // Generation-level error: find the first non-abort error from assistant messages
   const generationError = useMemo(() => {
     const errMsg = turn.assistantMessages.find(
       (m) => m.error && m.error.name !== 'MessageAbortedError',
@@ -325,7 +324,7 @@ type AssistantPartsMessageProps = {
   footerMeta?: FooterMeta;
 };
 
-const HIDDEN_TOOLS = new Set(['todoread']);
+const HIDDEN_TOOLS = new Set(['todoread', 'todowrite']);
 
 type GroupedItem =
   | { type: 'part'; part: Part; key: string }
@@ -343,12 +342,9 @@ function groupParts(parts: Part[], showThinking: boolean): GroupedItem[] {
   };
 
   for (const part of parts) {
-    // Skip hidden tools
     if (isTool(part) && HIDDEN_TOOLS.has(part.tool)) continue;
-    // Skip reasoning when hidden
     if (isReasoning(part) && !showThinking) continue;
 
-    // Group context tools
     if (isTool(part) && CONTEXT_GROUP_TOOLS.has(part.tool)) {
       contextBuffer.push(part);
       continue;

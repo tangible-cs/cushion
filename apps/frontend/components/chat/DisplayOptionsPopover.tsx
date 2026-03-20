@@ -28,14 +28,14 @@ function ToggleRow({
       </div>
       <div
         className={cn(
-          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors',
-          checked ? 'bg-accent-blue' : 'bg-[var(--overlay-20)]'
+          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
+          checked ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]'
         )}
       >
         <span
           className={cn(
-            'inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform',
-            checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
+            'inline-block size-4 rounded-full bg-background shadow transition-transform',
+            checked ? 'translate-x-4' : 'translate-x-0.5'
           )}
         />
       </div>

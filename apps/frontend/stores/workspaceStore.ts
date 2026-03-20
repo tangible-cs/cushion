@@ -32,7 +32,7 @@ interface WorkspaceActions {
   closeWorkspace: () => void;
 
   // File operations
-  openFile: (filePath: string, content: string) => void;
+  openFile: (filePath: string, content: string, forceNewTab?: boolean) => void;
   closeFile: (filePath: string) => void;
   updateFileContent: (filePath: string, content: string) => void;
   markFileDirty: (filePath: string) => void;

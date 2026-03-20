@@ -1,7 +1,8 @@
 
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { FileDiff, FilePart, ToolPart } from '@opencode-ai/sdk/v2/client';
-import { Ban, File as FileIcon } from 'lucide-react';
+import { animate, type AnimationPlaybackControls } from 'motion';
+import { File as FileIcon } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { Collapsible } from './Collapsible';
 import { CopyButton } from './CopyButton';
@@ -10,14 +11,18 @@ import { Icon, getToolIconName } from './Icon';
 import { Markdown } from './Markdown';
 import { getDirectory, getFilename } from '@/lib/path-utils';
 import { TextShimmer } from './TextShimmer';
+import { BasicTool, type TriggerTitle } from './BasicTool';
+import { AnimatedCountList } from './AnimatedCountList';
+import { ToolStatusTitle } from './ToolStatusTitle';
+import { ShellSubmessage } from './ShellSubmessage';
+import { ToolErrorCard } from './ToolErrorCard';
+import { prefersReducedMotion } from './message-helpers';
 
-// Strip ANSI escape codes from text
 function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 }
 
-// Tool classification
 const INLINE_TOOLS = new Set(['read', 'glob', 'grep', 'list', 'webfetch', 'skill']);
 const BLOCK_TOOLS = new Set(['bash', 'edit', 'write', 'apply_patch', 'task', 'todowrite', 'question']);
 export const CONTEXT_GROUP_TOOLS = new Set(['read', 'glob', 'grep', 'list']);
@@ -73,6 +78,13 @@ function getRunningLabel(tool: string): string {
     case 'skill': return 'Running skill...';
     default: return 'Running...';
   }
+}
+
+function getCompletedTitle(part: ToolPart): string {
+  if (part.state?.status === 'completed' && 'title' in part.state && typeof part.state.title === 'string') {
+    return part.state.title;
+  }
+  return part.tool;
 }
 
 function getSubtitle(part: ToolPart): string | undefined {
@@ -139,7 +151,7 @@ function getFileDiff(part: ToolPart): FileDiff | undefined {
   return undefined;
 }
 
-// --- Diagnostics types ---
+// Diagnostics types
 
 interface Diagnostic {
   range: {
@@ -186,7 +198,7 @@ function DiagnosticsDisplay({ diagnostics }: { diagnostics: Diagnostic[] }) {
   );
 }
 
-// --- Apply Patch types ---
+// Apply Patch types
 
 interface ApplyPatchFile {
   filePath: string;
@@ -213,7 +225,7 @@ function getApplyPatchFiles(part: ToolPart): ApplyPatchFile[] {
   return [];
 }
 
-// --- TodoWrite types ---
+// TodoWrite types
 
 interface TodoItem {
   content: string;
@@ -234,7 +246,7 @@ function getTodos(part: ToolPart): TodoItem[] {
   return [];
 }
 
-// --- Question types ---
+// Question types
 
 interface QuestionInfo {
   question: string;
@@ -288,6 +300,8 @@ function getBashCommand(part: ToolPart): string {
   return typeof inputRecord?.command === 'string' ? inputRecord.command : '';
 }
 
+// Tool Content Components
+
 function BashToolContent({ part }: { part: ToolPart }) {
   const command = getBashCommand(part);
   const output = part.state?.status === 'completed' && 'output' in part.state ? (part.state.output as string) : '';
@@ -313,7 +327,7 @@ function BashToolContent({ part }: { part: ToolPart }) {
           </pre>
         </div>
       </div>
-      {error && <ToolError error={error} />}
+      {error && <ToolError tool={part.tool} error={error} />}
     </>
   );
 }
@@ -373,6 +387,8 @@ function truncateByLines(text: string, maxLines: number): { truncated: string; t
   return { truncated: lines.slice(0, maxLines).join('\n'), totalLines: lines.length, isTruncated: true };
 }
 
+const TRUNCATE_SPRING = { type: 'spring' as const, visualDuration: 0.35, bounce: 0 };
+
 const TruncatedOutput = memo(function TruncatedOutput({
   text,
   maxLines,
@@ -383,10 +399,38 @@ const TruncatedOutput = memo(function TruncatedOutput({
   cacheKey: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heightAnim = useRef<AnimationPlaybackControls | null>(null);
+  const isFirstRender = useRef(true);
   const { truncated, totalLines, isTruncated } = useMemo(() => truncateByLines(text, maxLines), [text, maxLines]);
 
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const el = containerRef.current;
+    if (!el || !isTruncated) return;
+
+    if (prefersReducedMotion()) {
+      el.style.height = 'auto';
+      return;
+    }
+
+    heightAnim.current?.stop();
+    el.style.overflow = 'hidden';
+    heightAnim.current = animate(el, { height: 'auto' }, TRUNCATE_SPRING);
+    heightAnim.current.finished.then(() => {
+      if (!containerRef.current) return;
+      containerRef.current.style.overflow = 'visible';
+      containerRef.current.style.height = 'auto';
+    });
+
+    return () => { heightAnim.current?.stop(); };
+  }, [expanded, isTruncated]);
+
   return (
-    <div data-component="tool-output" data-scrollable className="text-xs text-muted-foreground py-1">
+    <div ref={containerRef} data-component="tool-output" data-scrollable className="text-xs text-muted-foreground py-1">
       <Markdown text={expanded ? text : truncated} cacheKey={expanded ? cacheKey : `${cacheKey}-trunc`} />
       {isTruncated && (
         <button
@@ -401,43 +445,6 @@ const TruncatedOutput = memo(function TruncatedOutput({
   );
 });
 
-function ToolTriggerContent({
-  part,
-  isPending,
-  subtitle,
-}: {
-  part: ToolPart;
-  isPending: boolean;
-  subtitle: string | undefined;
-}) {
-  const title = part.state?.status === 'completed' && 'title' in part.state ? part.state.title : part.tool;
-  const icon = getToolIconName(part.tool);
-
-  return (
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      <Icon name={icon} size="small" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-[14px] leading-[var(--line-height-large,1.5)] font-medium capitalize ${isPending ? 'text-shimmer' : 'text-foreground'}`}
-          >
-            {isPending ? getRunningLabel(part.tool) : title}
-          </span>
-          {!isPending && subtitle && (
-            <>
-              <span className="text-foreground/50">·</span>
-              <span className="text-[14px] leading-[var(--line-height-large,1.5)] text-foreground/70 truncate">
-                {subtitle}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Lazy-loaded DiffView for edit tool content
 const LazyDiffView = React.lazy(() =>
   import('./DiffView').then((mod) => ({ default: mod.DiffView }))
 );
@@ -449,7 +456,6 @@ function EditToolContent({ part }: { part: ToolPart }) {
   const diagnostics = getDiagnosticsFromPart(part);
 
   if (!fileDiff) {
-    // Fallback: show raw output if no filediff metadata
     const output = part.state?.status === 'completed' && 'output' in part.state ? part.state.output : null;
     return (
       <>
@@ -459,7 +465,7 @@ function EditToolContent({ part }: { part: ToolPart }) {
           </div>
         )}
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError error={error} /></div>}
+        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -474,7 +480,7 @@ function EditToolContent({ part }: { part: ToolPart }) {
         </ToolFileAccordion>
       </div>
       <DiagnosticsDisplay diagnostics={diagnostics} />
-      {error && <div className="pl-7"><ToolError error={error} /></div>}
+      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -487,7 +493,6 @@ function WriteToolContent({ part }: { part: ToolPart }) {
   const diagnostics = getDiagnosticsFromPart(part);
 
   if (fileDiff) {
-    // If write tool has filediff (overwriting existing file), show diff
     return (
       <>
         <div data-component="edit-content">
@@ -498,7 +503,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
           </ToolFileAccordion>
         </div>
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError error={error} /></div>}
+        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -513,7 +518,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
           </div>
         )}
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError error={error} /></div>}
+        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -526,7 +531,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
         </ToolFileAccordion>
       </div>
       <DiagnosticsDisplay diagnostics={diagnostics} />
-      {error && <div className="pl-7"><ToolError error={error} /></div>}
+      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -538,76 +543,11 @@ function ApplyPatchTypeBadge({ type }: { type: ApplyPatchFile['type'] }) {
   return <span data-slot="apply-patch-change" data-type={dataType}>{label}</span>;
 }
 
-function ApplyPatchTrigger({ part, isPending, files }: { part: ToolPart; isPending: boolean; files: ApplyPatchFile[] }) {
-  const single = files.length === 1 ? files[0] : undefined;
-
-  if (single) {
-    // Single-file: render like EditWriteTrigger
-    const filename = getFilename(single.relativePath);
-    const directory = single.relativePath.includes('/') ? getDirectory(single.relativePath) : '';
-
-    return (
-      <div data-component="edit-trigger">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Icon name="code-lines" size="small" />
-          <div data-slot="message-part-title-area">
-            <div data-slot="message-part-title">
-              <span data-slot="message-part-title-text" className={isPending ? 'text-shimmer' : ''}>
-                {isPending ? getRunningLabel('apply_patch') : 'Patch'}
-              </span>
-              {!isPending && filename && (
-                <span data-slot="message-part-title-filename">{filename}</span>
-              )}
-            </div>
-            {!isPending && directory && (
-              <div data-slot="message-part-path">
-                <span data-slot="message-part-directory">{directory}</span>
-              </div>
-            )}
-          </div>
-        </div>
-        <div data-slot="message-part-actions">
-          {!isPending && (
-            <DiffChanges changes={{ additions: single.additions, deletions: single.deletions }} />
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Multi-file: show "Patch" + file count subtitle
-  const subtitle = files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : '';
-
-  return (
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      <Icon name="code-lines" size="small" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-[14px] leading-[var(--line-height-large,1.5)] font-medium ${isPending ? 'text-shimmer' : 'text-foreground'}`}
-          >
-            {isPending ? getRunningLabel('apply_patch') : 'Patch'}
-          </span>
-          {!isPending && subtitle && (
-            <>
-              <span className="text-foreground/50">·</span>
-              <span className="text-[14px] leading-[var(--line-height-large,1.5)] text-foreground/70 truncate">
-                {subtitle}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchFile[] }) {
   const error = part.state?.status === 'error' && 'error' in part.state ? (part.state.error as string) : null;
   const single = files.length === 1 ? files[0] : undefined;
 
   if (files.length === 0) {
-    // Fallback: show raw output if no files metadata
     const output = part.state?.status === 'completed' && 'output' in part.state ? part.state.output : null;
     return (
       <>
@@ -616,13 +556,12 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
             <Markdown text={output} cacheKey={`${part.id}-fallback`} />
           </div>
         )}
-        {error && <div className="pl-7"><ToolError error={error} /></div>}
+        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
       </>
     );
   }
 
   if (single) {
-    // Single file: like edit tool content with type badge
     const actions = single.type === 'update'
       ? <DiffChanges changes={{ additions: single.additions, deletions: single.deletions }} />
       : <ApplyPatchTypeBadge type={single.type} />;
@@ -638,12 +577,11 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
             </div>
           </ToolFileAccordion>
         </div>
-        {error && <div className="pl-7"><ToolError error={error} /></div>}
+        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
       </>
     );
   }
 
-  // Multi-file accordion
   return (
     <>
       <div data-component="apply-patch-files">
@@ -651,7 +589,7 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
           <ApplyPatchFileEntry key={file.filePath} file={file} />
         ))}
       </div>
-      {error && <div className="pl-7"><ToolError error={error} /></div>}
+      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -678,14 +616,18 @@ function ApplyPatchFileEntry({ file }: { file: ApplyPatchFile }) {
             <FileIcon className="size-4 text-muted-foreground flex-shrink-0" />
             <div data-slot="apply-patch-file-name-container">
               {directory && (
-                <span data-slot="apply-patch-directory">{'\u202A' + directory + '\u202C'}</span>
+                <span data-slot="apply-patch-directory">{'\u202A' + directory + '/' + '\u202C'}</span>
               )}
               <span data-slot="apply-patch-filename">{filename}</span>
             </div>
           </div>
           <div data-slot="apply-patch-trigger-actions">
             {actions}
-            <Icon name="chevron-grabber-vertical" size="small" className="text-muted-foreground" />
+            <div data-slot="file-accordion-arrow" data-open={open || undefined}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M2.5 3.5L5 6.5L7.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
           </div>
         </div>
       </button>
@@ -720,14 +662,18 @@ function ToolFileAccordion({ path, actions, children }: { path: string; actions?
             <FileIcon className="size-4 text-muted-foreground flex-shrink-0" />
             <div data-slot="tool-file-name-container">
               {directory && (
-                <span data-slot="tool-file-directory">{'\u202A' + directory + '\u202C'}</span>
+                <span data-slot="tool-file-directory">{'\u202A' + directory + '/' + '\u202C'}</span>
               )}
               <span data-slot="tool-file-filename">{filename}</span>
             </div>
           </div>
           <div data-slot="tool-file-trigger-actions">
             {actions}
-            <Icon name="chevron-grabber-vertical" size="small" className="text-muted-foreground" />
+            <div data-slot="file-accordion-arrow" data-open={open || undefined}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M2.5 3.5L5 6.5L7.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
           </div>
         </div>
       </button>
@@ -736,45 +682,56 @@ function ToolFileAccordion({ path, actions, children }: { path: string; actions?
   );
 }
 
-function EditWriteTrigger({ part, isPending }: { part: ToolPart; isPending: boolean }) {
+// Build trigger objects
+
+function buildTriggerTitle(part: ToolPart): TriggerTitle {
+  const isPending = part.state?.status === 'pending' || part.state?.status === 'running';
+  const title = isPending ? getRunningLabel(part.tool) : getCompletedTitle(part);
+  const subtitle = isPending ? undefined : getSubtitle(part);
+  // Don't show subtitle if it matches the title (e.g. bash description = title)
+  return { title, subtitle: subtitle === title ? undefined : subtitle };
+}
+
+function buildEditTrigger(part: ToolPart): TriggerTitle {
+  const isPending = part.state?.status === 'pending' || part.state?.status === 'running';
   const filePath = getInputFilePath(part) || '';
   const filename = getFilename(filePath);
   const directory = filePath.includes('/') || filePath.includes('\\') ? getDirectory(filePath) : '';
   const fileDiff = getFileDiff(part);
   const title = part.tool === 'edit' ? 'Edit' : 'Write';
 
-  return (
-    <div data-component="edit-trigger">
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Icon name="code-lines" size="small" />
-        <div data-slot="message-part-title-area">
-          <div data-slot="message-part-title">
-            <span data-slot="message-part-title-text" className={isPending ? 'text-shimmer' : ''}>
-              {isPending ? getRunningLabel(part.tool) : title}
-            </span>
-            {!isPending && filename && (
-              <span data-slot="message-part-title-filename">{filename}</span>
-            )}
-          </div>
-          {!isPending && directory && (
-            <div data-slot="message-part-path">
-              <span data-slot="message-part-directory">{directory}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div data-slot="message-part-actions">
-        {!isPending && fileDiff && <DiffChanges changes={fileDiff} />}
-      </div>
-    </div>
-  );
+  return {
+    title: isPending ? getRunningLabel(part.tool) : title,
+    subtitle: !isPending && filename ? filename : undefined,
+    args: !isPending && directory ? [directory] : undefined,
+    action: !isPending && fileDiff ? <DiffChanges changes={fileDiff} /> : undefined,
+  };
 }
 
-function toolDefaultOpen(tool: string, shellExpanded: boolean, editExpanded: boolean): boolean {
-  if (tool === 'bash') return shellExpanded;
-  if (tool === 'edit' || tool === 'write' || tool === 'apply_patch') return editExpanded;
-  return false;
+function buildApplyPatchTrigger(part: ToolPart, files: ApplyPatchFile[]): TriggerTitle {
+  const isPending = part.state?.status === 'pending' || part.state?.status === 'running';
+  const single = files.length === 1 ? files[0] : undefined;
+
+  if (single) {
+    const filename = getFilename(single.relativePath);
+    const directory = single.relativePath.includes('/') ? getDirectory(single.relativePath) : '';
+
+    return {
+      title: isPending ? getRunningLabel('apply_patch') : 'Patch',
+      subtitle: !isPending && filename ? filename : undefined,
+      args: !isPending && directory ? [directory] : undefined,
+      action: !isPending ? <DiffChanges changes={{ additions: single.additions, deletions: single.deletions }} /> : undefined,
+    };
+  }
+
+  const subtitle = files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : '';
+  return {
+    title: isPending ? getRunningLabel('apply_patch') : 'Patch',
+    subtitle: isPending ? undefined : subtitle,
+  };
 }
+
+// ToolPartView
 
 export function ToolPartView({ part }: ToolPartViewProps) {
   const status = part.state?.status ?? 'pending';
@@ -792,129 +749,144 @@ export function ToolPartView({ part }: ToolPartViewProps) {
   const hasOutput = !!output && part.tool !== 'read';
   const hasContent = hasOutput || !!error || (attachments && attachments.length > 0) || loadedFiles.length > 0;
 
-  // Inline tools: compact row, collapsible only when content exists
+  // Inline tools
   if (isInline) {
-    if (!hasContent) {
-      return (
-        <div className="flex items-center gap-5 py-1 px-2 text-left">
-          <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-        </div>
-      );
-    }
+    const triggerTitle = buildTriggerTitle(part);
+    const icon = getToolIconName(part.tool);
+    const content = hasContent ? (
+      <div className="pl-7 mt-1 space-y-1">
+        <ToolContentBody
+          part={part}
+          output={output}
+          error={error}
+          attachments={attachments}
+          loadedFiles={loadedFiles}
+          maxOutputLines={3}
+        />
+      </div>
+    ) : undefined;
 
     return (
-      <Collapsible defaultOpen={false}>
-        <Collapsible.Trigger
-          className="w-full flex items-center gap-5 py-1 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-        >
-          <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-          <Collapsible.Arrow className="text-muted-foreground" />
-        </Collapsible.Trigger>
-        <Collapsible.Content className="pl-7 mt-1 space-y-1">
-          <ToolContentBody
-            part={part}
-            output={output}
-            error={error}
-            attachments={attachments}
-            loadedFiles={loadedFiles}
-            maxOutputLines={3}
-          />
-        </Collapsible.Content>
-      </Collapsible>
+      <BasicTool
+        icon={icon}
+        trigger={triggerTitle}
+        status={status}
+        defaultOpen={false}
+        hideDetails={!hasContent}
+      >
+        {content}
+      </BasicTool>
     );
   }
 
-  // Apply Patch tool: specialized multi-file accordion
+  // Apply Patch
   if (part.tool === 'apply_patch') {
     const files = getApplyPatchFiles(part);
     const defaultOpen = status === 'completed' && editExpanded;
+    const trigger = buildApplyPatchTrigger(part, files);
 
     return (
       <div data-component="apply-patch-tool">
-        <Collapsible defaultOpen={defaultOpen}>
-          <Collapsible.Trigger
-            className="w-full flex items-center gap-5 py-1.5 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-          >
-            <ApplyPatchTrigger part={part} isPending={isPending} files={files} />
-            {!isPending && <Collapsible.Arrow className="text-muted-foreground" />}
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            <ApplyPatchContent part={part} files={files} />
-          </Collapsible.Content>
-        </Collapsible>
+        <BasicTool
+          icon="code-lines"
+          trigger={trigger}
+          status={status}
+          defaultOpen={defaultOpen}
+          defer
+        >
+          <ApplyPatchContent part={part} files={files} />
+        </BasicTool>
       </div>
     );
   }
 
-  // Edit/Write tools: specialized rendering with diff viewer
+  // Edit/Write
   if (part.tool === 'edit' || part.tool === 'write') {
     const defaultOpen = status === 'completed' && editExpanded;
+    const trigger = buildEditTrigger(part);
 
     return (
       <div data-component={part.tool === 'edit' ? 'edit-tool' : 'write-tool'}>
-        <Collapsible defaultOpen={defaultOpen}>
-          <Collapsible.Trigger
-            className="w-full flex items-center gap-5 py-1.5 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-          >
-            <EditWriteTrigger part={part} isPending={isPending} />
-            {!isPending && <Collapsible.Arrow className="text-muted-foreground" />}
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            {part.tool === 'edit' ? (
-              <EditToolContent part={part} />
-            ) : (
-              <WriteToolContent part={part} />
-            )}
-          </Collapsible.Content>
-        </Collapsible>
+        <BasicTool
+          icon="code-lines"
+          trigger={trigger}
+          status={status}
+          defaultOpen={defaultOpen}
+          defer
+        >
+          {part.tool === 'edit' ? (
+            <EditToolContent part={part} />
+          ) : (
+            <WriteToolContent part={part} />
+          )}
+        </BasicTool>
       </div>
     );
   }
 
-  // Bash tool: dedicated output block with $ command format
+  // Bash
   if (part.tool === 'bash') {
     const defaultOpen = status === 'completed' && shellExpanded;
+    const title = isPending ? getRunningLabel(part.tool) : getCompletedTitle(part);
+    const bashSubtitle = isPending ? undefined : getSubtitle(part);
+    const bashTrigger: TriggerTitle = {
+      title,
+      subtitle: undefined,
+      action: bashSubtitle && bashSubtitle !== title ? (
+        <ShellSubmessage text={bashSubtitle} animated={!isPending} />
+      ) : undefined,
+    };
 
     return (
       <div data-component="bash-tool">
-        <Collapsible defaultOpen={defaultOpen}>
-          <Collapsible.Trigger
-            className="w-full flex items-center gap-5 py-1.5 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-          >
-            <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-            {!isPending && <Collapsible.Arrow className="text-muted-foreground" />}
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            <BashToolContent part={part} />
-          </Collapsible.Content>
-        </Collapsible>
+        <BasicTool
+          icon="console"
+          trigger={bashTrigger}
+          status={status}
+          defaultOpen={defaultOpen}
+        >
+          <BashToolContent part={part} />
+        </BasicTool>
       </div>
     );
   }
 
-  // TodoWrite tool: always expanded, locked open
+  // TodoWrite
   if (part.tool === 'todowrite') {
+    const todos = getTodos(part);
+    const completed = todos.filter((t) => t.status === 'completed').length;
+    const subtitle = todos.length > 0 ? `${completed}/${todos.length}` : undefined;
+
     return (
       <div data-component="todowrite-tool">
-        <div className="flex items-center gap-5 py-1.5 px-2 text-left">
-          <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-        </div>
-        {!isPending && <TodoWriteToolContent part={part} />}
+        <BasicTool
+          icon="checklist"
+          trigger={{ title: 'Todos', subtitle }}
+          status={status}
+          locked
+          forceOpen
+        >
+          {!isPending && <TodoWriteToolContent part={part} />}
+        </BasicTool>
       </div>
     );
   }
 
-  // Question tool: show answered Q&A pairs when completed, or "Dismissed" for dismissed questions
+  // Question
   if (part.tool === 'question') {
     const questionError = status === 'error' && 'error' in part.state ? (part.state.error as string) : null;
     const isDismissed = questionError?.replace('Error: ', '').includes('dismissed this question');
+    const triggerTitle = buildTriggerTitle(part);
 
     if (isDismissed) {
       return (
         <div data-component="question-tool">
-          <div className="flex items-center gap-5 py-1.5 px-2 text-left">
-            <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-          </div>
+          <BasicTool
+            icon="bubble-5"
+            trigger={triggerTitle}
+            status={status}
+            hideDetails
+          />
           <div className="flex justify-end w-full px-2 pb-1">
             <span className="text-sm text-muted-foreground cursor-default">Dismissed</span>
           </div>
@@ -927,93 +899,65 @@ export function ToolPartView({ part }: ToolPartViewProps) {
 
     return (
       <div data-component="question-tool">
-        <Collapsible defaultOpen={completed}>
-          <Collapsible.Trigger
-            className="w-full flex items-center gap-5 py-1.5 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-          >
-            <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-            {!isPending && <Collapsible.Arrow className="text-muted-foreground" />}
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            <QuestionToolContent part={part} />
-          </Collapsible.Content>
-        </Collapsible>
+        <BasicTool
+          icon="bubble-5"
+          trigger={triggerTitle}
+          status={status}
+          defaultOpen={completed}
+        >
+          <QuestionToolContent part={part} />
+        </BasicTool>
       </div>
     );
   }
 
-  // Task/subagent tool: TextShimmer title, description subtitle, no collapsible content
+  // Task/subagent
   if (part.tool === 'task') {
     const { subagentType, description } = getTaskInfo(part);
     const title = `Agent${subagentType ? `: ${subagentType}` : ''}`;
 
     return (
       <div data-component="task-tool">
-        <div className="flex items-center gap-2 py-1.5 px-2 text-left min-w-0">
-          <Icon name="task" size="small" />
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-[14px] leading-[var(--line-height-large,1.5)] font-medium capitalize flex-shrink-0">
-              <TextShimmer text={title} active={isPending} />
-            </span>
-            {!isPending && description && (
-              <>
-                <span className="text-foreground/50">·</span>
-                <span className="text-[14px] leading-[var(--line-height-large,1.5)] text-foreground/70 truncate">
-                  {description}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
+        <BasicTool
+          icon="task"
+          trigger={{ title, subtitle: description }}
+          status={status}
+          hideDetails
+        />
       </div>
     );
   }
 
-  // Block tools: per-tool-type default open (matching OpenCode)
-  const defaultOpen = status === 'completed' && hasContent && toolDefaultOpen(part.tool, shellExpanded, editExpanded);
+  // Fallback for unknown block tools
+  const defaultOpen = status === 'completed' && hasContent;
+  const triggerTitle = buildTriggerTitle(part);
+  const icon = getToolIconName(part.tool);
 
   return (
-    <Collapsible defaultOpen={defaultOpen}>
-      <Collapsible.Trigger
-        className="w-full flex items-center gap-5 py-1.5 px-2 rounded hover:bg-muted/30 transition-colors text-left"
-      >
-        <ToolTriggerContent part={part} isPending={isPending} subtitle={subtitle} />
-        {hasContent && (
-          <Collapsible.Arrow className="text-muted-foreground" />
-        )}
-      </Collapsible.Trigger>
-      <Collapsible.Content className="pl-7 mt-1 space-y-1">
-        <ToolContentBody
-          part={part}
-          output={output}
-          error={error}
-          attachments={attachments}
-          loadedFiles={loadedFiles}
-          maxOutputLines={part.tool === 'bash' ? 10 : 3}
-        />
-      </Collapsible.Content>
-    </Collapsible>
+    <BasicTool
+      icon={icon}
+      trigger={triggerTitle}
+      status={status}
+      defaultOpen={defaultOpen}
+    >
+      {hasContent && (
+        <div className="pl-7 mt-1 space-y-1">
+          <ToolContentBody
+            part={part}
+            output={output}
+            error={error}
+            attachments={attachments}
+            loadedFiles={loadedFiles}
+            maxOutputLines={part.tool === 'bash' ? 10 : 3}
+          />
+        </div>
+      )}
+    </BasicTool>
   );
 }
 
-function ToolError({ error }: { error: string }) {
-  const cleaned = error.replace(/^Error:\s*/, '');
-  const [title, ...rest] = cleaned.split(': ');
-  const hasStructuredTitle = title && title.length < 30 && rest.length > 0;
-
-  return (
-    <div data-component="tool-error">
-      <Ban size={14} className="tool-error-icon" />
-      {hasStructuredTitle ? (
-        <div data-slot="tool-error-content">
-          <span data-slot="tool-error-title">{title}</span>
-          <span data-slot="tool-error-message">{rest.join(': ')}</span>
-        </div>
-      ) : (
-        <span data-slot="tool-error-message">{cleaned}</span>
-      )}
-    </div>
-  );
+function ToolError({ tool, error }: { tool: string; error: string }) {
+  return <ToolErrorCard tool={tool} error={error} />;
 }
 
 function ToolContentBody({
@@ -1047,22 +991,19 @@ function ToolContentBody({
         <TruncatedOutput text={output} maxLines={maxOutputLines} cacheKey={part.id} />
       )}
       {attachments && attachments.length > 0 && <AttachmentList parts={attachments} />}
-      {error && <ToolError error={error} />}
+      {error && <ToolError tool={part.tool} error={error} />}
     </>
   );
 }
 
-// --- Context Tool Grouping ---
+// Context Tool Grouping
 
-function contextToolSummary(parts: ToolPart[], running: boolean): string[] {
-  const read = parts.filter((p) => p.tool === 'read').length;
-  const search = parts.filter((p) => p.tool === 'glob' || p.tool === 'grep').length;
-  const list = parts.filter((p) => p.tool === 'list').length;
-  return [
-    read ? (running ? `Reading ${read} file${read > 1 ? 's' : ''}` : `${read} file${read > 1 ? 's' : ''} read`) : undefined,
-    search ? (running ? `Searching ${search} pattern${search > 1 ? 's' : ''}` : `${search} pattern${search > 1 ? 's' : ''} searched`) : undefined,
-    list ? (running ? `Listing ${list} director${list > 1 ? 'ies' : 'y'}` : `${list} director${list > 1 ? 'ies' : 'y'} listed`) : undefined,
-  ].filter((v): v is string => !!v);
+function contextToolSummary(parts: ToolPart[]) {
+  return {
+    read: parts.filter((p) => p.tool === 'read').length,
+    search: parts.filter((p) => p.tool === 'glob' || p.tool === 'grep').length,
+    list: parts.filter((p) => p.tool === 'list').length,
+  };
 }
 
 function contextToolTriggerInfo(part: ToolPart): { title: string; subtitle?: string; args?: string[] } {
@@ -1075,8 +1016,8 @@ function contextToolTriggerInfo(part: ToolPart): { title: string; subtitle?: str
   const offset = typeof inputRecord?.offset === 'number' ? inputRecord.offset : undefined;
   const limit = typeof inputRecord?.limit === 'number' ? inputRecord.limit : undefined;
 
-  const getFilename = (p: string) => p.split(/[/\\]/).pop() || p;
-  const getDirectory = (p: string) => {
+  const _getFilename = (p: string) => p.split(/[/\\]/).pop() || p;
+  const _getDirectory = (p: string) => {
     const parts = p.split(/[/\\]/);
     return parts.length > 1 ? parts.slice(-2).join('/') : parts.pop() || p;
   };
@@ -1086,17 +1027,17 @@ function contextToolTriggerInfo(part: ToolPart): { title: string; subtitle?: str
       const args: string[] = [];
       if (offset !== undefined) args.push('offset=' + offset);
       if (limit !== undefined) args.push('limit=' + limit);
-      return { title: 'Read', subtitle: filePath ? getFilename(filePath) : undefined, args };
+      return { title: 'Read', subtitle: filePath ? _getFilename(filePath) : undefined, args };
     }
     case 'list':
-      return { title: 'List', subtitle: getDirectory(path) };
+      return { title: 'List', subtitle: _getDirectory(path) };
     case 'glob':
-      return { title: 'Glob', subtitle: getDirectory(path), args: pattern ? ['pattern=' + pattern] : [] };
+      return { title: 'Glob', subtitle: _getDirectory(path), args: pattern ? ['pattern=' + pattern] : [] };
     case 'grep': {
       const args: string[] = [];
       if (pattern) args.push('pattern=' + pattern);
       if (include) args.push('include=' + include);
-      return { title: 'Grep', subtitle: getDirectory(path), args };
+      return { title: 'Grep', subtitle: _getDirectory(path), args };
     }
     default:
       return { title: part.tool };
@@ -1113,8 +1054,7 @@ export const ContextToolGroup = memo(function ContextToolGroup({ parts, busy }: 
     () => !!busy || parts.some((p) => p.state?.status === 'pending' || p.state?.status === 'running'),
     [parts, busy],
   );
-  const summary = useMemo(() => contextToolSummary(parts, pending), [parts, pending]);
-  const details = summary.join(', ');
+  const summary = useMemo(() => contextToolSummary(parts), [parts]);
 
   return (
     <Collapsible defaultOpen={false}>
@@ -1122,11 +1062,23 @@ export const ContextToolGroup = memo(function ContextToolGroup({ parts, busy }: 
         <div data-component="context-tool-group-trigger">
           <span data-slot="context-tool-group-title">
             <span data-slot="context-tool-group-label">
-              {pending ? <TextShimmer text="Gathering context..." /> : 'Gathered context'}
+              <ToolStatusTitle
+                active={pending}
+                activeText="Gathering context..."
+                doneText="Gathered context"
+                split={false}
+              />
             </span>
-            {details.length > 0 && (
-              <span data-slot="context-tool-group-summary">{details}</span>
-            )}
+            <span data-slot="context-tool-group-summary">
+              <AnimatedCountList
+                items={[
+                  { key: 'read', count: summary.read, one: '{{count}} read', other: '{{count}} reads' },
+                  { key: 'search', count: summary.search, one: '{{count}} search', other: '{{count}} searches' },
+                  { key: 'list', count: summary.list, one: '{{count}} list', other: '{{count}} lists' },
+                ]}
+                fallback=""
+              />
+            </span>
           </span>
           <Collapsible.Arrow />
         </div>
@@ -1140,7 +1092,7 @@ export const ContextToolGroup = memo(function ContextToolGroup({ parts, busy }: 
               <div key={part.id} data-slot="context-tool-group-item">
                 <div data-slot="basic-tool-tool-info-main">
                   <span data-slot="basic-tool-tool-title">
-                    {running ? <TextShimmer text={info.title} /> : info.title}
+                    <TextShimmer text={info.title} active={running} />
                   </span>
                   {!running && info.subtitle && (
                     <span data-slot="basic-tool-tool-subtitle">{info.subtitle}</span>
@@ -1157,3 +1109,4 @@ export const ContextToolGroup = memo(function ContextToolGroup({ parts, busy }: 
     </Collapsible>
   );
 });
+

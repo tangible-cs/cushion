@@ -99,6 +99,27 @@ export async function syncCredentialsToOpenCode(
   const mergedConfig = {
     ...config,
     provider: providerSection,
+    // Set sensible permission defaults so read-only tools run without prompts
+    // while destructive actions still go through Cushion's auto-accept toggle.
+    // Only set the default if the user hasn't configured permissions themselves.
+    ...(!config.permission
+      ? {
+          permission: {
+            read: 'allow',
+            glob: 'allow',
+            grep: 'allow',
+            list: 'allow',
+            todoread: 'allow',
+            lsp: 'allow',
+            edit: 'ask',
+            bash: 'ask',
+            task: 'ask',
+            webfetch: 'ask',
+            websearch: 'ask',
+            codesearch: 'ask',
+          },
+        }
+      : {}),
   };
 
   const fs = await import('fs/promises');

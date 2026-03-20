@@ -79,3 +79,6 @@ export const iconNames = [
 ] as const
 
 export type IconName = (typeof iconNames)[number]
+
+export const resolveProviderIcon = (id: string): IconName =>
+  iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic';

@@ -1,6 +1,5 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 
 interface CollapsibleContextValue {
   open: boolean;
@@ -101,30 +100,24 @@ interface CollapsibleArrowProps {
 }
 
 function CollapsibleArrow({ className }: CollapsibleArrowProps) {
-  const { open } = useCollapsible();
-
   return (
     <div data-slot="collapsible-arrow" className={className}>
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 10 10"
-        fill="none"
-        className={cn("transition-transform", open && "rotate-180")}
-      >
-        <path
-          d="M6.66675 7.49984L10.0001 4.1665L13.3334 7.49984M6.66675 12.4998L10.0001 15.8332L13.3334 12.4998"
-          transform={open ? 'translate(0, -5)' : 'translate(0, -5)'}
-          stroke="currentColor"
-          strokeLinecap="square"
-        />
-        <path
-          d="M6.66675 2.49984L10.0001 5.83317L13.3334 2.49984M6.66675 7.49984L10.0001 10.8332L13.3334 7.49984"
-          transform="translate(0, -2)"
-          stroke="currentColor"
-          strokeLinecap="square"
-        />
-      </svg>
+      <div data-slot="collapsible-arrow-icon">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+        >
+          <path
+            d="M2.5 3.5L5 6.5L7.5 3.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
     </div>
   );
 }

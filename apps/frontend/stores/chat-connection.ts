@@ -178,6 +178,16 @@ export async function handleConnect(
   });
 
   unsubscribeEvents = onOpenCodeEvent(directory, (event, eventDirectory) => {
+    if (event.type === 'permission.asked' && get().autoAccept) {
+      const perm = event.properties;
+      if (perm?.sessionID && perm?.id) {
+        get().respondToPermission({
+          sessionID: perm.sessionID,
+          permissionID: perm.id,
+          response: 'once',
+        }).catch(() => undefined);
+      }
+    }
     get().applyEvent(event, eventDirectory);
   });
 }

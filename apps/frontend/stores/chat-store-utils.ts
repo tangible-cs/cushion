@@ -19,9 +19,7 @@ import {
   type OpenCodeConnectionState,
 } from '@/lib/shared-opencode-client';
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export type OpenCodeDirectory = string;
 
@@ -109,6 +107,8 @@ export type ChatState = {
   permissions: Record<string, PermissionRequest[]>;
   questions: Record<string, QuestionRequest[]>;
   sessionErrors: Record<string, string | undefined>;
+  compactedSessions: Record<string, boolean>;
+  autoAccept: boolean;
 };
 
 export type ChatActions = {
@@ -144,6 +144,7 @@ export type ChatActions = {
   toggleShowThinking: () => void;
   toggleShellToolPartsExpanded: () => void;
   toggleEditToolPartsExpanded: () => void;
+  toggleAutoAccept: () => void;
 };
 
 export type ChatStore = ChatState & ChatActions;
@@ -153,18 +154,14 @@ export type ChatStoreSet = (
   updater: Partial<ChatState> | ((state: ChatStore) => Partial<ChatState>)
 ) => void;
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const MAX_CONTEXT_ITEMS = 20;
 export const DEFAULT_MESSAGE_LIMIT = 200;
-export const WORKSPACE_SESSION_KEY = '__workspace__';
+const WORKSPACE_SESSION_KEY = '__workspace__';
 export const MAX_PROMPT_SESSIONS = 20;
 
-// ---------------------------------------------------------------------------
 // Initial state
-// ---------------------------------------------------------------------------
 
 export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   showThinking: true,
@@ -207,11 +204,11 @@ export const initialState: ChatState = {
   permissions: {},
   questions: {},
   sessionErrors: {},
+  compactedSessions: {},
+  autoAccept: false,
 };
 
-// ---------------------------------------------------------------------------
 // List utilities
-// ---------------------------------------------------------------------------
 
 export function insertSortedById<T>(list: T[], item: T, getId: (value: T) => string) {
   const id = getId(item);
@@ -270,9 +267,7 @@ export function removeMessage(list: Message[], messageId: string) {
   return list.filter((item) => item.id !== messageId);
 }
 
-// ---------------------------------------------------------------------------
 // Prompt session utilities
-// ---------------------------------------------------------------------------
 
 export function getPromptKey(directory: string, sessionId: string | null) {
   const normalized = directory.replace(/\\/g, '/');
@@ -334,9 +329,7 @@ export function prunePromptSessions(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Model visibility
-// ---------------------------------------------------------------------------
 
 export function getModelVisibilityKey(model: SelectedModel) {
   return `${model.providerID}:${model.modelID}`;
@@ -349,9 +342,7 @@ export function resolveModelVisibility(map: Record<string, ModelVisibility>, mod
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // API helpers
-// ---------------------------------------------------------------------------
 
 type ResultData<T> = { data: T };
 
