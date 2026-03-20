@@ -18,6 +18,7 @@ import {
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 
 interface EditorPanelProps {
@@ -41,8 +42,6 @@ const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
   'image/x-icon': 'ico',
   'image/vnd.microsoft.icon': 'ico',
 };
-
-const BINARY_WIKI_LINK_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
 
 
 function formatPasteTimestamp(date: Date): string {
@@ -461,7 +460,7 @@ export function EditorPanel({
     async (href, resolvedPath, createIfMissing) => {
       if (resolvedPath) {
         try {
-          if (BINARY_WIKI_LINK_EXTENSIONS.test(resolvedPath)) {
+          if (BINARY_FILE_EXTENSIONS.test(resolvedPath)) {
             openFile(resolvedPath, '');
             return;
           }

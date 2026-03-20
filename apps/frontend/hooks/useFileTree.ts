@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode, ConnectionState, WorkspaceMetadata } from '@cushion/types';
 
@@ -143,10 +144,9 @@ export function useFileTree({
       fetchFileTree();
     });
 
-    const binaryExts = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
       // Binary files (images, PDFs) are handled by their own viewers, not text content
-      if (binaryExts.test(filePath)) return;
+      if (BINARY_FILE_EXTENSIONS.test(filePath)) return;
 
       const state = useWorkspaceStore.getState();
       const openFile = state.openFiles.get(filePath);

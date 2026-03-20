@@ -24,10 +24,11 @@ export function ResizeHandle({
   className,
   ...rest
 }: ResizeHandleProps) {
+  const resolvedEdge = edge ?? (direction === 'vertical' ? 'start' : 'end');
+
   const handleMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       event.preventDefault();
-      const resolvedEdge = edge ?? (direction === 'vertical' ? 'start' : 'end');
       const start = direction === 'horizontal' ? event.clientX : event.clientY;
       const startSize = size;
       let current = startSize;
@@ -65,10 +66,8 @@ export function ResizeHandle({
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     },
-    [collapseThreshold, direction, edge, max, min, onCollapse, onResize, size]
+    [collapseThreshold, direction, resolvedEdge, max, min, onCollapse, onResize, size]
   );
-
-  const resolvedEdge = edge ?? (direction === 'vertical' ? 'start' : 'end');
 
   return (
     <div

@@ -20,6 +20,7 @@ interface EditorTabRowProps {
 }
 
 const isElectron = !!window.electronAPI;
+const noDragStyle = isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
 
 export function EditorTabRow({
   sidebarOpen,
@@ -63,7 +64,7 @@ export function EditorTabRow({
               'hover:bg-muted/30',
               'transition-colors duration-150'
             )}
-            style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+            style={noDragStyle}
             title="Open workspace"
             aria-label="Open workspace"
           >
@@ -80,7 +81,7 @@ export function EditorTabRow({
               'hover:bg-muted/30',
               'transition-colors duration-150'
             )}
-            style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+            style={noDragStyle}
             title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
             aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
             aria-pressed={!!sidebarOpen}
@@ -93,7 +94,7 @@ export function EditorTabRow({
       {/* Center — tabs area + right toggle */}
       <div
         className="min-w-0 flex-1 flex items-end"
-        style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+        style={noDragStyle}
       >
         <div className="min-w-0 flex-1">
           {tabs.length > 0 ? (
@@ -120,7 +121,7 @@ export function EditorTabRow({
               'hover:bg-muted/30',
               'transition-colors duration-150'
             )}
-            style={isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+            style={noDragStyle}
             title={rightPanelOpen ? 'Close right sidebar' : 'Open right sidebar'}
             aria-label={rightPanelOpen ? 'Close right sidebar' : 'Open right sidebar'}
             aria-pressed={!!rightPanelOpen}

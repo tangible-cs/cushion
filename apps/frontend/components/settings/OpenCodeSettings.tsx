@@ -9,20 +9,12 @@ interface OpenCodeSettingsProps {
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  idle: 'Idle',
-  connecting: 'Connecting',
-  connected: 'Connected',
-  reconnecting: 'Reconnecting',
-  error: 'Error',
-};
-
-const STATUS_DOT_CLASS: Record<ConnectionStatus, string> = {
-  idle: 'bg-foreground-faint',
-  connecting: 'bg-accent',
-  connected: 'bg-accent-green',
-  reconnecting: 'bg-accent',
-  error: 'bg-accent-red',
+const STATUS_CONFIG: Record<ConnectionStatus, { label: string; dotClass: string }> = {
+  idle: { label: 'Idle', dotClass: 'bg-foreground-faint' },
+  connecting: { label: 'Connecting', dotClass: 'bg-accent' },
+  connected: { label: 'Connected', dotClass: 'bg-accent-green' },
+  reconnecting: { label: 'Reconnecting', dotClass: 'bg-accent' },
+  error: { label: 'Error', dotClass: 'bg-accent-red' },
 };
 
 function normalizeInput(value: string) {
@@ -137,8 +129,8 @@ export function OpenCodeSettings({ embedded = false }: OpenCodeSettingsProps) {
       )}
 
       <div className="mt-3 flex items-center gap-2 text-xs text-foreground-muted">
-        <span className={cn('inline-block h-2 w-2 rounded-full', STATUS_DOT_CLASS[connection.status])} />
-        <span>Connection: {STATUS_LABEL[connection.status]}</span>
+        <span className={cn('inline-block h-2 w-2 rounded-full', STATUS_CONFIG[connection.status].dotClass)} />
+        <span>Connection: {STATUS_CONFIG[connection.status].label}</span>
       </div>
 
       <div className="mt-1 text-xs text-foreground-muted break-all">Current: {baseUrl}</div>

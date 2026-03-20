@@ -7,6 +7,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { FilePlus, FolderPlus, Search, Settings, ChevronDown } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import { cn } from '@/lib/utils';
 import type { FileTreeNode } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
@@ -134,8 +135,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
 
     // Binary files (images, PDFs) are loaded via readFileBase64 in EditorPanel
-    const binaryExts = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
-    if (binaryExts.test(filePath)) {
+    if (BINARY_FILE_EXTENSIONS.test(filePath)) {
       onFileOpen(filePath, '', forceNewTab);
       return;
     }

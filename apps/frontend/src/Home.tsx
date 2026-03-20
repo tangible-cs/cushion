@@ -20,6 +20,7 @@ import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/sh
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useConfigSync } from '@/hooks/useConfigSync';
 import { EditorTabRow } from '@/components/editor/EditorTabRow';
+import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
@@ -31,8 +32,6 @@ const APP_SHORTCUT_IDS = [
   'app.overlay.close',
   'app.focusMode.exit',
 ] as const;
-
-const BINARY_NAVIGATION_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
 
 type OverlayCloseTarget = {
   isOpen: boolean;
@@ -384,7 +383,7 @@ export default function Home() {
     if (!client) return;
 
     try {
-      if (BINARY_NAVIGATION_EXTENSIONS.test(filePath)) {
+      if (BINARY_FILE_EXTENSIONS.test(filePath)) {
         openFile(filePath, '');
         return;
       }
