@@ -1,4 +1,3 @@
-'use client';
 
 import { useState } from 'react';
 import { MoreVertical, Plus, FolderInput, FolderPlus, Pencil, Trash2, Files, Sparkles } from 'lucide-react';

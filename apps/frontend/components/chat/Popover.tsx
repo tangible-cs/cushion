@@ -1,4 +1,3 @@
-'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, cloneElement, isValidElement, Children, type ReactElement, type ReactNode } from 'react';
 import * as React from 'react';

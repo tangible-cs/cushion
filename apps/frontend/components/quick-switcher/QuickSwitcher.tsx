@@ -1,4 +1,3 @@
-'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { FileText, FilePlus, Folder } from 'lucide-react';

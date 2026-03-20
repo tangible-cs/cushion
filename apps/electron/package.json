@@ -1,0 +1,25 @@
+{
+  "name": "electron-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "package": "electron-builder",
+    "type-check": "tsc -b"
+  },
+  "dependencies": {
+    "@cushion/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "electron-window-state": "^5.0.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.0"
+  }
+}

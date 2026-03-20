@@ -1,4 +1,3 @@
-'use client';
 
 import type { SVGProps } from 'react';
 import type { IconName } from './provider-icons/types';

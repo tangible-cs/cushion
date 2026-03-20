@@ -1,11 +1,10 @@
-'use client';
 
 import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef, ElementRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
 import { ConfirmDialog } from './ConfirmDialog';
-import { FilePlus, FolderPlus, RefreshCw, ChevronsLeft, FolderOpen, Search, Settings, ChevronDown } from 'lucide-react';
+import { FilePlus, FolderPlus, Search, Settings, ChevronDown } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { cn } from '@/lib/utils';
@@ -14,7 +13,7 @@ import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 interface FileBrowserProps {
   client: CoordinatorClient | null;
-  onFileOpen: (path: string, content: string) => void;
+  onFileOpen: (path: string, content: string, forceNewTab?: boolean) => void;
   onNewDocument?: () => void;
   onOpenWorkspace?: () => void;
   onSidebarToggle?: (collapsed: boolean) => void;
@@ -129,7 +128,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     },
   }), [loadDirectory]);
 
-  const handleFileClick = async (filePath: string) => {
+  const handleFileClick = async (filePath: string, forceNewTab?: boolean) => {
     if (!client) {
       return;
     }
@@ -137,13 +136,13 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     // Binary files (images, PDFs) are loaded via readFileBase64 in EditorPanel
     const binaryExts = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
     if (binaryExts.test(filePath)) {
-      onFileOpen(filePath, '');
+      onFileOpen(filePath, '', forceNewTab);
       return;
     }
 
     try {
       const { content } = await client.readFile(filePath);
-      onFileOpen(filePath, content);
+      onFileOpen(filePath, content, forceNewTab);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to open file';
       setError(errorMsg);
@@ -162,32 +161,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [metadata, onSidebarToggle, isCollapsed]);
 
-  // When no workspace is loaded, show folder icon
   if (!metadata) {
-    return (
-      <div
-        className="fixed top-3 left-3 z-[100]"
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div
-          onClick={() => {
-            if (onOpenWorkspace) {
-              onOpenWorkspace();
-            }
-          }}
-          role="button"
-          className={cn(
-            "h-8 w-8 rounded flex items-center justify-center cursor-pointer",
-            "text-muted-foreground hover:text-foreground",
-            "hover:bg-muted/40",
-            "transition-colors duration-150"
-          )}
-          title="Open workspace"
-        >
-          <FolderOpen size={18} />
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -195,7 +170,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       <aside
         ref={sidebarRef}
         className={cn(
-          "group/sidebar h-screen flex-shrink-0 bg-sidebar-bg flex flex-col relative",
+          "group/sidebar h-full flex-shrink-0 bg-sidebar-bg flex flex-col relative",
           "transition-[margin] duration-300 ease-in-out",
           !isCollapsed && "border-r border-border"
         )}
@@ -216,100 +191,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             onCollapse={collapseSidebar}
           />
         )}
-        {/* Top bar — h-10 to align with tab bar */}
-        <div className="flex-shrink-0 h-10 px-3 flex items-center gap-2">
-          {/* Logo button */}
-          <button
-            onClick={() => onOpenWorkspace?.()}
-            type="button"
-            className={cn(
-              "h-8 w-8 rounded flex-shrink-0 flex items-center justify-center",
-              "text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/40",
-              "transition-colors duration-150"
-            )}
-            title="Switch workspace"
-            aria-label="Switch workspace"
-          >
-            <img
-              src="/logo.png"
-              alt="Cushion"
-              className="w-8 h-8 object-contain"
-            />
-          </button>
-
-          <div className="flex-1" />
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-0.5">
-            {/* Collapse button (<<) */}
-            <div
-              onClick={collapseSidebar}
-              role="button"
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center cursor-pointer",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-              title="Close sidebar"
-            >
-              <ChevronsLeft size={16} />
-            </div>
-
-            {/* New file */}
-            <button
-              onClick={() => {
-                setCreatingFileAtRoot(c => c + 1);
-              }}
-              title="New file"
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center",
-                "bg-transparent border-none",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-            >
-              <FilePlus size={16} />
-            </button>
-
-            {/* New folder */}
-            <button
-              onClick={() => {
-                setCreatingFolderAtRoot(c => c + 1);
-              }}
-              title="New folder"
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center",
-                "bg-transparent border-none",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-            >
-              <FolderPlus size={16} />
-            </button>
-
-            {/* Refresh */}
-            <button
-              onClick={() => loadDirectory('.')}
-              title="Refresh explorer"
-              className={cn(
-                "h-8 w-8 rounded flex items-center justify-center",
-                "bg-transparent border-none",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-muted/40",
-                "transition-colors duration-150"
-              )}
-            >
-              <RefreshCw size={16} />
-            </button>
-          </div>
-        </div>
-
         {/* Navigation items */}
-        <div className="flex-shrink-0 px-2 py-1 space-y-0.5">
+        <div className="flex-shrink-0 px-2 pt-2 pb-1 space-y-0.5">
           {/* Search */}
           <button
             onClick={onSearch}
@@ -336,6 +219,36 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           >
             <Settings size={16} />
             <span>Settings</span>
+          </button>
+
+          {/* New file */}
+          <button
+            onClick={() => setCreatingFileAtRoot(c => c + 1)}
+            className={cn(
+              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
+              "text-sm text-muted-foreground hover:text-foreground",
+              "hover:bg-muted/30",
+              "transition-colors duration-150"
+            )}
+            title="New file"
+          >
+            <FilePlus size={16} />
+            <span>New file</span>
+          </button>
+
+          {/* New folder */}
+          <button
+            onClick={() => setCreatingFolderAtRoot(c => c + 1)}
+            className={cn(
+              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
+              "text-sm text-muted-foreground hover:text-foreground",
+              "hover:bg-muted/30",
+              "transition-colors duration-150"
+            )}
+            title="New folder"
+          >
+            <FolderPlus size={16} />
+            <span>New folder</span>
           </button>
         </div>
 
@@ -436,6 +349,19 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
                 try {
                   await client.renameFile(oldPath, newPath);
+
+                  // Update open tab if this file was open in the editor
+                  const store = useWorkspaceStore.getState();
+                  const fileState = store.openFiles.get(oldPath);
+                  if (fileState) {
+                    const wasActive = store.currentFile === oldPath;
+                    store.closeFile(oldPath);
+                    store.openFile(newPath, fileState.content);
+                    if (wasActive) {
+                      store.setCurrentFile(newPath);
+                    }
+                  }
+
                   // Reload the parent directory to show updated files
                   const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);

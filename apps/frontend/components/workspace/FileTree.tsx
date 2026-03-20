@@ -1,4 +1,3 @@
-'use client';
 
 import { useState, useEffect } from 'react';
 import type { FileTreeNode } from '@cushion/types';
@@ -9,7 +8,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface FileTreeProps {
   nodes: FileTreeNode[];
-  onFileClick: (path: string) => void;
+  onFileClick: (path: string, forceNewTab?: boolean) => void;
   currentFile: string | null;
   level?: number;
   onLoadDirectory?: (path: string) => Promise<FileTreeNode[]>;
@@ -195,18 +194,26 @@ export function FileTree({
 
   const handleStartRename = (node: FileTreeNode) => {
     setRenamingItem(node.path);
-    setRenameValue(node.name);
+    // Strip .md extension so the user only edits the base name
+    const name = node.name;
+    setRenameValue(name.endsWith('.md') ? name.slice(0, -3) : name);
   };
 
   const handleRenameSubmit = async (node: FileTreeNode) => {
-    if (!renameValue.trim() || renameValue === node.name) {
+    const name = node.name;
+    const hadMdExt = name.endsWith('.md');
+    const baseName = hadMdExt ? name.slice(0, -3) : name;
+
+    if (!renameValue.trim() || renameValue === baseName) {
       setRenamingItem(null);
       return;
     }
 
     if (onRename) {
       const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
-      const newPath = parentPath ? `${parentPath}/${renameValue}` : renameValue;
+      // Re-append .md extension if the original file had it
+      const newName = hadMdExt ? `${renameValue}.md` : renameValue;
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
       onRename(node.path, newPath);
     }
 
@@ -375,11 +382,11 @@ export function FileTree({
               style={{ paddingLeft: `${indentPx + 6}px` }}
               onMouseEnter={() => setHoveredItem(node.path)}
               onMouseLeave={() => setHoveredItem(null)}
-              onClick={() => {
+              onClick={(e) => {
                 if (isFolder) {
                   toggleDirectory(node.path);
                 } else {
-                  onFileClick(node.path);
+                  onFileClick(node.path, e.ctrlKey || e.metaKey);
                 }
               }}
               title={node.path}
@@ -418,22 +425,27 @@ export function FileTree({
               {/* File/folder name */}
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 {renamingItem === node.path ? (
-                  <input
-                    className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
-                    type="text"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => handleRenameSubmit(node)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleRenameSubmit(node);
-                      } else if (e.key === 'Escape') {
-                        handleRenameCancel();
-                      }
-                    }}
-                    autoFocus
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                  <>
+                    <input
+                      className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-0.5 text-sm outline-none focus:border-foreground/40 focus:ring-1 focus:ring-foreground/10"
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleRenameSubmit(node)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleRenameSubmit(node);
+                        } else if (e.key === 'Escape') {
+                          handleRenameCancel();
+                        }
+                      }}
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    {node.name.endsWith('.md') && (
+                      <span className="text-sm text-muted-foreground shrink-0">.md</span>
+                    )}
+                  </>
                 ) : (
                   <span
                     className={cn(

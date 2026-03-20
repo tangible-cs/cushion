@@ -16,7 +16,7 @@ export type OpenCodeClientOptions = OpenCodeClientConfig & {
 const DEFAULT_OPENCODE_URL = 'http://localhost:4097';
 
 export function getOpenCodeBaseUrl() {
-  return process.env.NEXT_PUBLIC_OPENCODE_URL ?? DEFAULT_OPENCODE_URL;
+  return import.meta.env.VITE_OPENCODE_URL ?? DEFAULT_OPENCODE_URL;
 }
 
 export function createOpenCodeClient(options: OpenCodeClientOptions = {}) {

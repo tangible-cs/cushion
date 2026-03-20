@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';

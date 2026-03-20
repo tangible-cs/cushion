@@ -1,4 +1,3 @@
-'use client';
 
 import { WorkspacePicker } from './WorkspacePicker';
 import { useWorkspaceStore } from '@/stores/workspaceStore';

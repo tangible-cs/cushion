@@ -1,10 +1,13 @@
+import path from 'path';
 import type { Config } from 'tailwindcss';
+
+const root = path.resolve(__dirname);
 
 const config: Config = {
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    path.join(root, 'index.html'),
+    path.join(root, 'src/**/*.{js,ts,jsx,tsx}'),
+    path.join(root, 'components/**/*.{js,ts,jsx,tsx,mdx}'),
   ],
   theme: {
     extend: {

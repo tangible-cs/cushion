@@ -1,4 +1,3 @@
-'use client';
 
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { cn } from '@/lib/utils';

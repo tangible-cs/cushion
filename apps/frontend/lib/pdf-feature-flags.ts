@@ -6,5 +6,5 @@ function parseBooleanEnv(value: string | undefined): boolean {
 }
 
 export function isPdfProgressiveLoadingEnabled(): boolean {
-  return parseBooleanEnv(process.env.NEXT_PUBLIC_PDF_PROGRESSIVE_LOADING);
+  return parseBooleanEnv(import.meta.env.VITE_PDF_PROGRESSIVE_LOADING);
 }

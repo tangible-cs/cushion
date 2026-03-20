@@ -43,6 +43,19 @@ export class CoordinatorClient {
   constructor(private url: string = 'ws://localhost:3001') {}
 
   /**
+   * Build the WebSocket URL, checking Electron IPC for a dynamic port first.
+   */
+  static async resolveUrl(): Promise<string> {
+    if (window.electronAPI) {
+      try {
+        const port = await window.electronAPI.getCoordinatorPort();
+        return `ws://localhost:${port}`;
+      } catch {}
+    }
+    return 'ws://localhost:3001';
+  }
+
+  /**
    * Current connection state
    */
   get connectionState(): ConnectionState {

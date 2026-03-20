@@ -1,4 +1,3 @@
-'use client';
 
 import React, { memo, useMemo, useState } from 'react';
 import type { FileDiff, FilePart, ToolPart } from '@opencode-ai/sdk/v2/client';

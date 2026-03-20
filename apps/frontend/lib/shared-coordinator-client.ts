@@ -32,8 +32,9 @@ export async function getSharedCoordinatorClient(): Promise<CoordinatorClient> {
     return sharedClient;
   }
 
-  // First-time: create and connect
-  sharedClient = new CoordinatorClient();
+  // First-time: resolve URL (Electron IPC or default), create and connect
+  const url = await CoordinatorClient.resolveUrl();
+  sharedClient = new CoordinatorClient(url);
 
   connectionPromise = sharedClient.connect().then(() => {
     connectionPromise = null;

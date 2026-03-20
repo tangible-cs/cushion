@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, type HTMLAttributes, type MouseEvent as ReactMouseEvent } from 'react';
 

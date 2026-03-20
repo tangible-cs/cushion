@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { FileText, Type, Pencil, Highlighter, Image as ImageIcon } from 'lucide-react';

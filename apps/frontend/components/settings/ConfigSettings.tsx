@@ -1,4 +1,3 @@
-'use client';
 
 import { EditorSettings } from './EditorSettings';
 import { FilesSettings } from './FilesSettings';

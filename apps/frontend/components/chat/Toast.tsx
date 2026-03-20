@@ -1,4 +1,3 @@
-'use client';
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { createPortal } from 'react-dom';

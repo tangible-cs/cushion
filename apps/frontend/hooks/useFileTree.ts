@@ -1,4 +1,3 @@
-'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -144,7 +143,11 @@ export function useFileTree({
       fetchFileTree();
     });
 
+    const binaryExts = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf)$/i;
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
+      // Binary files (images, PDFs) are handled by their own viewers, not text content
+      if (binaryExts.test(filePath)) return;
+
       const state = useWorkspaceStore.getState();
       const openFile = state.openFiles.get(filePath);
       if (!openFile) return;

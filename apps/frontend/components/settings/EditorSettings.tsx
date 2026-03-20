@@ -1,4 +1,3 @@
-'use client';
 
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { cn } from '@/lib/utils';

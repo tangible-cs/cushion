@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useChatStore } from '@/stores/chatStore';
