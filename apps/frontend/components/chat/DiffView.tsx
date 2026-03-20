@@ -414,7 +414,6 @@ export function DiffSummary({ diffs }: DiffSummaryProps) {
     setLimit(diffInit);
   }, [diffs]);
 
-  // Reset expanded files when collapsible closes
   const handleSectionToggle = () => {
     setSectionOpen((prev) => {
       if (prev) {
@@ -435,7 +434,6 @@ export function DiffSummary({ diffs }: DiffSummaryProps) {
       } else {
         next.add(file);
         setFirstOpen((p) => new Set(p).add(file));
-        // Lazy render via rAF
         requestAnimationFrame(() => {
           setVisibleFiles((v) => new Set(v).add(file));
         });
@@ -500,7 +498,7 @@ export function DiffSummary({ diffs }: DiffSummaryProps) {
                           <FileIcon className="size-4 text-muted-foreground" />
                           <div data-slot="session-turn-file-path">
                             {directory && (
-                              <span data-slot="session-turn-directory">{directory}/</span>
+                              <span data-slot="session-turn-directory">{'\u202A' + directory + '/' + '\u202C'}</span>
                             )}
                             <span data-slot="session-turn-filename">{filename}</span>
                           </div>

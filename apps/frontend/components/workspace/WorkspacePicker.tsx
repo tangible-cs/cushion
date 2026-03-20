@@ -55,7 +55,7 @@ export function WorkspacePicker({ onWorkspaceOpened }: WorkspacePickerProps) {
 
   return (
     <div className="workspace-picker">
-      <style jsx>{`
+      <style>{`
         .workspace-picker {
           min-height: 100vh;
           width: 100%;

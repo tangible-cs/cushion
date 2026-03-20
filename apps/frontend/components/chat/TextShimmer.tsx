@@ -1,46 +1,71 @@
 
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 type TextShimmerProps = {
   text: string;
   active?: boolean;
-  stepMs?: number;
-  durationMs?: number;
+  offset?: number;
   className?: string;
 };
 
 export const TextShimmer = memo(function TextShimmer({
   text,
   active = true,
-  stepMs = 45,
-  durationMs = 1200,
+  offset = 0,
   className,
 }: TextShimmerProps) {
-  const chars = useMemo(() => Array.from(text), [text]);
+  const [run, setRun] = useState(active);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (active) {
+      setRun(true);
+      return;
+    }
+
+    // Graceful deactivation — keep shimmer visible briefly
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setRun(false);
+    }, 220);
+
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [active]);
 
   return (
     <span
       data-component="text-shimmer"
-      data-active={active}
+      data-active={active ? 'true' : 'false'}
       className={className}
       aria-label={text}
       style={
         {
-          '--text-shimmer-step': `${stepMs}ms`,
-          '--text-shimmer-duration': `${durationMs}ms`,
+          '--text-shimmer-swap': '220ms',
+          '--text-shimmer-index': `${offset}`,
         } as React.CSSProperties
       }
     >
-      {chars.map((char, index) => (
-        <span
-          key={index}
-          data-slot="text-shimmer-char"
-          aria-hidden="true"
-          style={{ '--text-shimmer-index': `${index}` } as React.CSSProperties}
-        >
-          {char}
+      <span data-slot="text-shimmer-char">
+        <span data-slot="text-shimmer-char-base" aria-hidden="true">
+          {text}
         </span>
-      ))}
+        <span
+          data-slot="text-shimmer-char-shimmer"
+          data-run={run ? 'true' : 'false'}
+          aria-hidden="true"
+        >
+          {text}
+        </span>
+      </span>
     </span>
   );
 });

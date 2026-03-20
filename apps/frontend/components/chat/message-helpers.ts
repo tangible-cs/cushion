@@ -14,6 +14,10 @@ import type {
   AssistantMessage,
 } from '@opencode-ai/sdk/v2/client';
 
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export type MessageTurn = {
   userMessage: Message;
   assistantMessages: AssistantMessage[];
@@ -194,10 +198,6 @@ export function isInterrupted(message: AssistantMessage): boolean {
   return message.error?.name === 'MessageAbortedError';
 }
 
-/**
- * Recursively extract a human-readable error message from a possibly-nested
- * JSON error structure. Ported from OpenCode's session-turn.tsx `unwrap`.
- */
 export function unwrapError(message: string): string {
   const text = message.replace(/^Error:\s*/, '').trim();
 

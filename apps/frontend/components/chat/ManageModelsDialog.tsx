@@ -1,7 +1,7 @@
 
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw, Search, X } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { createModelSorter } from '@/lib/model-constants';
 import { usePopularProviders } from '@/hooks/usePopularProviders';
@@ -164,7 +164,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
         </div>
         <div className="px-4 pb-3">
           <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
-            <Icon name="magnifying-glass-menu" size="small" className="shrink-0 text-muted-foreground" />
+            <Search size={16} className="shrink-0 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search models"

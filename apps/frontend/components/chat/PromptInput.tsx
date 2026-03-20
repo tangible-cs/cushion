@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowUp, File as FileIcon, Image as ImageIcon, StopCircle, Terminal } from 'lucide-react';
+import { ArrowUp, File as FileIcon, Image as ImageIcon, Shield, StopCircle, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useChatStore,
@@ -80,6 +80,8 @@ export function PromptInput({
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedVariant = useChatStore((state) => state.selectedVariant);
   const setSelectedVariant = useChatStore((state) => state.setSelectedVariant);
+  const autoAccept = useChatStore((state) => state.autoAccept);
+  const toggleAutoAccept = useChatStore((state) => state.toggleAutoAccept);
   const [composing, setComposing] = useState(false);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
@@ -105,6 +107,22 @@ export function PromptInput({
     usePromptEditor({ disabled, trigger, setTriggerState, updateTrigger });
 
   const shellMode = promptText.startsWith('!');
+
+  // Hide context chips for files already referenced inline via @mention
+  const visibleContextItems = useMemo(() => {
+    const mentionedFiles = new Set<string>();
+    const regex = /@([^\s]+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(promptText))) {
+      const token = match[1]?.toLowerCase();
+      if (token) mentionedFiles.add(token);
+    }
+    if (mentionedFiles.size === 0) return contextItems;
+    return contextItems.filter((item) => {
+      const name = (item.path.split(/[/\\]/).pop() || item.path).toLowerCase();
+      return !mentionedFiles.has(name);
+    });
+  }, [contextItems, promptText]);
 
   const { compactLevel, footerRef, leftControlsRef, rightControlsRef } = usePromptCompact({
     shellMode,
@@ -322,9 +340,9 @@ export function PromptInput({
         )}
       >
         <DragOverlay dragging={dragging} />
-        {contextItems.length > 0 && (
+        {visibleContextItems.length > 0 && (
           <div className="flex flex-nowrap items-center gap-1.5 px-3 pt-2.5 pb-0.5 overflow-x-auto thin-scrollbar">
-            {contextItems.map((item) => {
+            {visibleContextItems.map((item) => {
               const selection = item.selection;
               const start = selection ? Math.min(selection.startLine, selection.endLine) : null;
               const end = selection ? Math.max(selection.startLine, selection.endLine) : null;
@@ -456,6 +474,21 @@ export function PromptInput({
               }}
             />
             <SessionContextUsage />
+            <button
+              type="button"
+              onClick={toggleAutoAccept}
+              className={cn(
+                "size-7 flex items-center justify-center rounded-md transition-colors",
+                autoAccept
+                  ? "text-[var(--accent-green)] hover:bg-[color-mix(in_srgb,var(--accent-green)_10%,transparent)]"
+                  : "text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground"
+              )}
+              title={autoAccept ? 'Auto-accept permissions (on)' : 'Auto-accept permissions (off)'}
+              aria-label={autoAccept ? 'Auto-accept permissions (on)' : 'Auto-accept permissions (off)'}
+              aria-pressed={autoAccept}
+            >
+              <Shield className="size-4" />
+            </button>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}

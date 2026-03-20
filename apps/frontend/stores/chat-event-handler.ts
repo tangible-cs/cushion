@@ -111,12 +111,27 @@ export function handleApplyEvent(
     }
     case 'session.status': {
       const { sessionID, status } = event.properties;
-      set((state) => ({
-        sessionStatus: {
-          ...state.sessionStatus,
-          [sessionID]: status,
-        },
-      }));
+      const isNowIdle = status.type !== 'busy' && status.type !== 'retry';
+      set((state) => {
+        const next: Partial<typeof state> = {
+          sessionStatus: {
+            ...state.sessionStatus,
+            [sessionID]: status,
+          },
+        };
+        // Clear stale questions/permissions when session stops being busy
+        if (isNowIdle) {
+          const qList = state.questions[sessionID];
+          if (qList && qList.length > 0) {
+            next.questions = { ...state.questions, [sessionID]: [] };
+          }
+          const pList = state.permissions[sessionID];
+          if (pList && pList.length > 0) {
+            next.permissions = { ...state.permissions, [sessionID]: [] };
+          }
+        }
+        return next;
+      });
       break;
     }
     case 'session.diff': {

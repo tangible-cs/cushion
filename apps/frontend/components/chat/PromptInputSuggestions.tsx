@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import fuzzysort from 'fuzzysort';
 import { useChatStore } from '@/stores/chatStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -18,23 +18,6 @@ export function usePromptSuggestions() {
 
   const [trigger, setTrigger] = useState<TriggerState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [fileSearchResults, setFileSearchResults] = useState<string[]>([]);
-
-  const searchWorkspaceFiles = useCallback((query: string): string[] => {
-    if (!workspaceMetadata || !query || fileTree.length === 0) return [];
-    return searchFiles(query, fileTree, 20).map((p: string) => p.replace(/\\/g, '/'));
-  }, [workspaceMetadata, fileTree]);
-
-  useEffect(() => {
-    if (trigger?.type === 'mention' && trigger.query.length > 0 && workspaceMetadata) {
-      const debouncedSearch = setTimeout(() => {
-        setFileSearchResults(searchWorkspaceFiles(trigger.query));
-      }, 150);
-      return () => clearTimeout(debouncedSearch);
-    } else {
-      setFileSearchResults([]);
-    }
-  }, [trigger?.query, trigger?.type, workspaceMetadata, searchWorkspaceFiles]);
 
   const recentFiles = useMemo(() => {
     return Array.from(openFiles.keys()).map((key) => String(key).replace(/\\/g, '/'));
@@ -53,34 +36,6 @@ export function usePromptSuggestions() {
         group: 'agent' as const,
       }));
   }, [agents]);
-
-  const fileSuggestions = useMemo(() => {
-    const recentSuggestions = recentFiles
-      .filter((path) => !fileSearchResults.includes(path))
-      .map((path) => ({
-        id: path,
-        label: `@${path}`,
-        value: `@${path}`,
-        description: path,
-        type: 'mention' as const,
-        path,
-        group: 'recent' as const,
-      }));
-
-    const searchSuggestions = fileSearchResults
-      .filter((path) => !recentFiles.includes(path))
-      .map((path) => ({
-        id: `search-${path}`,
-        label: `@${path}`,
-        value: `@${path}`,
-        description: path,
-        type: 'mention' as const,
-        path,
-        group: 'search' as const,
-      }));
-
-    return [...recentSuggestions, ...searchSuggestions];
-  }, [recentFiles, fileSearchResults]);
 
   const commandSuggestions = useMemo(() => {
     const builtinIds = new Set(BUILTIN_COMMANDS.map((item) => item.id));
@@ -103,26 +58,53 @@ export function usePromptSuggestions() {
   const suggestions = useMemo(() => {
     if (!trigger) return [];
     const query = trigger.query.toLowerCase();
+
     if (trigger.type === 'command') {
       return commandSuggestions.filter((item) => item.label.toLowerCase().includes(query));
     }
 
-    const needle = query;
-    const allSuggestions = [...agentSuggestions, ...fileSuggestions];
-
-    if (!needle) {
-      return allSuggestions.filter((item) =>
-        !('group' in item && item.group === 'search')
-      );
+    // No query — show agents + recent files
+    if (!query) {
+      const recentSuggestions: SuggestionItem[] = recentFiles.map((path) => ({
+        id: path,
+        label: `@${path}`,
+        value: `@${path}`,
+        description: path,
+        type: 'mention' as const,
+        path,
+        group: 'recent' as const,
+      }));
+      return [...agentSuggestions, ...recentSuggestions];
     }
 
-    const results = fuzzysort.go(needle, allSuggestions, {
+    // With query — fuzzy-match agents, search files synchronously
+    const agentResults = fuzzysort.go(query, agentSuggestions, {
       key: 'label',
       limit: 20,
     });
 
-    return results.map((r) => r.obj);
-  }, [trigger, agentSuggestions, fileSuggestions, commandSuggestions]);
+    const searchResults = workspaceMetadata && fileTree.length > 0
+      ? searchFiles(query, fileTree, 20).map((p) => p.replace(/\\/g, '/'))
+      : [];
+
+    const seen = new Set<string>();
+    const fileSuggestions: SuggestionItem[] = [];
+    for (const path of searchResults) {
+      if (seen.has(path)) continue;
+      seen.add(path);
+      fileSuggestions.push({
+        id: `search-${path}`,
+        label: `@${path}`,
+        value: `@${path}`,
+        description: path,
+        type: 'mention' as const,
+        path,
+        group: 'search' as const,
+      });
+    }
+
+    return [...agentResults.map((r) => r.obj), ...fileSuggestions];
+  }, [trigger, agentSuggestions, recentFiles, commandSuggestions, workspaceMetadata, fileTree]);
 
   const setTriggerState = useCallback((next: TriggerState | null) => {
     setTrigger((prev) => {

@@ -230,6 +230,9 @@ export async function handleCompactSession(get: ChatStoreGet, set: ChatStoreSet)
     modelID: model.modelID,
     directory,
   });
+  set((prev) => ({
+    compactedSessions: { ...prev.compactedSessions, [sessionID]: true },
+  }));
 }
 
 export async function handleShareSession(

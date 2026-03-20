@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw, Search } from 'lucide-react';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { ProviderIcon } from './ProviderIcon';
 import { iconNames, type IconName } from './provider-icons/types';
@@ -171,7 +171,7 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
 
         <div className="px-4 pb-3">
           <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
-            <Icon name="magnifying-glass-menu" size="small" className="shrink-0 text-muted-foreground" />
+            <Search size={16} className="shrink-0 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search providers"

@@ -99,6 +99,9 @@ export async function syncCredentialsToOpenCode(
   const mergedConfig = {
     ...config,
     provider: providerSection,
+    // Ensure OpenCode asks for permissions so Cushion's auto-accept toggle works.
+    // Only set the default if the user hasn't configured permissions themselves.
+    ...(!config.permission ? { permission: { '*': 'ask' } } : {}),
   };
 
   const fs = await import('fs/promises');

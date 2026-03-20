@@ -27,6 +27,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
   const contextItems = useChatStore((state) => state.contextItems);
+  const removeContextItem = useChatStore((state) => state.removeContextItem);
   const agents = useChatStore((state) => state.agents);
 
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +87,15 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
         mirror.current.input = true;
         setPromptText('');
       }
+      // Remove all context items whose pills were cleared
+      if (contextItems.length > 0) {
+        const remainingPaths = new Set(
+          rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
+        );
+        for (const item of contextItems) {
+          if (!remainingPaths.has(item.path)) removeContextItem(item.id);
+        }
+      }
       return;
     }
 
@@ -95,6 +105,16 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     if (rawText !== promptText) {
       mirror.current.input = true;
       setPromptText(rawText);
+    }
+
+    // Remove context items for file pills that were deleted
+    if (contextItems.length > 0) {
+      const remainingPaths = new Set(
+        rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
+      );
+      for (const item of contextItems) {
+        if (!remainingPaths.has(item.path)) removeContextItem(item.id);
+      }
     }
   };
 
