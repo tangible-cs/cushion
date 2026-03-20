@@ -6,15 +6,13 @@ import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 import { ProviderIcon } from './ProviderIcon';
-import { iconNames, type IconName } from './provider-icons/types';
+import { resolveProviderIcon } from './provider-icons/types';
 import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { createModelSorter } from '@/lib/model-constants';
 import { usePopularProviders } from '@/hooks/usePopularProviders';
-
-const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 type ModelSelectorProps = {
   disabled?: boolean;
@@ -60,12 +58,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
     setSearchQuery('');
   }, [isOpen]);
 
-  const isModelVisible = (model: SelectedModel) => {
-    const state = modelVisibility[`${model.providerID}:${model.modelID}`];
-    if (state === 'hide') return false;
-    if (state === 'show') return true;
-    return true;
-  };
+  const isModelVisible = useChatStore((s) => s.isModelVisible);
 
   const selectedProviderId = selectedModel?.providerID ?? '';
   const provider = providers.find((item) => item.id === selectedProviderId);

@@ -1,7 +1,5 @@
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { animate, type AnimationPlaybackControls } from 'motion';
-import { prefersReducedMotion } from './message-helpers';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface CollapsibleContextValue {
   open: boolean;
@@ -97,101 +95,6 @@ function CollapsibleContent({ children, className }: CollapsibleContentProps) {
   );
 }
 
-const SPRING = { type: 'spring' as const, visualDuration: 0.35, bounce: 0 };
-
-interface AnimatedCollapsibleContentProps {
-  children: ReactNode;
-  className?: string;
-  defer?: boolean;
-}
-
-function AnimatedCollapsibleContent({
-  children,
-  className,
-  defer,
-}: AnimatedCollapsibleContentProps) {
-  const { open } = useCollapsible();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const heightAnim = useRef<AnimationPlaybackControls | null>(null);
-  const initialOpen = useRef(open);
-  const isFirstRender = useRef(true);
-  const [ready, setReady] = useState(!defer || open);
-  const frameRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!defer) return;
-
-    if (open) {
-      frameRef.current = requestAnimationFrame(() => {
-        frameRef.current = null;
-        setReady(true);
-      });
-    } else {
-      if (frameRef.current !== null) {
-        cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
-      }
-      setReady(false);
-    }
-
-    return () => {
-      if (frameRef.current !== null) {
-        cancelAnimationFrame(frameRef.current);
-      }
-    };
-  }, [open, defer]);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const el = contentRef.current;
-    if (!el) return;
-
-    if (prefersReducedMotion()) {
-      el.style.height = open ? 'auto' : '0px';
-      el.style.overflow = open ? 'visible' : 'hidden';
-      return;
-    }
-
-    heightAnim.current?.stop();
-
-    if (open) {
-      el.style.overflow = 'hidden';
-      heightAnim.current = animate(el, { height: 'auto' }, SPRING);
-      heightAnim.current.finished.then(() => {
-        if (!contentRef.current) return;
-        contentRef.current.style.overflow = 'visible';
-        contentRef.current.style.height = 'auto';
-      });
-    } else {
-      el.style.overflow = 'hidden';
-      heightAnim.current = animate(el, { height: '0px' }, SPRING);
-    }
-
-    return () => {
-      heightAnim.current?.stop();
-    };
-  }, [open]);
-
-  return (
-    <div
-      ref={contentRef}
-      data-slot="collapsible-content"
-      data-animated
-      className={className}
-      style={{
-        height: initialOpen.current ? 'auto' : '0px',
-        overflow: initialOpen.current ? 'visible' : 'hidden',
-      }}
-    >
-      {(!defer || ready) && children}
-    </div>
-  );
-}
-
 interface CollapsibleArrowProps {
   className?: string;
 }
@@ -222,6 +125,5 @@ function CollapsibleArrow({ className }: CollapsibleArrowProps) {
 export const Collapsible = Object.assign(CollapsibleRoot, {
   Trigger: CollapsibleTrigger,
   Content: CollapsibleContent,
-  AnimatedContent: AnimatedCollapsibleContent,
   Arrow: CollapsibleArrow,
 });

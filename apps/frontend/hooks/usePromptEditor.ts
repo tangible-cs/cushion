@@ -81,21 +81,23 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     const hasNonText = rawParts.some((part) => part.type !== 'text');
     const shouldReset = trimmed.length === 0 && !hasNonText;
 
+    const syncContextItems = () => {
+      if (contextItems.length === 0) return;
+      const remainingPaths = new Set(
+        rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
+      );
+      for (const item of contextItems) {
+        if (!remainingPaths.has(item.path)) removeContextItem(item.id);
+      }
+    };
+
     if (shouldReset) {
       setTriggerState(null);
       if (promptText !== '') {
         mirror.current.input = true;
         setPromptText('');
       }
-      // Remove all context items whose pills were cleared
-      if (contextItems.length > 0) {
-        const remainingPaths = new Set(
-          rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
-        );
-        for (const item of contextItems) {
-          if (!remainingPaths.has(item.path)) removeContextItem(item.id);
-        }
-      }
+      syncContextItems();
       return;
     }
 
@@ -107,15 +109,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
       setPromptText(rawText);
     }
 
-    // Remove context items for file pills that were deleted
-    if (contextItems.length > 0) {
-      const remainingPaths = new Set(
-        rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
-      );
-      for (const item of contextItems) {
-        if (!remainingPaths.has(item.path)) removeContextItem(item.id);
-      }
-    }
+    syncContextItems();
   };
 
   const refreshTriggerFromSelection = () => {

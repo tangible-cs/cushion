@@ -36,10 +36,11 @@ function parseError(tool: string, raw: string) {
       return {
         title: head[0].toUpperCase() + head.slice(1),
         body: parts.slice(1).join(': ').trim() || cleaned,
+        cleaned,
       };
     }
   }
-  return { title: 'Failed', body: cleaned };
+  return { title: 'Failed', body: cleaned, cleaned };
 }
 
 export const ToolErrorCard = memo(function ToolErrorCard({
@@ -49,8 +50,7 @@ export const ToolErrorCard = memo(function ToolErrorCard({
 }: ToolErrorCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const name = TOOL_NAMES[tool] ?? tool;
-  const { title, body } = parseError(tool, error);
-  const cleaned = error.replace(/^Error:\s*/, '').trim();
+  const { title, body, cleaned } = parseError(tool, error);
 
   return (
     <div data-component="tool-error-card" data-open={open ? 'true' : 'false'}>

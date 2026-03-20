@@ -158,7 +158,7 @@ export type ChatStoreSet = (
 
 export const MAX_CONTEXT_ITEMS = 20;
 export const DEFAULT_MESSAGE_LIMIT = 200;
-export const WORKSPACE_SESSION_KEY = '__workspace__';
+const WORKSPACE_SESSION_KEY = '__workspace__';
 export const MAX_PROMPT_SESSIONS = 20;
 
 // Initial state

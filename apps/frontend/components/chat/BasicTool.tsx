@@ -13,7 +13,7 @@ export type TriggerTitle = {
   action?: ReactNode;
 };
 
-export function isTriggerTitle(val: unknown): val is TriggerTitle {
+function isTriggerTitle(val: unknown): val is TriggerTitle {
   return (
     typeof val === 'object' &&
     val !== null &&

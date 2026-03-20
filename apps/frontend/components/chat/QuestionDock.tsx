@@ -42,8 +42,7 @@ export const QuestionDock = memo(function QuestionDock({ request, onReply, onRej
     });
     if (isCustom) {
       setCustom((prev) => { const n = prev.slice(); n[tab] = label; return n; });
-    }
-    if (!isCustom) {
+    } else {
       setCustomOn((prev) => { const n = prev.slice(); n[tab] = false; return n; });
     }
     setEditing(false);

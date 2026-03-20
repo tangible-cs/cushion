@@ -6,7 +6,7 @@ import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { createModelSorter } from '@/lib/model-constants';
 import { usePopularProviders } from '@/hooks/usePopularProviders';
 import { ProviderIcon } from './ProviderIcon';
-import { iconNames, type IconName } from './provider-icons/types';
+import { resolveProviderIcon } from './provider-icons/types';
 import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 
@@ -27,8 +27,6 @@ type ProviderGroup = {
   providerName: string;
   models: ModelEntry[];
 };
-
-const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
   const popularProviderIDs = usePopularProviders();
@@ -107,12 +105,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
     }
   };
 
-  const isModelVisible = (model: SelectedModel) => {
-    const state = modelVisibility[`${model.providerID}:${model.modelID}`];
-    if (state === 'hide') return false;
-    if (state === 'show') return true;
-    return true;
-  };
+  const isModelVisible = useChatStore((s) => s.isModelVisible);
 
   const handleRefresh = async () => {
     if (refreshing) return;

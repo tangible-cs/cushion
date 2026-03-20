@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
@@ -34,7 +34,6 @@ export function MessageList({ className }: MessageListProps) {
     return sessions.find((session) => session.id === resolvedSessionId);
   }, [resolvedSessionId, sessions]);
   const sessionTitle = activeSession?.title ?? '';
-  const showTitle = true;
   const titleLabel = sessionTitle.trim().length > 0 ? sessionTitle : 'New session';
   const filteredSessions = useMemo(() => {
     const query = sessionQuery.trim().toLowerCase();
@@ -70,7 +69,7 @@ export function MessageList({ className }: MessageListProps) {
     overflowAnchor: 'auto',
   });
 
-  const prevTurnCount = React.useRef(turns.length);
+  const prevTurnCount = useRef(turns.length);
   useEffect(() => {
     const grew = turns.length > prevTurnCount.current;
     prevTurnCount.current = turns.length;
@@ -104,10 +103,9 @@ export function MessageList({ className }: MessageListProps) {
         ref={autoScroll.scrollRef}
         onScroll={autoScroll.handleScroll}
         data-slot="session-turn-content"
-        style={{ '--session-title-height': showTitle ? '40px' : '0px' } as React.CSSProperties}
+        style={{ '--session-title-height': '40px' } as React.CSSProperties}
       >
-        {showTitle && (
-          <div className="sticky top-0 z-30 bg-sidebar-bg px-4">
+        <div className="sticky top-0 z-30 bg-sidebar-bg px-4">
             <div className="h-10 flex items-center justify-between gap-2">
               <Popover open={sessionMenuOpen} onOpenChange={setSessionMenuOpen}>
                 <PopoverTrigger asChild>
@@ -209,7 +207,6 @@ export function MessageList({ className }: MessageListProps) {
               </div>
             </div>
           </div>
-        )}
         {meta?.hasMore && (
           <div className="flex justify-center bg-sidebar-bg py-2">
             <button

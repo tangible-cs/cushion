@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, RefreshCw, Search } from 'lucide-react';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { ProviderIcon } from './ProviderIcon';
-import { iconNames, type IconName } from './provider-icons/types';
+import { resolveProviderIcon } from './provider-icons/types';
 import { cn } from '@/lib/utils';
 import { Icon } from './Icon';
 
@@ -50,7 +50,6 @@ const PROVIDER_DESCRIPTIONS = [
   },
 ] as const;
 
-const resolveProviderIcon = (id: string): IconName => (iconNames.includes(id as IconName) ? (id as IconName) : 'synthetic');
 
 const getProviderDescription = (providerId: string): string | null => {
   for (const item of PROVIDER_DESCRIPTIONS) {
