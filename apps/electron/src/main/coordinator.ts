@@ -36,6 +36,7 @@ function waitForPort(port: number, timeoutMs = 10_000): Promise<void> {
         resolve();
       });
       socket.once('error', () => {
+        socket.destroy();
         setTimeout(attempt, 200);
       });
     }

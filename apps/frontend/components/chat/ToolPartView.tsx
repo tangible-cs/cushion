@@ -1054,25 +1054,14 @@ function ToolContentBody({
 
 // --- Context Tool Grouping ---
 
-function contextToolSummary(parts: ToolPart[]): string[] {
+function contextToolSummary(parts: ToolPart[], running: boolean): string[] {
   const read = parts.filter((p) => p.tool === 'read').length;
   const search = parts.filter((p) => p.tool === 'glob' || p.tool === 'grep').length;
   const list = parts.filter((p) => p.tool === 'list').length;
   return [
-    read ? `${read} file${read > 1 ? 's' : ''} read` : undefined,
-    search ? `${search} pattern${search > 1 ? 's' : ''} searched` : undefined,
-    list ? `${list} director${list > 1 ? 'ies' : 'y'} listed` : undefined,
-  ].filter((v): v is string => !!v);
-}
-
-function contextToolRunningSummary(parts: ToolPart[]): string[] {
-  const read = parts.filter((p) => p.tool === 'read').length;
-  const search = parts.filter((p) => p.tool === 'glob' || p.tool === 'grep').length;
-  const list = parts.filter((p) => p.tool === 'list').length;
-  return [
-    read ? `Reading ${read} file${read > 1 ? 's' : ''}` : undefined,
-    search ? `Searching ${search} pattern${search > 1 ? 's' : ''}` : undefined,
-    list ? `Listing ${list} director${list > 1 ? 'ies' : 'y'}` : undefined,
+    read ? (running ? `Reading ${read} file${read > 1 ? 's' : ''}` : `${read} file${read > 1 ? 's' : ''} read`) : undefined,
+    search ? (running ? `Searching ${search} pattern${search > 1 ? 's' : ''}` : `${search} pattern${search > 1 ? 's' : ''} searched`) : undefined,
+    list ? (running ? `Listing ${list} director${list > 1 ? 'ies' : 'y'}` : `${list} director${list > 1 ? 'ies' : 'y'} listed`) : undefined,
   ].filter((v): v is string => !!v);
 }
 
@@ -1124,7 +1113,7 @@ export const ContextToolGroup = memo(function ContextToolGroup({ parts, busy }: 
     () => !!busy || parts.some((p) => p.state?.status === 'pending' || p.state?.status === 'running'),
     [parts, busy],
   );
-  const summary = useMemo(() => (pending ? contextToolRunningSummary(parts) : contextToolSummary(parts)), [parts, pending]);
+  const summary = useMemo(() => contextToolSummary(parts, pending), [parts, pending]);
   const details = summary.join(', ');
 
   return (

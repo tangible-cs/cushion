@@ -113,13 +113,13 @@ app.on('second-instance', (_event, commandLine) => {
 });
 
 app.whenReady().then(async () => {
-  await startCoordinator();
-  createWindow();
-
   const cliPath = extractPathArg(process.argv.slice(1));
   if (cliPath) {
     pendingOpenPath = cliPath;
   }
+
+  await startCoordinator();
+  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
