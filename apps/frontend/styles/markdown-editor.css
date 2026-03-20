@@ -211,16 +211,13 @@
   border-left-color: var(--md-text);
 }
 
-/* Selection */
-.cm-editor.cm-markdown-wysiwyg .cm-selectionBackground {
-  background: var(--md-selection-bg) !important;
+.cm-editor.cm-markdown-wysiwyg .cm-selectionLayer {
+  display: none !important;
 }
 
-/* Native ::selection must be transparent — drawSelection() handles all
-   selection rendering via .cm-selectionBackground divs. Styling ::selection
-   causes double-painted highlights and artifacts on hidden (font-size:0) text. */
-.cm-editor.cm-markdown-wysiwyg .cm-line ::selection {
-  background: transparent !important;
+.cm-editor.cm-markdown-wysiwyg .cm-line ::selection,
+.cm-editor.cm-markdown-wysiwyg .cm-line::selection {
+  background: var(--md-selection-bg) !important;
 }
 
 /* Active line - no highlight for cleaner look */
