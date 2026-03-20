@@ -8,7 +8,7 @@ import {
 } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { EditorState, Range, StateField } from '@codemirror/state';
-import { isSelectRange, isSelectLine, isFocusEvent } from './reveal-on-cursor';
+import { isSelectRange, isSelectLine, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
 import { ImageWidget } from './widgets/image-widget';
 import { PdfWidget } from './widgets/pdf-widget';
 import { NoteEmbedWidget } from './widgets/note-embed-widget';
@@ -602,10 +602,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'Image') {
-        const cursorOnEmbed = state.selection.ranges.some(r =>
-          r.from <= to && r.to >= from
-        );
-        if (cursorOnEmbed) return false;
+        if (isSelectRange(state, { from, to })) return false;
 
         const isRevealed = revealedPos !== null && from === revealedPos;
         const text = state.doc.sliceString(from, to);
@@ -662,9 +659,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'InlineMath') {
-        const cursorOnRange = state.selection.ranges.some(r =>
-          r.head >= from && r.head <= to
-        );
+        const cursorOnRange = isSelectRange(state, { from, to });
         if (!cursorOnRange) {
           const latex = state.doc.sliceString(from + 1, to - 1);
           if (latex.length > 0) {
@@ -700,10 +695,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
           : '';
         if (latex.length === 0) return false;
 
-        const cursorInBlock = state.selection.ranges.some(r => {
-          const headLine = state.doc.lineAt(r.head).number;
-          return headLine >= startLine.number && headLine <= endLine.number;
-        });
+        const cursorInBlock = isSelectLine(state, from, to);
 
         if (cursorInBlock) {
           for (let i = startLine.number; i <= endLine.number; i++) {
@@ -781,12 +773,16 @@ export const markDecorationsPlugin = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       const treeChanged = syntaxTree(update.state) !== syntaxTree(update.startState);
       const focusEvent = update.transactions.some(tr => isFocusEvent(tr));
+      const mouseSelectChanged = update.transactions.some(tr =>
+        tr.effects.some(e => e.is(mouseSelectEffect))
+      );
       if (
         update.docChanged ||
         update.selectionSet ||
         update.viewportChanged ||
         treeChanged ||
-        focusEvent
+        focusEvent ||
+        mouseSelectChanged
       ) {
         this.decorations = buildMarkDecorations(update.view);
       }
@@ -806,7 +802,7 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     if (syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
       return buildWidgetDecorations(tr.state);
     }
-    if (tr.effects.some(e => e.is(embedSourceRevealEffect))) {
+    if (tr.effects.some(e => e.is(embedSourceRevealEffect) || e.is(mouseSelectEffect))) {
       return buildWidgetDecorations(tr.state);
     }
     return value;

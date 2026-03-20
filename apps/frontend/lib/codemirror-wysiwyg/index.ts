@@ -1,7 +1,8 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, embedRevealedField } from './hide-markup';
-import { focusState, focusListener } from './reveal-on-cursor';
+import { hiddenRangesField, hiddenAtomicRanges } from './atomic-ranges';
+import { focusState, focusListener, mouseSelectingField, mouseSelectionTracker } from './reveal-on-cursor';
 import {
   wikiLinkExtension,
   updateWikiLinkFileTree,
@@ -21,7 +22,6 @@ export {
   focusListener,
   hasFocus,
   isFocusEvent,
-  isSelectRange,
 } from './reveal-on-cursor';
 
 export {
@@ -76,9 +76,6 @@ const markdownProseTheme = EditorView.theme({
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent !important',
-  },
-  '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'var(--md-selection-bg) !important',
   },
 });
 
@@ -233,7 +230,11 @@ export function wysiwygExtension(): Extension {
     wysiwygWidgetTheme,
     focusState,
     focusListener,
+    mouseSelectingField,
+    mouseSelectionTracker,
     embedRevealedField,
+    hiddenRangesField,
+    hiddenAtomicRanges,
     markDecorationsPlugin,
     widgetDecorationsField,
     linkClickHandler,

@@ -1,4 +1,4 @@
-import { EditorState, StateField, Transaction } from '@codemirror/state';
+import { EditorState, StateField, StateEffect, Transaction } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 export const focusState = StateField.define<boolean>({
@@ -28,6 +28,34 @@ export function isFocusEvent(tr: Transaction): boolean {
   return tr.isUserEvent('cm-focus') || tr.isUserEvent('cm-blur');
 }
 
+export const mouseSelectEffect = StateEffect.define<boolean>();
+
+export const mouseSelectingField = StateField.define<boolean>({
+  create() { return false; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(mouseSelectEffect)) return e.value;
+    }
+    return value;
+  },
+});
+
+export const mouseSelectionTracker = EditorView.domEventHandlers({
+  mousedown(_event, view) {
+    view.dispatch({ effects: mouseSelectEffect.of(true) });
+    const onUp = () => {
+      view.dispatch({ effects: mouseSelectEffect.of(false) });
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mouseup', onUp);
+    return false;
+  },
+});
+
+function isMouseSelecting(state: EditorState): boolean {
+  return state.field(mouseSelectingField, false) ?? false;
+}
+
 export interface BaseRange {
   from: number;
   to: number;
@@ -39,14 +67,16 @@ export function isSelectRange(state: EditorState, range: BaseRange): boolean {
     if (r.empty) {
       return r.head >= range.from && r.head <= range.to;
     }
-    const headInside = r.head >= range.from && r.head <= range.to;
-    const anchorInside = r.anchor >= range.from && r.anchor <= range.to;
-    return headInside || anchorInside;
+    if (isMouseSelecting(state)) return false;
+    const selFrom = Math.min(r.head, r.anchor);
+    const selTo = Math.max(r.head, r.anchor);
+    return selFrom < range.to && selTo > range.from;
   });
 }
 
 export function isSelectLine(state: EditorState, from: number, to: number): boolean {
   if (!hasFocus(state)) return false;
+  if (isMouseSelecting(state)) return false;
   const doc = state.doc;
   const fromLine = doc.lineAt(from).number;
   const toLine = doc.lineAt(to).number;
@@ -55,10 +85,8 @@ export function isSelectLine(state: EditorState, from: number, to: number): bool
       const headLine = doc.lineAt(r.head).number;
       return headLine >= fromLine && headLine <= toLine;
     }
-    const headLine = doc.lineAt(r.head).number;
-    const anchorLine = doc.lineAt(r.anchor).number;
-    const headOnLine = headLine >= fromLine && headLine <= toLine;
-    const anchorOnLine = anchorLine >= fromLine && anchorLine <= toLine;
-    return headOnLine || anchorOnLine;
+    const selFromLine = doc.lineAt(Math.min(r.head, r.anchor)).number;
+    const selToLine = doc.lineAt(Math.max(r.head, r.anchor)).number;
+    return selFromLine <= toLine && selToLine >= fromLine;
   });
 }

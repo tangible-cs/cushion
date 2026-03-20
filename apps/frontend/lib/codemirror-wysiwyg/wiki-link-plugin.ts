@@ -15,7 +15,7 @@ import {
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { isSelectRange, isFocusEvent } from './reveal-on-cursor';
+import { isSelectRange, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
 import { resolveWikiLink, flattenFileTree } from '../wiki-link-resolver';
 import type { FileTreeNode, WikiLinkInfo, WikiLinkState } from '@cushion/types';
@@ -225,7 +225,7 @@ export const wikiLinkDecorationsField = StateField.define<DecorationSet>({
   },
   update(value, tr) {
     // Also rebuild on focus changes (purrmd pattern: reveal all when unfocused)
-    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect)) || isFocusEvent(tr)) {
+    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect) || e.is(mouseSelectEffect)) || isFocusEvent(tr)) {
       return buildWikiLinkDecorations(tr.state);
     }
     return value;
