@@ -1,14 +1,13 @@
 import { type FormEvent, useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowUp, File as FileIcon, Image as ImageIcon, Shield, StopCircle, Terminal } from 'lucide-react';
+import { ArrowUp, Eye, EyeOff, Plus, Shield, Square, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useChatStore,
   type PromptInputPayload,
 } from '@/stores/chatStore';
 import { getModelVariantOptions } from '@/lib/chat-helpers';
-import { getCursorPosition } from '@/lib/prompt-dom';
-import { Icon } from './Icon';
-import { SessionContextUsage } from './SessionContextUsage';
+import { getCursorPosition, parseFromDOM } from '@/lib/prompt-dom';
+
 import { ModelSelector } from './ModelSelector';
 import { AgentSelector } from './AgentSelector';
 import {
@@ -16,7 +15,7 @@ import {
   type SuggestionItem,
 } from './SuggestionList';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
-import { getDirectory, getFilename } from '@/lib/path-utils';
+
 import {
   usePromptCompact,
   COMPACT_LABEL_LENGTHS,
@@ -67,12 +66,11 @@ export function PromptInput({
   const setPromptText = useChatStore((state) => state.setPromptText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const chatShortcuts = useShortcutBindings(CHAT_SHORTCUT_IDS);
-  const contextItems = useChatStore((state) => state.contextItems);
+  const currentFileContext = useChatStore((state) => state.currentFileContext);
+  const toggleIncludeCurrentFile = useChatStore((state) => state.toggleIncludeCurrentFile);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const directory = useChatStore((state) => state.directory);
   const abortSession = useChatStore((state) => state.abortSession);
-  const removeContextItem = useChatStore((state) => state.removeContextItem);
-  const addContextItem = useChatStore((state) => state.addContextItem);
   const agents = useChatStore((state) => state.agents);
   const setSelectedAgent = useChatStore((state) => state.setSelectedAgent);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
@@ -86,6 +84,8 @@ export function PromptInput({
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
   const working = status?.type === 'busy' || status?.type === 'retry';
+  const abortingSessions = useChatStore((state) => state.abortingSessions);
+  const isAborting = activeSessionId ? abortingSessions[activeSessionId] ?? false : false;
 
   const { attachments, dragging, handleFiles, removeAttachment, clearAttachments } =
     usePromptAttachments(activeSessionId, directory, disabled);
@@ -107,22 +107,6 @@ export function PromptInput({
     usePromptEditor({ disabled, trigger, setTriggerState, updateTrigger });
 
   const shellMode = promptText.startsWith('!');
-
-  // Hide context chips for files already referenced inline via @mention
-  const visibleContextItems = useMemo(() => {
-    const mentionedFiles = new Set<string>();
-    const regex = /@([^\s]+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(promptText))) {
-      const token = match[1]?.toLowerCase();
-      if (token) mentionedFiles.add(token);
-    }
-    if (mentionedFiles.size === 0) return contextItems;
-    return contextItems.filter((item) => {
-      const name = (item.path.split(/[/\\]/).pop() || item.path).toLowerCase();
-      return !mentionedFiles.has(name);
-    });
-  }, [contextItems, promptText]);
 
   const { compactLevel, footerRef, leftControlsRef, rightControlsRef } = usePromptCompact({
     shellMode,
@@ -154,20 +138,22 @@ export function PromptInput({
   const isEmptyPrompt = promptText.replace(/\u200B/g, '').trim().length === 0;
   const showPlaceholder = Boolean(placeholder) && isEmptyPrompt && attachments.length === 0;
   const submitDisabled = Boolean(disabled)
-    || (!working && isEmptyPrompt && attachments.length === 0 && contextItems.length === 0);
+    || isAborting
+    || (!working && isEmptyPrompt && attachments.length === 0);
 
   const handleSubmit = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     const trimmed = promptText.trim();
     const localMatch = trimmed.match(/^\/(\S+)$/);
     if (localMatch && runLocalCommand(localMatch[1])) return;
-    const isEmpty = trimmed.length === 0 && attachments.length === 0 && contextItems.length === 0;
+    const isEmpty = trimmed.length === 0 && attachments.length === 0;
     if (working && isEmpty) {
       abortSession().catch(() => undefined);
       return;
     }
     if (isEmpty) return;
-    onSubmit?.({ text: promptText, attachments, mode: shellMode ? 'shell' : 'prompt' });
+    const parts = editorRef.current ? parseFromDOM(editorRef.current) : [];
+    onSubmit?.({ text: promptText, parts, attachments, mode: shellMode ? 'shell' : 'prompt' });
     if (trimmed.length > 0) {
       pushHistory(shellMode ? 'shell' : 'normal', trimmed);
     }
@@ -183,7 +169,6 @@ export function PromptInput({
     }
 
     if (item.path) {
-      addContextItem({ path: item.path });
       addPart({ type: 'file', content: item.value, path: item.path });
       setTriggerState(null);
       return;
@@ -340,53 +325,6 @@ export function PromptInput({
         )}
       >
         <DragOverlay dragging={dragging} />
-        {visibleContextItems.length > 0 && (
-          <div className="flex flex-nowrap items-center gap-1.5 px-3 pt-2.5 pb-0.5 overflow-x-auto thin-scrollbar">
-            {visibleContextItems.map((item) => {
-              const selection = item.selection;
-              const start = selection ? Math.min(selection.startLine, selection.endLine) : null;
-              const end = selection ? Math.max(selection.startLine, selection.endLine) : null;
-              const selectionLabel = selection
-                ? start === end
-                  ? `:${start}`
-                  : `:${start}-${end}`
-                : '';
-              const dir = getDirectory(item.path);
-              const filename = getFilename(item.path);
-
-              return (
-                <div
-                  key={item.id}
-                  title={item.path}
-                  className="group shrink-0 flex items-center gap-1 rounded-md bg-muted/15 pl-2 pr-1 py-0.5 transition-colors hover:bg-muted/25"
-                >
-                  <FileIcon className="shrink-0 size-3 text-muted-foreground/50" />
-                  <div className="flex items-baseline text-[12px] min-w-0">
-                    {dir && (
-                      <span className="text-muted-foreground/50 whitespace-nowrap truncate max-w-[80px] text-[11px]">
-                        {dir}/
-                      </span>
-                    )}
-                    <span className="text-foreground whitespace-nowrap font-medium">
-                      {filename}
-                    </span>
-                    {selectionLabel && (
-                      <span className="text-muted-foreground/60 whitespace-nowrap shrink-0 text-[11px]">{selectionLabel}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeContextItem(item.id)}
-                    className="ml-0.5 size-4 flex items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
-                    aria-label="Remove context"
-                  >
-                    <Icon name="close" size="small" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
         <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
         <div className={cn("relative max-h-[240px] overflow-y-auto thin-scrollbar", editorWrapperClassName)}>
           <div
@@ -473,7 +411,22 @@ export function PromptInput({
                 e.currentTarget.value = '';
               }}
             />
-            <SessionContextUsage />
+            {currentFileContext && (
+              <button
+                type="button"
+                onClick={toggleIncludeCurrentFile}
+                className={cn(
+                  "size-7 flex items-center justify-center rounded-md transition-colors",
+                  currentFileContext.enabled
+                    ? "text-foreground hover:bg-[var(--overlay-10)]"
+                    : "text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground"
+                )}
+                title={currentFileContext.enabled ? 'Current file included' : 'Current file excluded'}
+                aria-label={currentFileContext.enabled ? 'Exclude current file' : 'Include current file'}
+              >
+                {currentFileContext.enabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              </button>
+            )}
             <button
               type="button"
               onClick={toggleAutoAccept}
@@ -495,7 +448,7 @@ export function PromptInput({
               className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
               aria-label="Attach files"
             >
-              <ImageIcon className="size-5" />
+              <Plus className="size-5" />
             </button>
             <button
               type="submit"
@@ -503,7 +456,7 @@ export function PromptInput({
               className="size-7 flex items-center justify-center rounded-[10px] text-[var(--background-primary-alt)] bg-[var(--md-accent)] shadow-sm ring-1 ring-[color-mix(in_srgb,var(--background-primary-alt)_25%,transparent)] hover:brightness-95 active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               aria-label={working ? 'Stop' : 'Send'}
             >
-              {working ? <StopCircle className="size-4.5" /> : <ArrowUp className="size-4.5" />}
+              {working ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4.5" />}
             </button>
           </div>
         </div>

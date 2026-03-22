@@ -20,7 +20,6 @@ type LocalCommandDeps = {
 
 export function useLocalCommands({ clearAttachments, setTriggerState }: LocalCommandDeps) {
   const setPromptText = useChatStore((state) => state.setPromptText);
-  const clearContextItems = useChatStore((state) => state.clearContextItems);
   const undoSession = useChatStore((state) => state.undoSession);
   const redoSession = useChatStore((state) => state.redoSession);
   const compactSession = useChatStore((state) => state.compactSession);
@@ -28,114 +27,86 @@ export function useLocalCommands({ clearAttachments, setTriggerState }: LocalCom
   const unshareSession = useChatStore((state) => state.unshareSession);
   const { showToast } = useToast();
 
+  const commands: Record<string, {
+    before?: () => void;
+    action?: () => Promise<void>;
+    errorMsg?: string;
+  }> = {
+    clear: {},
+    reset: {
+      before: clearAttachments,
+    },
+    undo: {
+      action: () => undoSession(),
+      errorMsg: 'Failed to undo.',
+    },
+    redo: {
+      action: () => redoSession(),
+      errorMsg: 'Failed to redo.',
+    },
+    compact: {
+      action: () => compactSession(),
+      errorMsg: 'Failed to compact session.',
+    },
+    summarize: {
+      action: () => compactSession(),
+      errorMsg: 'Failed to compact session.',
+    },
+    share: {
+      action: async () => {
+        const url = await shareSession();
+        if (!url) {
+          showToast({
+            variant: 'error',
+            description: 'Share link unavailable.',
+          });
+          return;
+        }
+        await navigator.clipboard.writeText(url);
+        showToast({
+          variant: 'success',
+          description: 'Share link copied to clipboard.',
+        });
+      },
+      errorMsg: 'Failed to share session.',
+    },
+    unshare: {
+      action: async () => {
+        await unshareSession();
+        showToast({
+          variant: 'success',
+          description: 'Session unshared.',
+        });
+      },
+      errorMsg: 'Failed to unshare session.',
+    },
+  };
+
   const runLocalCommand = useCallback((id: string) => {
-    if (id === 'clear') {
-      setPromptText('');
-      setTriggerState(null);
-      return true;
-    }
-    if (id === 'reset') {
-      setPromptText('');
-      clearAttachments();
-      clearContextItems();
-      setTriggerState(null);
-      return true;
-    }
-    if (id === 'undo') {
-      setPromptText('');
-      setTriggerState(null);
+    const cmd = commands[id];
+    if (!cmd) return false;
+
+    setPromptText('');
+    cmd.before?.();
+    setTriggerState(null);
+
+    if (cmd.action) {
+      const { action, errorMsg } = cmd;
       void (async () => {
         try {
-          await undoSession();
+          await action();
         } catch (error) {
           showToast({
             variant: 'error',
-            description: getErrorMessage(error, 'Failed to undo.'),
+            description: getErrorMessage(error, errorMsg ?? 'Command failed.'),
           });
         }
       })();
-      return true;
     }
-    if (id === 'redo') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await redoSession();
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to redo.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'compact' || id === 'summarize') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await compactSession();
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to compact session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'share') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          const url = await shareSession();
-          if (!url) {
-            showToast({
-              variant: 'error',
-              description: 'Share link unavailable.',
-            });
-            return;
-          }
-          await navigator.clipboard.writeText(url);
-          showToast({
-            variant: 'success',
-            description: 'Share link copied to clipboard.',
-          });
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to share session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    if (id === 'unshare') {
-      setPromptText('');
-      setTriggerState(null);
-      void (async () => {
-        try {
-          await unshareSession();
-          showToast({
-            variant: 'success',
-            description: 'Session unshared.',
-          });
-        } catch (error) {
-          showToast({
-            variant: 'error',
-            description: getErrorMessage(error, 'Failed to unshare session.'),
-          });
-        }
-      })();
-      return true;
-    }
-    return false;
+
+    return true;
   }, [
     clearAttachments,
-    clearContextItems,
     compactSession,
     redoSession,
     setPromptText,

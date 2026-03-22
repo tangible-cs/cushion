@@ -5,15 +5,13 @@ import {
   resolveAgentName,
   resolveModel,
   resolveModelVariant,
-  resolveInlineReferences,
   resolveAbsolutePath,
   buildFileUrl,
 } from '@/lib/chat-helpers';
+import type { PromptPart } from '@/lib/prompt-dom';
 import { wrapSdk, mapSdkError } from '@/lib/sdk-result';
 import {
   type PromptInputPayload,
-  type PromptContextItem,
-  type PromptSelection,
   type ChatStoreGet,
   type ChatStoreSet,
   upsertSession,
@@ -25,6 +23,96 @@ import {
   getDirectoryClient,
   unwrap,
 } from './chat-store-utils';
+import { handleAbortSession } from './chat-session-actions';
+
+/** Clear the prompt from state, returning the values needed to restore on error. */
+function clearPrompt(
+  set: ChatStoreSet,
+  sessionKey: string,
+  workspaceKey: string,
+  updateWorkspaceKey: boolean
+) {
+  set((prev) => {
+    const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
+    const nextPromptBySession = {
+      ...prev.promptBySession,
+      [sessionKey]: [] as PromptPart[],
+      ...(updateWorkspaceKey ? { [workspaceKey]: [] as PromptPart[] } : {}),
+    };
+    const pruned = prunePromptSessions(
+      touchPromptSessions(prev.promptSessionOrder, keys),
+      nextPromptBySession
+    );
+    return {
+      promptText: '',
+      promptParts: [],
+      promptBySession: pruned.promptBySession,
+      promptSessionOrder: pruned.promptSessionOrder,
+    };
+  });
+}
+
+/** Restore the prompt in state and record the session error. */
+function restorePrompt(
+  set: ChatStoreSet,
+  sessionKey: string,
+  workspaceKey: string,
+  updateWorkspaceKey: boolean,
+  previousPrompt: string,
+  previousParts: PromptPart[],
+  sessionId: string,
+  errorMessage: string
+) {
+  set((prev) => {
+    const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
+    const nextPromptBySession = {
+      ...prev.promptBySession,
+      [sessionKey]: previousParts,
+      ...(updateWorkspaceKey ? { [workspaceKey]: previousParts } : {}),
+    };
+    const pruned = prunePromptSessions(
+      touchPromptSessions(prev.promptSessionOrder, keys),
+      nextPromptBySession
+    );
+    return {
+      promptText: previousPrompt,
+      promptParts: previousParts,
+      promptBySession: pruned.promptBySession,
+      promptSessionOrder: pruned.promptSessionOrder,
+      sessionErrors: {
+        ...prev.sessionErrors,
+        [sessionId]: errorMessage,
+      },
+    };
+  });
+}
+
+/**
+ * Clear the prompt, run an API call, and restore the prompt on error.
+ * Re-throws the error after restoring so callers can still bail out.
+ */
+async function withPromptClearRestore(
+  set: ChatStoreSet,
+  sessionKey: string,
+  workspaceKey: string,
+  updateWorkspaceKey: boolean,
+  previousPrompt: string,
+  previousParts: PromptPart[],
+  sessionId: string,
+  apiCall: () => Promise<unknown>
+) {
+  clearPrompt(set, sessionKey, workspaceKey, updateWorkspaceKey);
+  try {
+    await apiCall();
+  } catch (error) {
+    const sdkError = mapSdkError(error);
+    restorePrompt(
+      set, sessionKey, workspaceKey, updateWorkspaceKey,
+      previousPrompt, previousParts, sessionId, sdkError.message
+    );
+    throw error;
+  }
+}
 
 export async function handleSendPrompt(
   input: PromptInputPayload,
@@ -35,15 +123,27 @@ export async function handleSendPrompt(
   const directory = state.directory;
   if (!directory) return;
 
+  // Interrupt-and-send: if the active session is busy, queue the prompt and abort
+  const activeId = state.activeSessionId;
+  if (activeId) {
+    const sessionStatus = state.sessionStatus[activeId];
+    const isBusy = sessionStatus?.type === 'busy' || sessionStatus?.type === 'retry';
+    if (isBusy) {
+      set({ pendingInterrupt: { sessionID: activeId, payload: input } });
+      await handleAbortSession(get, set, activeId);
+      return; // Event handler will send when session goes idle
+    }
+  }
+
   const mode = input.mode ?? 'prompt';
   const rawText = input.text;
   const trimmed = rawText.trim();
   const attachments = input.attachments ?? [];
-  const contextItems = state.contextItems;
-  if (!trimmed && attachments.length === 0 && contextItems.length === 0) return;
+  const inlineParts = input.parts ?? [];
+  const hasFileParts = inlineParts.some((p) => p.type === 'file');
+  if (!trimmed && attachments.length === 0 && !hasFileParts) return;
 
-  // Validate agent and model BEFORE creating a session (matches OpenCode reference).
-  // This prevents orphaned empty sessions when preconditions aren't met.
+  // Validate agent and model before creating a session to prevent orphaned empty sessions.
   const resolvedAgent = resolveAgentName(state.agents, state.selectedAgent);
   if (!resolvedAgent) {
     throw new Error('No agent available. Configure an agent in OpenCode to send messages.');
@@ -86,16 +186,6 @@ export async function handleSendPrompt(
     }));
   }
 
-  if (!state.activeSessionId) {
-    set((prev) => ({
-      activeSessionId: nextSessionId,
-      activeSessionByDirectory: {
-        ...prev.activeSessionByDirectory,
-        [directory]: nextSessionId,
-      },
-    }));
-  }
-
   const storedVariant = state.selectedVariantByDirectory[directory] ?? state.selectedVariant;
   const resolvedVariant = resolveModelVariant(state.providers, resolvedModel, storedVariant);
 
@@ -103,67 +193,23 @@ export async function handleSendPrompt(
   const workspaceKey = getPromptKey(directory, null);
   const updateWorkspaceKey = state.activeSessionId === null && workspaceKey !== sessionKey;
   const previousPrompt = state.promptText;
-  const commentItems = contextItems.filter((item) => item.comment?.trim());
-  const nextContextItems = contextItems.filter((item) => !item.comment?.trim());
+  const previousParts = state.promptParts;
 
   if (mode === 'shell') {
     const command = trimmed.startsWith('!') ? trimmed.slice(1).trim() : trimmed;
     if (!command) return;
-    set((prev) => {
-      const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-      const nextPromptBySession = {
-        ...prev.promptBySession,
-        [sessionKey]: '',
-        ...(updateWorkspaceKey ? { [workspaceKey]: '' } : {}),
-      };
-      const pruned = prunePromptSessions(
-        touchPromptSessions(prev.promptSessionOrder, keys),
-        nextPromptBySession,
-        prev.contextBySession
-      );
-      return {
-        promptText: '',
-        promptBySession: pruned.promptBySession,
-        contextBySession: pruned.contextBySession,
-        promptSessionOrder: pruned.promptSessionOrder,
-      };
-    });
-    try {
-      await client.session.shell({
+    await withPromptClearRestore(
+      set, sessionKey, workspaceKey, updateWorkspaceKey,
+      previousPrompt, previousParts, nextSessionId,
+      () => client.session.shell({
         sessionID: nextSessionId,
         directory,
         command,
         agent: resolvedAgent,
         model: resolvedModel ?? undefined,
         ...(resolvedVariant ? { variant: resolvedVariant } : {}),
-      });
-    } catch (error) {
-      const sdkError = mapSdkError(error);
-      set((prev) => {
-        const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-        const nextPromptBySession = {
-          ...prev.promptBySession,
-          [sessionKey]: previousPrompt,
-          ...(updateWorkspaceKey ? { [workspaceKey]: previousPrompt } : {}),
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(prev.promptSessionOrder, keys),
-          nextPromptBySession,
-          prev.contextBySession
-        );
-        return {
-          promptText: previousPrompt,
-          promptBySession: pruned.promptBySession,
-          contextBySession: pruned.contextBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-          sessionErrors: {
-            ...prev.sessionErrors,
-            [nextSessionId]: sdkError.message,
-          },
-        };
-      });
-      throw error;
-    }
+      })
+    );
     return;
   }
 
@@ -178,27 +224,10 @@ export async function handleSendPrompt(
         filename: attachment.filename,
         url: attachment.url,
       }));
-      set((prev) => {
-        const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-        const nextPromptBySession = {
-          ...prev.promptBySession,
-          [sessionKey]: '',
-          ...(updateWorkspaceKey ? { [workspaceKey]: '' } : {}),
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(prev.promptSessionOrder, keys),
-          nextPromptBySession,
-          prev.contextBySession
-        );
-        return {
-          promptText: '',
-          promptBySession: pruned.promptBySession,
-          contextBySession: pruned.contextBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-        };
-      });
-      try {
-        await client.session.command({
+      await withPromptClearRestore(
+        set, sessionKey, workspaceKey, updateWorkspaceKey,
+        previousPrompt, previousParts, nextSessionId,
+        () => client.session.command({
           sessionID: nextSessionId,
           directory,
           command: commandName,
@@ -207,63 +236,13 @@ export async function handleSendPrompt(
           model: resolvedModel ? `${resolvedModel.providerID}/${resolvedModel.modelID}` : undefined,
           parts: commandParts.length > 0 ? commandParts : undefined,
           ...(resolvedVariant ? { variant: resolvedVariant } : {}),
-        });
-      } catch (error) {
-        const sdkError = mapSdkError(error);
-        set((prev) => {
-          const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-          const nextPromptBySession = {
-            ...prev.promptBySession,
-            [sessionKey]: previousPrompt,
-            ...(updateWorkspaceKey ? { [workspaceKey]: previousPrompt } : {}),
-          };
-          const pruned = prunePromptSessions(
-            touchPromptSessions(prev.promptSessionOrder, keys),
-            nextPromptBySession,
-            prev.contextBySession
-          );
-          return {
-            promptText: previousPrompt,
-            promptBySession: pruned.promptBySession,
-            contextBySession: pruned.contextBySession,
-            promptSessionOrder: pruned.promptSessionOrder,
-            sessionErrors: {
-              ...prev.sessionErrors,
-              [nextSessionId]: sdkError.message,
-            },
-          };
-        });
-        throw error;
-      }
+        })
+      );
       return;
     }
   }
 
-  set((prev) => {
-    const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-    const nextPromptBySession = {
-      ...prev.promptBySession,
-      [sessionKey]: '',
-      ...(updateWorkspaceKey ? { [workspaceKey]: '' } : {}),
-    };
-    const nextContextBySession = {
-      ...prev.contextBySession,
-      [sessionKey]: nextContextItems,
-      ...(updateWorkspaceKey ? { [workspaceKey]: nextContextItems } : {}),
-    };
-    const pruned = prunePromptSessions(
-      touchPromptSessions(prev.promptSessionOrder, keys),
-      nextPromptBySession,
-      nextContextBySession
-    );
-    return {
-      promptText: '',
-      promptBySession: pruned.promptBySession,
-      contextItems: nextContextItems,
-      contextBySession: pruned.contextBySession,
-      promptSessionOrder: pruned.promptSessionOrder,
-    };
-  });
+  clearPrompt(set, sessionKey, workspaceKey, updateWorkspaceKey);
 
   const messageId = createMessageId();
   const textPartId = createPartId();
@@ -273,79 +252,76 @@ export async function handleSendPrompt(
     text: rawText,
   };
 
-  const inline = resolveInlineReferences(rawText, contextItems, state.agents);
-  const fileAttachmentParts = inline.fileRefs.map((ref) => {
-    const name = ref.path.split(/[/\\]/).pop() || ref.path;
-    const absolute = resolveAbsolutePath(directory, ref.path);
+  const inlineFiles = inlineParts.filter((p): p is PromptPart & { type: 'file'; path: string } => p.type === 'file');
+  const inlineAgents = inlineParts.filter((p): p is PromptPart & { type: 'agent'; name: string } => p.type === 'agent');
+
+  type FilePartWithSelection = PromptPart & { type: 'file'; path: string; selection?: { startLine: number; endLine: number } };
+
+  const fileAttachmentParts = inlineFiles.map((ref) => {
+    const fileRef = ref as FilePartWithSelection;
+    const name = fileRef.path.split(/[/\\]/).pop() || fileRef.path;
+    const absolute = resolveAbsolutePath(directory, fileRef.path);
+    const selection = fileRef.selection
+      ? { startLine: fileRef.selection.startLine, startChar: 0, endLine: fileRef.selection.endLine, endChar: 0 }
+      : undefined;
     return {
       id: createPartId(),
       type: 'file' as const,
       mime: 'text/plain',
-      url: buildFileUrl(directory, ref.path, ref.selection),
+      url: buildFileUrl(directory, fileRef.path, selection),
       filename: name,
       source: {
         type: 'file' as const,
         path: absolute,
         text: {
-          value: ref.value,
-          start: ref.start,
-          end: ref.end,
+          value: fileRef.content,
+          start: fileRef.start,
+          end: fileRef.end,
         },
       },
     };
   });
 
-  const usedUrls = new Set(fileAttachmentParts.map((part) => part.url));
-  const contextParts: Array<TextPartInput | FilePartInput> = [];
-
-  const commentNote = (path: string, selection: PromptSelection | undefined, comment: string) => {
-    const start = selection ? Math.min(selection.startLine, selection.endLine) : undefined;
-    const end = selection ? Math.max(selection.startLine, selection.endLine) : undefined;
-    const range =
-      start === undefined || end === undefined
-        ? 'this file'
-        : start === end
-          ? `line ${start}`
-          : `lines ${start} through ${end}`;
-
-    return `The user made the following comment regarding ${range} of ${path}: ${comment}`;
-  };
-
-  const addContextFile = (item: PromptContextItem) => {
-    const url = buildFileUrl(directory, item.path, item.selection);
-    const comment = item.comment?.trim();
-    if (!comment && usedUrls.has(url)) return;
-    usedUrls.add(url);
-    const name = item.path.split(/[/\\]/).pop() || item.path;
-
-    if (comment) {
-      contextParts.push({
-        id: createPartId(),
-        type: 'text',
-        text: commentNote(item.path, item.selection, comment),
-        synthetic: true,
-      });
-    }
-
-    contextParts.push({
+  // Build framing text parts for file pills that have selections
+  const framingParts: TextPartInput[] = [];
+  for (const ref of inlineFiles) {
+    const fileRef = ref as FilePartWithSelection;
+    if (!fileRef.selection) continue;
+    const start = Math.min(fileRef.selection.startLine, fileRef.selection.endLine);
+    const end = Math.max(fileRef.selection.startLine, fileRef.selection.endLine);
+    const range = start === end ? `line ${start}` : `lines ${start} through ${end}`;
+    framingParts.push({
       id: createPartId(),
-      type: 'file',
-      mime: 'text/plain',
-      filename: name,
-      url,
+      type: 'text',
+      text: `The user referenced ${range} of ${fileRef.path}. Focus any changes on this section.`,
+      synthetic: true,
     });
-  };
-
-  for (const item of contextItems) {
-    addContextFile(item);
   }
 
-  const agentAttachmentParts = inline.agentRefs.map((ref) => ({
+  // Auto-include current file if enabled
+  const usedUrls = new Set(fileAttachmentParts.map((part) => part.url));
+  const currentFileParts: FilePartInput[] = [];
+  const { currentFileContext, includeCurrentFile } = get();
+  if (currentFileContext && includeCurrentFile && currentFileContext.enabled) {
+    const url = buildFileUrl(directory, currentFileContext.path);
+    if (!usedUrls.has(url)) {
+      const name = currentFileContext.path.split(/[/\\]/).pop() || currentFileContext.path;
+      currentFileParts.push({
+        id: createPartId(),
+        type: 'file',
+        mime: 'text/plain',
+        filename: name,
+        url,
+      });
+    }
+  }
+
+  const agentAttachmentParts = inlineAgents.map((ref) => ({
     id: createPartId(),
     type: 'agent' as const,
     name: ref.name,
     source: {
-      value: ref.value,
+      value: ref.content,
       start: ref.start,
       end: ref.end,
     },
@@ -362,7 +338,8 @@ export async function handleSendPrompt(
   const requestParts: Array<TextPartInput | FilePartInput | AgentPartInput> = [
     textPart,
     ...fileAttachmentParts,
-    ...contextParts,
+    ...framingParts,
+    ...currentFileParts,
     ...agentAttachmentParts,
     ...imageAttachmentParts,
   ];
@@ -399,8 +376,7 @@ export async function handleSendPrompt(
     };
   });
 
-  // Fire-and-forget prompt like OpenCode app does
-  // All updates come via SSE events, not the response body
+  // Fire-and-forget: all updates come via SSE events, not the response body.
   void (async () => {
     try {
       await client.session.prompt({
@@ -414,51 +390,32 @@ export async function handleSendPrompt(
       });
     } catch (error) {
       const sdkError = mapSdkError(error);
+      // Remove the optimistic message and its parts
       set((prev) => {
         const list = prev.messages[nextSessionId] ?? [];
-        const nextMessages = {
-          ...prev.messages,
-          [nextSessionId]: removeMessage(list, messageId),
-        };
         const nextParts = { ...prev.parts };
         delete nextParts[messageId];
-        const restoredContext = [...nextContextItems, ...commentItems];
-        const keys = updateWorkspaceKey ? [sessionKey, workspaceKey] : [sessionKey];
-        const nextPromptBySession = {
-          ...prev.promptBySession,
-          [sessionKey]: previousPrompt,
-          ...(updateWorkspaceKey ? { [workspaceKey]: previousPrompt } : {}),
-        };
-        const nextContextBySession = {
-          ...prev.contextBySession,
-          [sessionKey]: restoredContext,
-          ...(updateWorkspaceKey ? { [workspaceKey]: restoredContext } : {}),
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(prev.promptSessionOrder, keys),
-          nextPromptBySession,
-          nextContextBySession
-        );
         return {
-          messages: nextMessages,
-          parts: nextParts,
-          promptText: previousPrompt,
-          promptBySession: pruned.promptBySession,
-          contextItems: restoredContext,
-          contextBySession: pruned.contextBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-          sessionErrors: {
-            ...prev.sessionErrors,
-            [nextSessionId]: sdkError.message,
+          messages: {
+            ...prev.messages,
+            [nextSessionId]: removeMessage(list, messageId),
           },
-          providerAuthErrors: sdkError.isAuthError && sdkError.providerID
+          parts: nextParts,
+          ...(sdkError.isAuthError && sdkError.providerID
             ? {
-                ...prev.providerAuthErrors,
-                [sdkError.providerID]: sdkError.message,
+                providerAuthErrors: {
+                  ...prev.providerAuthErrors,
+                  [sdkError.providerID]: sdkError.message,
+                },
               }
-            : prev.providerAuthErrors,
+            : {}),
         };
       });
+      // Restore the prompt text and record the session error
+      restorePrompt(
+        set, sessionKey, workspaceKey, updateWorkspaceKey,
+        previousPrompt, previousParts, nextSessionId, sdkError.message
+      );
     }
   })();
 }

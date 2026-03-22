@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, embedRevealedField } from './hide-markup';
+import { diffTheme as aiDiffTheme } from './ai-diff';
 import { hiddenRangesField, hiddenAtomicRanges } from './atomic-ranges';
 import { focusState, focusListener, mouseSelectingField, mouseSelectionTracker } from './reveal-on-cursor';
 import {
@@ -16,6 +17,16 @@ import { headingFoldGutterExtension } from './heading-fold-gutter';
 import { tableExtension } from './table/table-extension';
 
 export { focusModeExtension, setFocusMode, isFocusModeEnabled } from './focus-mode';
+
+export {
+  diffTheme,
+  enterDiffReview,
+  exitDiffReview,
+  acceptAllChunks,
+  rejectAllChunks,
+  getChunkCount,
+  diffReviewKeymap,
+} from './ai-diff';
 
 export {
   focusState,
@@ -244,5 +255,6 @@ export function wysiwygExtension(): Extension {
     headingFoldExtension(),
     headingFoldGutterExtension(),
     tableExtension(),
+    aiDiffTheme,
   ];
 }

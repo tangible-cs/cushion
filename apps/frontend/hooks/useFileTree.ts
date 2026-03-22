@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode, ConnectionState, WorkspaceMetadata } from '@cushion/types';
@@ -145,7 +146,12 @@ export function useFileTree({
     });
 
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
-      // Binary files (images, PDFs) are handled by their own viewers, not text content
+      // Skip files with a pending snapshot or being reviewed
+      const diffState = useDiffReviewStore.getState();
+      if (diffState.reviewingFilePath === filePath) return;
+      if (diffState.fileSnapshots[filePath]) return;
+
+      // Binary files are handled by their own viewers
       if (BINARY_FILE_EXTENSIONS.test(filePath)) return;
 
       const state = useWorkspaceStore.getState();
@@ -165,7 +171,7 @@ export function useFileTree({
           // File may have been deleted
         }
       } else {
-        // File has unsaved changes — warn (full conflict UI is a future step)
+        // File has unsaved changes
         console.warn(`[useFileTree] File "${filePath}" changed on disk but has unsaved edits`);
       }
     });

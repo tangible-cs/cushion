@@ -310,6 +310,14 @@ export function Turn({ turn, sessionId, isWorking, onInteract, showThinking = tr
             <DiffSummary diffs={diffSummary} />
           </div>
         )}
+
+        {!isWorking && footerMeta?.interrupted && (
+          <div data-component="message-divider">
+            <span data-slot="message-divider-line" />
+            <span data-slot="message-divider-label">Interrupted</span>
+            <span data-slot="message-divider-line" />
+          </div>
+        )}
       </div>
     </div>
   );

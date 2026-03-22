@@ -1,6 +1,3 @@
-import type { Agent } from '@opencode-ai/sdk/v2/client';
-import type { PromptContextItem } from '@/stores/chatStore';
-
 export const ZERO_WIDTH_SPACE = '\u200B';
 
 export type TextPart = {
@@ -14,6 +11,7 @@ export type FilePart = {
   type: 'file';
   content: string;
   path: string;
+  selection?: { startLine: number; endLine: number };
   start: number;
   end: number;
 };
@@ -30,131 +28,10 @@ export type PromptPart = TextPart | FilePart | AgentPart;
 
 export type InsertPart =
   | { type: 'text'; content: string }
-  | { type: 'file'; content: string; path: string }
+  | { type: 'file'; content: string; path: string; selection?: { startLine: number; endLine: number } }
   | { type: 'agent'; content: string; name: string };
 
-type InlineToken = {
-  raw: string;
-  token: string;
-  start: number;
-  end: number;
-};
-
 const DEFAULT_PROMPT: PromptPart[] = [{ type: 'text', content: '', start: 0, end: 0 }];
-
-const parseInlineTokens = (text: string): InlineToken[] => {
-  const matches: InlineToken[] = [];
-  const regex = /@([^\s]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text))) {
-    const raw = match[0];
-    const token = match[1] ?? '';
-    if (!token) continue;
-    const start = match.index ?? 0;
-    matches.push({ raw, token, start, end: start + raw.length });
-  }
-  return matches;
-};
-
-export const buildPromptParts = (text: string, contextItems: PromptContextItem[], agents: Agent[]): PromptPart[] => {
-  if (!text) return DEFAULT_PROMPT;
-
-  const tokens = parseInlineTokens(text);
-  if (tokens.length === 0) {
-    return [{ type: 'text', content: text, start: 0, end: text.length }];
-  }
-
-  const agentMap = new Map(
-    agents
-      .filter((agent) => !agent.hidden && agent.mode !== 'primary')
-      .map((agent) => [agent.name.toLowerCase(), agent.name])
-  );
-  const fileMap = new Map<string, PromptContextItem[]>();
-
-  for (const item of contextItems) {
-    const name = item.path.split(/[/\\]/).pop() || item.path;
-    const key = name.toLowerCase();
-    const list = fileMap.get(key);
-    if (list) {
-      list.push(item);
-    } else {
-      fileMap.set(key, [item]);
-    }
-    const normalizedPath = item.path.replace(/\\/g, '/').toLowerCase();
-    if (!fileMap.has(normalizedPath)) {
-      fileMap.set(normalizedPath, [item]);
-    }
-  }
-
-  const fileIndices = new Map<string, number>();
-  const resolved: Array<
-    | { type: 'agent'; name: string; raw: string; start: number; end: number }
-    | { type: 'file'; path: string; raw: string; start: number; end: number }
-  > = [];
-
-  for (const token of tokens) {
-    const key = token.token.toLowerCase();
-    const agentName = agentMap.get(key);
-    if (agentName) {
-      resolved.push({ type: 'agent', name: agentName, raw: token.raw, start: token.start, end: token.end });
-      continue;
-    }
-    const files = fileMap.get(key);
-    if (!files || files.length === 0) continue;
-    const index = fileIndices.get(key) ?? 0;
-    const item = files[index] ?? files[0];
-    fileIndices.set(key, index + 1);
-    resolved.push({ type: 'file', path: item.path, raw: token.raw, start: token.start, end: token.end });
-  }
-
-  if (resolved.length === 0) {
-    return [{ type: 'text', content: text, start: 0, end: text.length }];
-  }
-
-  const parts: PromptPart[] = [];
-  let cursor = 0;
-  let position = 0;
-
-  for (const item of resolved) {
-    if (item.start > cursor) {
-      const segment = text.slice(cursor, item.start);
-      if (segment) {
-        parts.push({ type: 'text', content: segment, start: position, end: position + segment.length });
-        position += segment.length;
-      }
-    }
-    const length = item.raw.length;
-    if (item.type === 'agent') {
-      parts.push({
-        type: 'agent',
-        name: item.name,
-        content: item.raw,
-        start: position,
-        end: position + length,
-      });
-    }
-    if (item.type === 'file') {
-      parts.push({
-        type: 'file',
-        path: item.path,
-        content: item.raw,
-        start: position,
-        end: position + length,
-      });
-    }
-    position += length;
-    cursor = item.end;
-  }
-
-  if (cursor < text.length) {
-    const tail = text.slice(cursor);
-    if (tail) {
-      parts.push({ type: 'text', content: tail, start: position, end: position + tail.length });
-    }
-  }
-
-  return parts.length > 0 ? parts : DEFAULT_PROMPT;
-};
 
 export const isPromptEqual = (left: PromptPart[], right: PromptPart[]): boolean => {
   if (left.length !== right.length) return false;
@@ -185,11 +62,15 @@ export const createTextFragment = (content: string): DocumentFragment => {
   return fragment;
 };
 
-export const createPill = (part: { type: 'file' | 'agent'; content: string; path?: string; name?: string }): HTMLElement => {
+export const createPill = (part: { type: 'file' | 'agent'; content: string; path?: string; name?: string; selection?: { startLine: number; endLine: number } }): HTMLElement => {
   const pill = document.createElement('span');
   pill.textContent = part.content;
   pill.setAttribute('data-type', part.type);
   if (part.type === 'file' && part.path) pill.setAttribute('data-path', part.path);
+  if (part.type === 'file' && part.selection) {
+    pill.setAttribute('data-start-line', String(part.selection.startLine));
+    pill.setAttribute('data-end-line', String(part.selection.endLine));
+  }
   if (part.type === 'agent' && part.name) pill.setAttribute('data-name', part.name);
   pill.setAttribute('contenteditable', 'false');
   pill.style.userSelect = 'text';
@@ -333,7 +214,12 @@ export const parseFromDOM = (editor: HTMLElement): PromptPart[] => {
   const pushFile = (file: HTMLElement) => {
     const content = file.textContent ?? '';
     const path = file.dataset.path ?? content;
-    parts.push({ type: 'file', path, content, start: position, end: position + content.length });
+    const startLine = file.dataset.startLine;
+    const endLine = file.dataset.endLine;
+    const selection = startLine && endLine
+      ? { startLine: Number(startLine), endLine: Number(endLine) }
+      : undefined;
+    parts.push({ type: 'file', path, content, selection, start: position, end: position + content.length });
     position += content.length;
   };
 

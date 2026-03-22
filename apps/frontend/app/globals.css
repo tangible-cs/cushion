@@ -215,22 +215,11 @@ body {
   outline: none;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  border: none;
-  outline: none;
-}
 
 * {
   box-sizing: border-box;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
 
 /* pdf.js annotation editor toolbar fixes — Tailwind Preflight overrides box-sizing
    and pseudo-element defaults that pdf.js relies on */
@@ -681,13 +670,20 @@ html, body {
 [data-component="user-message"] {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: flex-end;
+  gap: 0;
+  width: 100%;
 }
 
 [data-slot="user-message-text"] {
   position: relative;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(82%, 64ch);
+  margin-left: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow: hidden;
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   padding: 8px 12px;
@@ -758,7 +754,7 @@ html, body {
 
 [data-component="text-part"] [data-slot="text-part-meta"] {
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   user-select: none;
   cursor: default;
 }
@@ -767,12 +763,37 @@ html, body {
   width: 100%;
   justify-content: flex-end;
   gap: 12px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 [data-component="text-part"]:hover [data-slot="text-part-copy-wrapper"],
 [data-component="text-part"]:focus-within [data-slot="text-part-copy-wrapper"] {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Message Divider (interrupted turn separator) */
+[data-component="message-divider"] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+[data-slot="message-divider-line"] {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border);
+}
+
+[data-slot="message-divider-label"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--foreground-muted);
+  user-select: none;
 }
 
 /* ========================================
@@ -863,21 +884,6 @@ html, body {
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--overlay-10) transparent;
-}
-
-.thin-scrollbar::-webkit-scrollbar {
-  height: 4px;
-  width: 4px;
-  background: transparent;
-}
-
-.thin-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--overlay-20);
-  border-radius: 2px;
-}
-
-.thin-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--overlay-20) 50%, var(--overlay-50));
 }
 
 .chat-dock [data-slot="prompt-input-form"],
@@ -1163,7 +1169,7 @@ html, body {
 }
 
 [data-slot="apply-patch-file-trigger"]:hover {
-  background: var(--muted);
+  background: var(--overlay-10);
 }
 
 [data-slot="apply-patch-trigger-content"] {
@@ -1475,7 +1481,7 @@ html, body {
     white-space: nowrap;
     text-align: center;
     font-size: 12px;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2062,7 +2068,7 @@ html, body {
 
 [data-component="todo-checkbox"][data-checked] [data-slot="todo-checkbox-control"] {
   border-color: var(--border);
-  background-color: var(--muted);
+  background-color: var(--overlay-10);
   color: var(--foreground);
 }
 
@@ -2209,7 +2215,7 @@ html, body {
 
 [data-component="todo-dock-checkbox"][data-checked] [data-slot="todo-dock-checkbox-control"] {
   border-color: var(--border);
-  background-color: var(--muted);
+  background-color: var(--overlay-10);
   color: var(--foreground);
 }
 
@@ -2303,15 +2309,7 @@ html, body {
   height: 20px;
 }
 
-[data-component="icon"][data-size="medium"] {
-  width: 24px;
-  height: 24px;
-}
 
-[data-component="icon"][data-size="large"] {
-  width: 24px;
-  height: 24px;
-}
 
 /* Collapsible trigger styles (tool trigger) */
 [data-slot="collapsible-trigger"] {
@@ -2353,7 +2351,7 @@ html, body {
   --text-shimmer-angle: 90deg;
   --text-shimmer-spread: 5.2ch;
   --text-shimmer-size: 360%;
-  --text-shimmer-base-color: var(--muted-foreground);
+  --text-shimmer-base-color: var(--foreground-muted);
   --text-shimmer-peak-color: var(--foreground);
   --text-shimmer-sweep: linear-gradient(
     var(--text-shimmer-angle),
@@ -2394,7 +2392,7 @@ html, body {
 }
 
 [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   opacity: 0;
 }
 
@@ -2488,14 +2486,14 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   font-weight: 400;
   font-size: 14px;
 }
 
 [data-slot="session-turn-thinking-duration"] {
   flex-shrink: 0;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   font-size: 12px;
   font-weight: 400;
 }
@@ -2607,11 +2605,11 @@ html, body {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 400;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 
   [data-slot="collapsible-arrow"] {
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2651,7 +2649,7 @@ html, body {
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 
   [data-slot="basic-tool-tool-arg"] {
@@ -2663,7 +2661,7 @@ html, body {
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2966,4 +2964,30 @@ html, body {
   [data-component="tool-status-title"] [data-slot="tool-status-done"] {
     transition-duration: 0ms;
   }
+}
+
+/* Diff review bar buttons */
+.diff-btn-reject {
+  background-color: var(--accent-red-12);
+  color: var(--accent-red);
+}
+.diff-btn-reject:hover {
+  background-color: var(--accent-red);
+  color: white;
+}
+.diff-btn-exit {
+  background-color: var(--overlay-10);
+  color: var(--foreground-muted);
+}
+.diff-btn-exit:hover {
+  background-color: var(--border);
+  color: var(--foreground);
+}
+.diff-btn-accept {
+  background-color: var(--accent-green-12);
+  color: var(--accent-green);
+}
+.diff-btn-accept:hover {
+  background-color: var(--accent-green);
+  color: white;
 }

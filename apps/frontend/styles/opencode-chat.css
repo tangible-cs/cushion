@@ -1,16 +1,4 @@
-/*
- * OpenCode Chat Color System
- * ---------------------------
- * Extracted from OpenCode's Tauri app (packages/ui/src/styles/).
- * Provides the full semantic token layer + chat component overrides.
- *
- * Toggle: import/remove this file from globals.css to switch themes.
- * When active, these tokens override the Cushion defaults *inside* the
- * chat sidebar only (scoped to [data-chat-theme="opencode"]).
- *
- * To activate: add data-chat-theme="opencode" to the chat sidebar root,
- * AND import this file in globals.css.
- */
+/* OpenCode Chat Color System — scoped to [data-chat-theme="opencode"] */
 
 /* ================================================================
    1. OPENCODE SEMANTIC TOKENS — Light
@@ -52,7 +40,6 @@
   --oc-surface-brand-base: #dcde8d;
   --oc-surface-brand-hover: #d0d283;
   --oc-surface-interactive-base: #f0ecff;
-  --oc-surface-interactive-hover: #e4dfff;
   --oc-surface-interactive-weak: #f8f7ff;
   --oc-surface-success-base: #dbfed7;
   --oc-surface-success-weak: #f0feee;
@@ -135,38 +122,12 @@
   --oc-icon-agent-ask-base: #8b5cf6;
   --oc-icon-agent-build-base: #7c3aed;
 
-  /* ---- Input ---- */
-  --oc-input-base: #ffffff;
-  --oc-input-hover: #f3f3f3;
-  --oc-input-active: #fdfcff;
-
   /* ---- Syntax highlighting ---- */
-  --oc-syntax-comment: var(--oc-text-weak);
   --oc-syntax-string: #6d28d9;
-  --oc-syntax-keyword: var(--oc-text-weak);
-  --oc-syntax-primitive: #fb4804;
-  --oc-syntax-operator: var(--oc-text-base);
-  --oc-syntax-variable: var(--oc-text-strong);
-  --oc-syntax-property: #ed6dc8;
-  --oc-syntax-type: #596600;
-  --oc-syntax-constant: #007b80;
-  --oc-syntax-success: #2dba26;
-  --oc-syntax-warning: #efa72e;
-  --oc-syntax-critical: #ed4831;
-  --oc-syntax-info: #0092a8;
-  --oc-syntax-diff-add: #3a8437;
-  --oc-syntax-diff-delete: #ca2d17;
 
   /* ---- Shadows ---- */
-  --oc-shadow-xs:
-    0 1px 2px -0.5px hsl(0 0% 0% / 0.04),
-    0 0.5px 1.5px 0 hsl(0 0% 0% / 0.025),
-    0 1px 3px 0 hsl(0 0% 0% / 0.05);
   --oc-shadow-xs-border:
     0 0 0 1px var(--oc-border-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
-    0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
-  --oc-shadow-xs-border-base:
-    0 0 0 1px var(--oc-border-weak-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
     0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
 
   /* ---- Radii ---- */
@@ -313,26 +274,8 @@
   --oc-icon-agent-ask-base: #a78bfa;
   --oc-icon-agent-build-base: #be9dfe;
 
-  --oc-input-base: #1c1c1c;
-  --oc-input-hover: #1c1c1c;
-  --oc-input-active: #120923;
-
   --oc-syntax-string: #be9dfe;
-  --oc-syntax-primitive: #ffba92;
-  --oc-syntax-property: #ff9ae2;
-  --oc-syntax-type: #ecf58c;
-  --oc-syntax-constant: #93e9f6;
-  --oc-syntax-success: #35c02d;
-  --oc-syntax-warning: #f5b238;
-  --oc-syntax-critical: #f54f36;
-  --oc-syntax-info: #93e9f6;
-  --oc-syntax-diff-add: #9bcd97;
-  --oc-syntax-diff-delete: #faa494;
 
-  --oc-shadow-xs:
-    0 1px 2px -0.5px hsl(0 0% 0% / 0.06),
-    0 0.5px 1.5px 0 hsl(0 0% 0% / 0.08),
-    0 1px 3px 0 hsl(0 0% 0% / 0.1);
   --oc-shadow-xs-border:
     0 0 0 1px var(--oc-border-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
     0 1px 2px 0 rgba(19, 16, 16, 0.06), 0 1px 3px 0 rgba(19, 16, 16, 0.08);
@@ -634,15 +577,6 @@
 
 [data-chat-theme="opencode"] [data-component="card"] [data-slot="card-description"] {
   color: var(--oc-text-base);
-}
-
-/* --- Scrollbar thumb --- */
-[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--oc-surface-base-hover);
-}
-
-[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--oc-surface-weak);
 }
 
 /* --- User message meta & text-part meta --- */

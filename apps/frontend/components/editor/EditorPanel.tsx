@@ -20,6 +20,8 @@ import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
+import { DiffReviewBar } from './DiffReviewBar';
+import { useDiffReviewStore } from '@/stores/diffReviewStore';
 
 interface EditorPanelProps {
   client: CoordinatorClient;
@@ -29,6 +31,7 @@ interface EditorPanelProps {
   onToggleFocusMode?: () => void;
   onNewNote?: () => void;
   onGoToFile?: () => void;
+  onAddSelectionToChat?: (data: { path: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number }; preview: string }) => void;
 }
 
 const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
@@ -102,6 +105,7 @@ export function EditorPanel({
   onToggleFocusMode,
   onNewNote,
   onGoToFile,
+  onAddSelectionToChat,
 }: EditorPanelProps) {
   const workspacePath = useWorkspaceStore((s) => s.metadata?.projectPath ?? null);
   const projectName = useWorkspaceStore((s) => s.metadata?.projectName ?? null);
@@ -111,7 +115,6 @@ export function EditorPanel({
   const updateFileContent = useWorkspaceStore((s) => s.updateFileContent);
   const markFileSaved = useWorkspaceStore((s) => s.markFileSaved);
   const setCurrentFile = useWorkspaceStore((s) => s.setCurrentFile);
-  const closeFile = useWorkspaceStore((s) => s.closeFile);
   const openFile = useWorkspaceStore((s) => s.openFile);
 
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({
@@ -290,6 +293,7 @@ export function EditorPanel({
 
       if (
         preferences.autoSave &&
+        !useDiffReviewStore.getState().reviewingFilePath &&
         /\.(md|markdown)$/i.test(currentFile) &&
         content !== file.savedContent
       ) {
@@ -387,6 +391,29 @@ export function EditorPanel({
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const searchPanelContainerRef = useRef<HTMLDivElement>(null);
+  const diffAcceptAllRef = useRef<(() => void) | null>(null);
+  const diffRejectAllRef = useRef<(() => void) | null>(null);
+  const diffExitReviewRef = useRef<(() => void) | null>(null);
+  const diffSaveRef = useRef<((filePath: string, content: string) => Promise<void>) | null>(null);
+  const isReviewing = useDiffReviewStore((s) => s.reviewingFilePath === currentFile);
+
+  // Wire up diffSaveRef: saves to disk, marks saved, clears pending autosave
+  useEffect(() => {
+    diffSaveRef.current = async (fp: string, content: string) => {
+      try {
+        await client.saveFile(fp, content);
+        markFileSaved(fp, content);
+        const pendingTimer = autosaveTimersRef.current.get(fp);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          autosaveTimersRef.current.delete(fp);
+        }
+      } catch (err) {
+        console.error('[EditorPanel] Diff save failed:', err);
+      }
+    };
+    return () => { diffSaveRef.current = null; };
+  }, [client, markFileSaved]);
 
   const handleRename = useCallback(async (newName: string): Promise<boolean> => {
     if (!currentFile) return false;
@@ -504,6 +531,14 @@ export function EditorPanel({
 
       <div ref={searchPanelContainerRef} className="flex-shrink-0" />
 
+      {isReviewing && (
+        <DiffReviewBar
+          onAcceptAll={() => diffAcceptAllRef.current?.()}
+          onRejectAll={() => diffRejectAllRef.current?.()}
+          onExitReview={() => diffExitReviewRef.current?.()}
+        />
+      )}
+
       {/* Editor content with rounded top corners */}
       <div
         className="flex-1 min-h-0 min-w-0 overflow-auto rounded-tl-lg thin-scrollbar"
@@ -565,6 +600,11 @@ export function EditorPanel({
               onWikiLinkNavigate={handleWikiLinkNavigate}
               onPasteImages={handlePasteImages}
               searchPanelContainerRef={searchPanelContainerRef}
+              onDiffAcceptAll={diffAcceptAllRef}
+              onDiffRejectAll={diffRejectAllRef}
+              onDiffExitReview={diffExitReviewRef}
+              onDiffSave={diffSaveRef}
+              onAddSelectionToChat={onAddSelectionToChat}
             />
           </>
         ) : (

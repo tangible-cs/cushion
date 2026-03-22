@@ -18,6 +18,7 @@ import {
   getOpenCodeStatus,
   type OpenCodeConnectionState,
 } from '@/lib/shared-opencode-client';
+import type { PromptPart } from '@/lib/prompt-dom';
 
 // Types
 
@@ -39,18 +40,9 @@ export type PromptSelection = {
   endChar: number;
 };
 
-export type PromptContextItem = {
-  id: string;
-  path: string;
-  selection?: PromptSelection;
-  preview?: string;
-  comment?: string;
-  commentID?: string;
-  commentOrigin?: 'review' | 'file';
-};
-
 export type PromptInputPayload = {
   text: string;
+  parts: PromptPart[];
   attachments?: PromptAttachment[];
   mode?: 'prompt' | 'shell';
 };
@@ -72,6 +64,11 @@ export type DisplayPreferences = {
   editToolPartsExpanded: boolean;
 };
 
+export type CurrentFileContext = {
+  path: string;
+  enabled: boolean;
+};
+
 export type ChatState = {
   baseUrl: string;
   directory: OpenCodeDirectory | null;
@@ -79,10 +76,11 @@ export type ChatState = {
   connection: OpenCodeConnectionState;
   activeSessionId: string | null;
   promptText: string;
+  promptParts: PromptPart[];
   displayPreferences: DisplayPreferences;
-  contextItems: PromptContextItem[];
-  contextBySession: Record<string, PromptContextItem[]>;
-  promptBySession: Record<string, string>;
+  currentFileContext: CurrentFileContext | null;
+  includeCurrentFile: boolean;
+  promptBySession: Record<string, PromptPart[]>;
   promptSessionOrder: string[];
   activeSessionByDirectory: Record<string, string | null>;
   agents: Agent[];
@@ -109,6 +107,10 @@ export type ChatState = {
   sessionErrors: Record<string, string | undefined>;
   compactedSessions: Record<string, boolean>;
   autoAccept: boolean;
+  /** Sessions currently being aborted (prevents double-abort, drives UI) */
+  abortingSessions: Record<string, boolean>;
+  /** Queued prompt to send after current session aborts (interrupt-and-send) */
+  pendingInterrupt: { sessionID: string; payload: PromptInputPayload } | null;
 };
 
 export type ChatActions = {
@@ -119,10 +121,8 @@ export type ChatActions = {
   sendPrompt: (input: PromptInputPayload) => Promise<void>;
   loadSessionMessages: (sessionID: string, limit?: number) => Promise<void>;
   loadMoreMessages: (sessionID: string) => Promise<void>;
-  addContextItem: (item: Omit<PromptContextItem, 'id'>) => void;
-  removeContextItem: (id: string) => void;
-  clearContextItems: () => void;
   setPromptText: (text: string) => void;
+  setPromptParts: (parts: PromptPart[]) => void;
   setSelectedAgent: (agent: string | null) => void;
   setActiveSession: (sessionID: string | null) => Promise<void>;
   setSelectedModel: (model: SelectedModel | null) => void;
@@ -141,6 +141,8 @@ export type ChatActions = {
   compactSession: () => Promise<void>;
   shareSession: () => Promise<string | null>;
   unshareSession: () => Promise<void>;
+  syncCurrentFile: (path: string | null) => void;
+  toggleIncludeCurrentFile: () => void;
   toggleShowThinking: () => void;
   toggleShellToolPartsExpanded: () => void;
   toggleEditToolPartsExpanded: () => void;
@@ -156,7 +158,6 @@ export type ChatStoreSet = (
 
 // Constants
 
-export const MAX_CONTEXT_ITEMS = 20;
 export const DEFAULT_MESSAGE_LIMIT = 200;
 const WORKSPACE_SESSION_KEY = '__workspace__';
 export const MAX_PROMPT_SESSIONS = 20;
@@ -176,9 +177,10 @@ export const initialState: ChatState = {
   connection: getOpenCodeStatus(),
   activeSessionId: null,
   promptText: '',
+  promptParts: [],
   displayPreferences: DEFAULT_DISPLAY_PREFERENCES,
-  contextItems: [],
-  contextBySession: {},
+  currentFileContext: null,
+  includeCurrentFile: true,
   promptBySession: {},
   promptSessionOrder: [],
   activeSessionByDirectory: {},
@@ -206,6 +208,8 @@ export const initialState: ChatState = {
   sessionErrors: {},
   compactedSessions: {},
   autoAccept: false,
+  abortingSessions: {},
+  pendingInterrupt: null,
 };
 
 // List utilities
@@ -274,22 +278,23 @@ export function getPromptKey(directory: string, sessionId: string | null) {
   return `${normalized}::${sessionId ?? WORKSPACE_SESSION_KEY}`;
 }
 
+export function getStoredPromptParts(
+  state: Pick<ChatState, 'promptBySession'>,
+  directory: string,
+  sessionId: string | null
+): PromptPart[] {
+  const key = getPromptKey(directory, sessionId);
+  return state.promptBySession[key] ?? [];
+}
+
 export function getStoredPromptText(
   state: Pick<ChatState, 'promptBySession'>,
   directory: string,
   sessionId: string | null
 ) {
-  const key = getPromptKey(directory, sessionId);
-  return state.promptBySession[key] ?? '';
-}
-
-export function getStoredContextItems(
-  state: Pick<ChatState, 'contextBySession'>,
-  directory: string,
-  sessionId: string | null
-) {
-  const key = getPromptKey(directory, sessionId);
-  return state.contextBySession[key] ?? [];
+  return getStoredPromptParts(state, directory, sessionId)
+    .map((p) => p.content)
+    .join('');
 }
 
 function touchPromptSession(order: string[], key: string) {
@@ -308,24 +313,19 @@ export function touchPromptSessions(order: string[], keys: string[]) {
 
 export function prunePromptSessions(
   order: string[],
-  promptBySession: Record<string, string>,
-  contextBySession: Record<string, PromptContextItem[]>
+  promptBySession: Record<string, PromptPart[]>
 ) {
   if (order.length <= MAX_PROMPT_SESSIONS) {
-    return { promptSessionOrder: order, promptBySession, contextBySession };
+    return { promptSessionOrder: order, promptBySession };
   }
   const promptSessionOrder = order.slice(-MAX_PROMPT_SESSIONS);
   const keep = new Set(promptSessionOrder);
   const nextPrompt = Object.fromEntries(
     Object.entries(promptBySession).filter(([key]) => keep.has(key))
   );
-  const nextContext = Object.fromEntries(
-    Object.entries(contextBySession).filter(([key]) => keep.has(key))
-  );
   return {
     promptSessionOrder,
     promptBySession: nextPrompt,
-    contextBySession: nextContext,
   };
 }
 
@@ -338,7 +338,6 @@ export function getModelVisibilityKey(model: SelectedModel) {
 export function resolveModelVisibility(map: Record<string, ModelVisibility>, model: SelectedModel) {
   const state = map[getModelVisibilityKey(model)];
   if (state === 'hide') return false;
-  if (state === 'show') return true;
   return true;
 }
 

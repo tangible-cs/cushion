@@ -1,9 +1,3 @@
-/**
- * Workspace State Management with Zustand
- *
- * Manages workspace context, open files, tabs, and user preferences
- */
-
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import type {
@@ -19,9 +13,6 @@ import type { CoordinatorClient } from '@/lib/coordinator-client';
 import { DEFAULT_SETTINGS } from '@/lib/config-defaults';
 import { parseFrontmatter } from '@/lib/frontmatter';
 
-/**
- * Actions for workspace management
- */
 interface WorkspaceActions {
   // Client setup
   setClient: (client: CoordinatorClient) => void;
@@ -35,7 +26,6 @@ interface WorkspaceActions {
   openFile: (filePath: string, content: string, forceNewTab?: boolean) => void;
   closeFile: (filePath: string) => void;
   updateFileContent: (filePath: string, content: string) => void;
-  markFileDirty: (filePath: string) => void;
   markFileSaved: (filePath: string, content: string) => void;
   replaceOpenFileContent: (filePath: string, content: string) => void;
   setCurrentFile: (filePath: string | null) => void;
@@ -68,9 +58,6 @@ interface WorkspaceActions {
   reset: () => void;
 }
 
-/**
- * Initial state
- */
 const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   metadata: null,
   openFiles: new Map(),
@@ -79,7 +66,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   fileTree: [],
   fileWatcher: {
     watchedPaths: [],
-    ignoredPatterns: ['node_modules', '.git', 'dist', 'build', '.next'],
+    ignoredPatterns: [],
     hasExternalChanges: new Map(),
   },
   recentProjects: [],
@@ -91,14 +78,8 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   error: null,
 };
 
-/**
- * Client instance (set from Editor component)
- */
 let coordinatorClient: CoordinatorClient | null = null;
 
-/**
- * Helper: Detect language from file extension
- */
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
   const languageMap: Record<string, string> = {
@@ -135,50 +116,35 @@ function detectLanguage(filePath: string): string {
   return languageMap[ext || ''] || 'plaintext';
 }
 
-/**
- * Helper: Check if file supports frontmatter (markdown files)
- */
 function supportsFrontmatter(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase();
   return ext === 'md' || ext === 'markdown';
 }
 
-/**
- * Helper: Extract frontmatter from content if the file supports it
- */
 function extractFrontmatter(filePath: string, content: string): Frontmatter | null {
   if (!supportsFrontmatter(filePath)) {
     return null;
   }
-  
+
   const { frontmatter, errors } = parseFrontmatter(content);
-  
+
   if (errors.length > 0) {
     console.warn('[WorkspaceStore] Frontmatter parsing warnings:', errors);
   }
-  
+
   return frontmatter;
 }
 
-/**
- * Workspace Store
- */
 export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
   subscribeWithSelector(
     persist(
       (set, get) => ({
         ...initialState,
 
-        /**
-         * Set the coordinator client
-         */
         setClient: (client: CoordinatorClient) => {
           coordinatorClient = client;
         },
 
-        /**
-         * Open a workspace by project path
-         */
         openWorkspace: async (projectPath: string) => {
           if (!coordinatorClient) {
             throw new Error('Coordinator client not initialized');
@@ -211,7 +177,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
                     fileTree: [],
                     fileWatcher: {
                       ...state.fileWatcher,
-                      watchedPaths: [],
                       hasExternalChanges: new Map(),
                     },
                   }
@@ -234,9 +199,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           }
         },
 
-        /**
-         * Ask the coordinator to show a native folder picker
-         */
         selectWorkspaceFolder: async () => {
           // In Electron, use the native dialog directly
           if (window.electronAPI?.selectFolder) {
@@ -251,16 +213,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           return path;
         },
 
-        /**
-         * Close the current workspace
-         */
         closeWorkspace: () => {
           set(initialState);
         },
 
-        /**
-         * Open a file
-         */
         openFile: (filePath: string, content: string, forceNewTab: boolean = false) => {
           const { metadata, openFiles, tabs } = get();
 
@@ -345,9 +301,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           });
         },
 
-        /**
-         * Close a file
-         */
         closeFile: (filePath: string) => {
           const { openFiles } = get();
 
@@ -363,9 +316,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ openFiles: newOpenFiles });
         },
 
-        /**
-         * Update file content (user is editing)
-         */
         updateFileContent: (filePath: string, content: string) => {
           const { openFiles } = get();
           const file = openFiles.get(filePath);
@@ -397,29 +347,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           }
         },
 
-        /**
-         * Mark file as dirty (has unsaved changes)
-         */
-        markFileDirty: (filePath: string) => {
-          const { openFiles } = get();
-          const file = openFiles.get(filePath);
-
-          if (!file) return;
-
-          const updatedFile: FileState = {
-            ...file,
-            isDirty: file.content !== file.savedContent,
-          };
-
-          const newOpenFiles = new Map(openFiles);
-          newOpenFiles.set(filePath, updatedFile);
-
-          set({ openFiles: newOpenFiles });
-        },
-
-        /**
-         * Mark file as saved
-         */
         markFileSaved: (filePath: string, content: string) => {
           const { openFiles } = get();
           const file = openFiles.get(filePath);
@@ -448,6 +375,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const { openFiles } = get();
           const file = openFiles.get(filePath);
           if (!file) return;
+          if (file.content === content && file.savedContent === content) return;
 
           const frontmatter = extractFrontmatter(filePath, content);
           const updatedFile: FileState = {
@@ -465,16 +393,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ openFiles: newOpenFiles });
         },
 
-        /**
-         * Set current active file
-         */
         setCurrentFile: (filePath: string | null) => {
           set({ currentFile: filePath });
         },
 
-        /**
-         * Add a new tab
-         */
         addTab: (filePath: string, isPreview: boolean = false) => {
           const { tabs } = get();
 
@@ -510,9 +432,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           });
         },
 
-        /**
-         * Add an empty "New tab"
-         */
         addNewTab: () => {
           const { tabs } = get();
           const newTab: TabState = {
@@ -533,9 +452,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           });
         },
 
-        /**
-         * Remove a tab
-         */
         removeTab: (tabId: string) => {
           const { tabs, currentFile } = get();
           const newTabs = tabs.filter((t) => t.id !== tabId);
@@ -549,9 +465,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ tabs: newTabs });
         },
 
-        /**
-         * Set active tab
-         */
         setActiveTab: (tabId: string) => {
           const { tabs } = get();
           const newTabs = tabs.map((t) => ({
@@ -568,9 +481,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           }
         },
 
-        /**
-         * Pin/unpin a tab
-         */
         pinTab: (tabId: string) => {
           const { tabs } = get();
           const newTabs = tabs.map((t) =>
@@ -579,9 +489,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ tabs: newTabs });
         },
 
-        /**
-         * Convert preview tab to permanent tab
-         */
         convertPreviewTab: (filePath: string) => {
           const { tabs } = get();
           const newTabs = tabs.map((t) =>
@@ -590,9 +497,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ tabs: newTabs });
         },
 
-        /**
-         * Add project to recent history
-         */
         addRecentProject: () => {
           const { metadata } = get();
           if (!metadata) return;
@@ -608,9 +512,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           });
         },
 
-        /**
-         * Update user preferences
-         */
         updatePreferences: (preferences: Partial<WorkspacePreferences>) => {
           set((state) => ({
             preferences: {
@@ -624,30 +525,18 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ sidebarWidth: width });
         },
 
-        /**
-         * Set error message
-         */
         setError: (error: string | null) => {
           set({ error });
         },
 
-        /**
-         * Set loading state
-         */
         setLoading: (isLoading: boolean) => {
           set({ isLoading });
         },
 
-        /**
-         * Set the full recursive file tree
-         */
         setFileTree: (tree: FileTreeNode[]) => {
           set({ fileTree: tree });
         },
 
-        /**
-         * Reset to initial state
-         */
         reset: () => {
           set(initialState);
         },

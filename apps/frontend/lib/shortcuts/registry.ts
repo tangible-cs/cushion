@@ -177,6 +177,14 @@ export const shortcutRegistry = [
     defaultBindings: ['Enter'],
   },
   {
+    id: 'editor.addSelectionToChat',
+    label: 'Add selection to chat',
+    description: 'Send the current editor selection to the chat as context.',
+    scope: 'editor',
+    category: 'Editor',
+    defaultBindings: ['Mod+Shift+L'],
+  },
+  {
     id: 'editor.save',
     label: 'Save file',
     description: 'Save the current file.',
