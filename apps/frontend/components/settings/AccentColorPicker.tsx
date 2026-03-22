@@ -126,7 +126,7 @@ export function AccentColorPicker({ accentColor, onAccentChange }: AccentColorPi
 
       {/* Inline expanded picker */}
       {isOpen && (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3">
+        <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-2.5 max-w-[200px] ml-auto">
           {/* Saturation-Value area */}
           <SatValArea
             hue={hsv[0]}
@@ -206,7 +206,7 @@ function SatValArea({ hue, sat, val, onChange }: { hue: number; sat: number; val
   return (
     <div
       ref={areaRef}
-      className="relative w-full h-[150px] rounded-md cursor-crosshair overflow-hidden"
+      className="relative w-full h-[120px] rounded-md cursor-crosshair overflow-hidden"
       style={{ backgroundColor: `hsl(${hue} 100% 50%)` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
