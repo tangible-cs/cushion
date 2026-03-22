@@ -3,7 +3,6 @@ import {
   findLastUserMessage,
   findNextUserMessage,
   resolveModel,
-  resolveModelVariant,
 } from '@/lib/chat-helpers';
 import {
   type ChatStoreGet,

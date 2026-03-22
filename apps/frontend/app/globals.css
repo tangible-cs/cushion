@@ -215,22 +215,11 @@ body {
   outline: none;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  border: none;
-  outline: none;
-}
 
 * {
   box-sizing: border-box;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
 
 /* pdf.js annotation editor toolbar fixes — Tailwind Preflight overrides box-sizing
    and pseudo-element defaults that pdf.js relies on */
@@ -765,7 +754,7 @@ html, body {
 
 [data-component="text-part"] [data-slot="text-part-meta"] {
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   user-select: none;
   cursor: default;
 }
@@ -803,7 +792,7 @@ html, body {
   flex: 0 0 auto;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   user-select: none;
 }
 
@@ -1180,7 +1169,7 @@ html, body {
 }
 
 [data-slot="apply-patch-file-trigger"]:hover {
-  background: var(--muted);
+  background: var(--overlay-10);
 }
 
 [data-slot="apply-patch-trigger-content"] {
@@ -1492,7 +1481,7 @@ html, body {
     white-space: nowrap;
     text-align: center;
     font-size: 12px;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2079,7 +2068,7 @@ html, body {
 
 [data-component="todo-checkbox"][data-checked] [data-slot="todo-checkbox-control"] {
   border-color: var(--border);
-  background-color: var(--muted);
+  background-color: var(--overlay-10);
   color: var(--foreground);
 }
 
@@ -2226,7 +2215,7 @@ html, body {
 
 [data-component="todo-dock-checkbox"][data-checked] [data-slot="todo-dock-checkbox-control"] {
   border-color: var(--border);
-  background-color: var(--muted);
+  background-color: var(--overlay-10);
   color: var(--foreground);
 }
 
@@ -2320,15 +2309,7 @@ html, body {
   height: 20px;
 }
 
-[data-component="icon"][data-size="medium"] {
-  width: 24px;
-  height: 24px;
-}
 
-[data-component="icon"][data-size="large"] {
-  width: 24px;
-  height: 24px;
-}
 
 /* Collapsible trigger styles (tool trigger) */
 [data-slot="collapsible-trigger"] {
@@ -2370,7 +2351,7 @@ html, body {
   --text-shimmer-angle: 90deg;
   --text-shimmer-spread: 5.2ch;
   --text-shimmer-size: 360%;
-  --text-shimmer-base-color: var(--muted-foreground);
+  --text-shimmer-base-color: var(--foreground-muted);
   --text-shimmer-peak-color: var(--foreground);
   --text-shimmer-sweep: linear-gradient(
     var(--text-shimmer-angle),
@@ -2411,7 +2392,7 @@ html, body {
 }
 
 [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   opacity: 0;
 }
 
@@ -2505,14 +2486,14 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   font-weight: 400;
   font-size: 14px;
 }
 
 [data-slot="session-turn-thinking-duration"] {
   flex-shrink: 0;
-  color: var(--muted-foreground);
+  color: var(--foreground-muted);
   font-size: 12px;
   font-weight: 400;
 }
@@ -2624,11 +2605,11 @@ html, body {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 400;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 
   [data-slot="collapsible-arrow"] {
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2668,7 +2649,7 @@ html, body {
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 
   [data-slot="basic-tool-tool-arg"] {
@@ -2680,7 +2661,7 @@ html, body {
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: var(--muted-foreground);
+    color: var(--foreground-muted);
   }
 }
 
@@ -2995,7 +2976,7 @@ html, body {
   color: white;
 }
 .diff-btn-exit {
-  background-color: var(--surface-hover);
+  background-color: var(--overlay-10);
   color: var(--foreground-muted);
 }
 .diff-btn-exit:hover {

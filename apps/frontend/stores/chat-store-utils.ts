@@ -338,7 +338,6 @@ export function getModelVisibilityKey(model: SelectedModel) {
 export function resolveModelVisibility(map: Record<string, ModelVisibility>, model: SelectedModel) {
   const state = map[getModelVisibilityKey(model)];
   if (state === 'hide') return false;
-  if (state === 'show') return true;
   return true;
 }
 

@@ -28,7 +28,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
   const setPromptParts = useChatStore((state) => state.setPromptParts);
 
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const mirror = useRef({ input: false });
+  const mirror = useRef(false);
 
   const renderEditor = (parts: PromptPart[]) => {
     const editor = editorRef.current;
@@ -53,8 +53,8 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
       : [{ type: 'text' as const, content: '', start: 0, end: 0 }];
     const domParts = parseFromDOM(editor);
 
-    if (mirror.current.input) {
-      mirror.current.input = false;
+    if (mirror.current) {
+      mirror.current = false;
       if (isNormalizedEditor(editor) && isPromptEqual(parts, domParts)) return;
     }
 
@@ -83,7 +83,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     if (shouldReset) {
       setTriggerState(null);
       if (promptText !== '') {
-        mirror.current.input = true;
+        mirror.current = true;
         setPromptParts([]);
       }
       return;
@@ -93,7 +93,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     updateTrigger(rawText, cursorPosition);
 
     if (!isPromptEqual(rawParts, promptParts)) {
-      mirror.current.input = true;
+      mirror.current = true;
       setPromptParts(rawParts);
     }
   };

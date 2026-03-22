@@ -146,13 +146,12 @@ export function useFileTree({
     });
 
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
-      // Skip updates for files with a pending snapshot or being reviewed —
-      // prevents the watcher from flashing new content before the merge view appears
+      // Skip files with a pending snapshot or being reviewed
       const diffState = useDiffReviewStore.getState();
       if (diffState.reviewingFilePath === filePath) return;
       if (diffState.fileSnapshots[filePath]) return;
 
-      // Binary files (images, PDFs) are handled by their own viewers, not text content
+      // Binary files are handled by their own viewers
       if (BINARY_FILE_EXTENSIONS.test(filePath)) return;
 
       const state = useWorkspaceStore.getState();
@@ -172,7 +171,7 @@ export function useFileTree({
           // File may have been deleted
         }
       } else {
-        // File has unsaved changes — warn (full conflict UI is a future step)
+        // File has unsaved changes
         console.warn(`[useFileTree] File "${filePath}" changed on disk but has unsaved edits`);
       }
     });

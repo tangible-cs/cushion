@@ -26,15 +26,7 @@ import {
 import { useDiffReviewStore } from './diffReviewStore';
 import { useWorkspaceStore } from './workspaceStore';
 
-/**
- * Convert a path from OpenCode's namespace to the workspace store's namespace
- * (relative to the workspace folder / projectPath).
- *
- * Handles two cases:
- * 1. Absolute path (e.g. "C:/Projects/app/notes/file.md") — strip projectPath prefix.
- * 2. Relative path (relative to git root) — strip the workspace subfolder prefix
- *    so the remainder is relative to projectPath.
- */
+// Convert a path from OpenCode's namespace to a workspace-relative path.
 function toWorkspacePath(openCodePath: string): string {
   const wsState = useWorkspaceStore.getState();
   const projectPath = wsState.metadata?.projectPath;
@@ -48,10 +40,8 @@ function toWorkspacePath(openCodePath: string): string {
   if (isAbsolute) {
     if (normPath.startsWith(normProject + '/')) {
       const result = normPath.slice(normProject.length + 1);
-      console.log('[toWorkspacePath] absolute → relative:', openCodePath, '→', result);
       return result;
     }
-    console.warn('[toWorkspacePath] absolute path outside project:', openCodePath, '| project:', normProject);
     return openCodePath;
   }
 
@@ -60,7 +50,6 @@ function toWorkspacePath(openCodePath: string): string {
   if (gitRoot) {
     const normGitRoot = gitRoot.replace(/\\/g, '/');
     if (normProject === normGitRoot) {
-      console.log('[toWorkspacePath] relative, project=gitRoot, pass-through:', openCodePath);
       return openCodePath;
     }
 
@@ -69,13 +58,11 @@ function toWorkspacePath(openCodePath: string): string {
       : null;
     if (subFolder && normPath.startsWith(subFolder + '/')) {
       const result = normPath.slice(subFolder.length + 1);
-      console.log('[toWorkspacePath] stripped subfolder:', openCodePath, '→', result);
       return result;
     }
   }
 
   // Already relative to projectPath (or no git root) — return as-is
-  console.log('[toWorkspacePath] pass-through (no transform):', openCodePath, '| gitRoot:', gitRoot ?? 'none');
   return openCodePath;
 }
 
@@ -86,9 +73,7 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
   const sessionID = perm.sessionID as string;
   const { captureSnapshot } = useDiffReviewStore.getState();
 
-  // apply_patch: metadata.files[] has { relativePath, filePath, before, after }
-  // Prefer filePath (absolute) — it's unambiguous on any OS, git or not.
-  // relativePath is relative to Instance.worktree which is "/" without git.
+  // apply_patch: prefer filePath (absolute) over relativePath for unambiguous resolution.
   const files = metadata.files as Array<{
     relativePath?: string;
     filePath?: string;
@@ -97,15 +82,10 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
   }> | undefined;
 
   if (files && Array.isArray(files)) {
-    console.log('[captureEditSnapshot] apply_patch files:', files.map(f => ({
-      filePath: f.filePath, relativePath: f.relativePath,
-      hasBefore: f.before !== undefined, hasAfter: f.after !== undefined,
-    })));
     for (const file of files) {
       const fp = file.filePath ?? file.relativePath;
       if (fp && file.before !== undefined && file.after !== undefined) {
         const wsPath = toWorkspacePath(fp);
-        console.log('[captureEditSnapshot] capturing snapshot:', { raw: fp, wsPath, beforeLen: file.before.length, afterLen: file.after.length });
         captureSnapshot(wsPath, file.before, file.after, sessionID);
       }
     }
@@ -119,13 +99,10 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
     const patterns = (perm.patterns as string[] | undefined) ?? [];
     const rawPath = patterns[0] ?? filepath;
     const wsPath = toWorkspacePath(rawPath);
-    console.log('[captureEditSnapshot] edit tool:', { filepath, rawPath, wsPath });
 
     const content = useWorkspaceStore.getState().openFiles.get(wsPath)?.content;
     if (content !== undefined) {
       captureSnapshot(wsPath, content, content, sessionID);
-    } else {
-      console.warn('[captureEditSnapshot] edit tool: no content in openFiles for', wsPath);
     }
   }
 }
@@ -138,10 +115,6 @@ let connectRequestId = 0;
 function beginConnectRequest() {
   connectRequestId += 1;
   return connectRequestId;
-}
-
-function invalidateConnectRequests() {
-  connectRequestId += 1;
 }
 
 function isConnectRequestCurrent(requestId: number) {
@@ -282,12 +255,6 @@ export async function handleConnect(
       if (perm?.sessionID && perm?.id) {
         const autoAccept = get().autoAccept;
         const isEdit = perm.permission === 'edit';
-        console.log('[permission.asked]', {
-          permission: perm.permission,
-          autoAccept,
-          willCapture: isEdit && !autoAccept,
-          patterns: perm.patterns,
-        });
 
         // Always auto-accept (edits are never blocked now)
         get().respondToPermission({
@@ -307,7 +274,7 @@ export async function handleConnect(
 }
 
 export function handleDisconnect(get: ChatStoreGet, set: ChatStoreSet) {
-  invalidateConnectRequests();
+  beginConnectRequest();
   cleanupSubscriptions();
   disconnectSharedOpenCode();
   set((state) => ({

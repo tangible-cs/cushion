@@ -24,8 +24,6 @@ export {
   exitDiffReview,
   acceptAllChunks,
   rejectAllChunks,
-  acceptNextChunk,
-  rejectNextChunk,
   getChunkCount,
   diffReviewKeymap,
 } from './ai-diff';

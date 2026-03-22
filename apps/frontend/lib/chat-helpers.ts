@@ -1,27 +1,12 @@
 import type { Agent, Message, Provider, Session } from '@opencode-ai/sdk/v2/client';
 import type { PromptSelection, SelectedModel } from '@/stores/chat-store-utils';
 
-// ---------------------------------------------------------------------------
 // ID generation
-// ---------------------------------------------------------------------------
 
 const ID_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const ID_LENGTH = 26;
 let opencodeTimestamp = 0;
 let opencodeCounter = 0;
-
-export function createId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  const rand = Math.random().toString(36).slice(2);
-  const time = Date.now().toString(36);
-  return `msg-${time}-${rand}`;
-}
-
-export function createContextId() {
-  return createId().replace('msg-', 'ctx-');
-}
 
 function randomBase62(length: number) {
   const bytes = new Uint8Array(length);
@@ -63,11 +48,9 @@ export function createPartId() {
   return createOpencodeId('prt');
 }
 
-// ---------------------------------------------------------------------------
 // Path helpers
-// ---------------------------------------------------------------------------
 
-export function normalizePath(path: string) {
+function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
 }
 
@@ -107,24 +90,9 @@ export function buildFileUrl(directory: string, path: string, selection?: Prompt
   return `file://${encodedPath}?start=${start}&end=${end}`;
 }
 
-// ---------------------------------------------------------------------------
-// Selection comparison
-// ---------------------------------------------------------------------------
-
-export function sameSelection(a?: PromptSelection, b?: PromptSelection) {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  return a.startLine === b.startLine
-    && a.startChar === b.startChar
-    && a.endLine === b.endLine
-    && a.endChar === b.endChar;
-}
-
-// ---------------------------------------------------------------------------
 // Model / variant resolution
-// ---------------------------------------------------------------------------
 
-export type ModelVariantOption = {
+type ModelVariantOption = {
   key: string;
   label: string;
 };
@@ -229,9 +197,7 @@ export function resolveModelVariant(
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // Agent resolution
-// ---------------------------------------------------------------------------
 
 export function resolveAgentName(agents: Agent[], selected: string | null) {
   if (selected) return selected;
@@ -240,9 +206,7 @@ export function resolveAgentName(agents: Agent[], selected: string | null) {
   return agents[0]?.name ?? null;
 }
 
-// ---------------------------------------------------------------------------
 // Session helpers
-// ---------------------------------------------------------------------------
 
 export function getSessionById(sessions: Session[], sessionID: string | null) {
   if (!sessionID) return undefined;

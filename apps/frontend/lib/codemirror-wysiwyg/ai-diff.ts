@@ -8,46 +8,34 @@ import {
   getChunks,
 } from '@codemirror/merge';
 
-/**
- * Theme for the unified merge view diff decorations.
- * Uses only color/background/opacity — no height-affecting properties.
- */
+// Theme for unified merge view diff decorations
 export const diffTheme = EditorView.theme({
-  /* Changed lines (additions) — green tint */
   '.cm-changedLine': {
     backgroundColor: 'var(--accent-green-12) !important',
     borderLeft: '3px solid var(--accent-green)',
   },
-  /* Deleted chunk widget — red tint */
   '.cm-deletedChunk': {
     backgroundColor: 'var(--accent-red-12)',
     borderLeft: '3px solid var(--accent-red)',
   },
-  /* Inline changed text highlight */
   '.cm-changedText': {
     backgroundColor: 'rgba(8, 185, 78, 0.22)',
   },
-  /* Inline deleted text highlight */
   '.cm-deletedText': {
     backgroundColor: 'rgba(233, 49, 71, 0.22)',
   },
-  /* Merge controls (accept/reject buttons per chunk) */
   '.cm-merge-revert': {
     cursor: 'pointer',
   },
 });
 
-/**
- * Enter diff review mode: replaces doc with `after` and enables
- * the unified merge view against `before` as original.
- */
+// Enter diff review mode
 export function enterDiffReview(
   view: EditorView,
   compartment: Compartment,
   before: string,
   after: string,
 ) {
-  // Replace doc content with `after`, then enable merge view
   const currentDoc = view.state.doc.toString();
   view.dispatch({
     changes: { from: 0, to: currentDoc.length, insert: after },
@@ -64,18 +52,14 @@ export function enterDiffReview(
   });
 }
 
-/**
- * Exit diff review mode: disables the merge view.
- */
+// Exit diff review mode
 export function exitDiffReview(view: EditorView, compartment: Compartment) {
   view.dispatch({
     effects: compartment.reconfigure([]),
   });
 }
 
-/**
- * Accept all remaining chunks in the unified merge view.
- */
+// Accept all remaining chunks
 export function acceptAllChunks(view: EditorView) {
   let chunksInfo = getChunks(view.state);
   while (chunksInfo && chunksInfo.chunks.length > 0) {
@@ -85,9 +69,7 @@ export function acceptAllChunks(view: EditorView) {
   }
 }
 
-/**
- * Reject all remaining chunks in the unified merge view.
- */
+// Reject all remaining chunks
 export function rejectAllChunks(view: EditorView) {
   let chunksInfo = getChunks(view.state);
   while (chunksInfo && chunksInfo.chunks.length > 0) {
@@ -97,41 +79,29 @@ export function rejectAllChunks(view: EditorView) {
   }
 }
 
-/**
- * Accept the chunk at cursor, or the first remaining chunk.
- */
-export function acceptNextChunk(view: EditorView): boolean {
-  // Try at cursor first
+// Accept chunk at cursor, or first remaining chunk
+function acceptNextChunk(view: EditorView): boolean {
   if (acceptChunk(view)) return true;
-  // Fall back to first chunk
   const info = getChunks(view.state);
   if (!info || info.chunks.length === 0) return false;
   return acceptChunk(view, info.chunks[0].fromB);
 }
 
-/**
- * Reject the chunk at cursor, or the first remaining chunk.
- */
-export function rejectNextChunk(view: EditorView): boolean {
+// Reject chunk at cursor, or first remaining chunk
+function rejectNextChunk(view: EditorView): boolean {
   if (rejectChunk(view)) return true;
   const info = getChunks(view.state);
   if (!info || info.chunks.length === 0) return false;
   return rejectChunk(view, info.chunks[0].fromB);
 }
 
-/**
- * Get the number of remaining chunks.
- */
+// Get the number of remaining chunks
 export function getChunkCount(state: EditorView['state']): number {
   const info = getChunks(state);
   return info ? info.chunks.length : 0;
 }
 
-/**
- * Keymap active during diff review.
- * Tab = accept hunk, Shift-Tab = reject hunk,
- * Mod-Enter = accept all, Escape = reject all.
- */
+// Keymap: Tab=accept, Shift-Tab=reject, Mod-Enter=accept all, Escape=reject all
 export function diffReviewKeymap(
   onAcceptAll: () => void,
   onRejectAll: () => void,

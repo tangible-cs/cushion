@@ -4,11 +4,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
 
-/**
- * Bridge between AI session completion and the diff review system.
- * When autoAccept is OFF and the AI session goes idle, checks for
- * captured file snapshots and triggers an inline diff review.
- */
+// Bridges AI session completion to the diff review system.
 export function useDiffReviewBridge() {
   useEffect(() => {
     let wasIdle = true;
@@ -32,11 +28,9 @@ export function useDiffReviewBridge() {
 
         // Session just went idle — trigger review
         const { fileSnapshots, reviewingFilePath } = useDiffReviewStore.getState();
-        console.log('[DiffReviewBridge] session idle, snapshots:', Object.keys(fileSnapshots), '| reviewing:', reviewingFilePath);
         if (reviewingFilePath) return; // Already reviewing
         const entries = Object.entries(fileSnapshots);
         if (entries.length === 0) {
-          console.log('[DiffReviewBridge] no snapshots, skipping');
           return;
         }
 
@@ -45,12 +39,10 @@ export function useDiffReviewBridge() {
         const [filePath, { before, after }] = target;
 
         if (before === after) {
-          console.log('[DiffReviewBridge] before === after, clearing snapshot for', filePath);
           useDiffReviewStore.getState().clearSnapshotForFile(filePath);
           return;
         }
 
-        console.log('[DiffReviewBridge] setting pendingDiff:', { filePath, currentFile, beforeLen: before.length, afterLen: after.length });
         useDiffReviewStore.getState().setPendingDiff({ filePath, before, after });
       },
     );

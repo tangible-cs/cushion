@@ -44,9 +44,6 @@ import {
 
 export type { PromptAttachment, PromptSelection, PromptInputPayload, SelectedModel, DisplayPreferences, CurrentFileContext } from './chat-store-utils';
 
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
 
 export const useChatStore = create<ChatState & ChatActions>()(
   subscribeWithSelector(
