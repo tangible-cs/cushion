@@ -29,11 +29,10 @@ export function MessageList({ className }: MessageListProps) {
   const [sessionQuery, setSessionQuery] = useState('');
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
 
-  const resolvedSessionId = useMemo(() => activeSessionId ?? null, [activeSessionId]);
   const activeSession = useMemo(() => {
-    if (!resolvedSessionId) return undefined;
-    return sessions.find((session) => session.id === resolvedSessionId);
-  }, [resolvedSessionId, sessions]);
+    if (!activeSessionId) return undefined;
+    return sessions.find((session) => session.id === activeSessionId);
+  }, [activeSessionId, sessions]);
   const sessionTitle = activeSession?.title ?? '';
   const titleLabel = sessionTitle.trim().length > 0 ? sessionTitle : 'New session';
   const filteredSessions = useMemo(() => {
@@ -50,14 +49,14 @@ export function MessageList({ className }: MessageListProps) {
     setSessionQuery('');
   }, [sessionMenuOpen]);
 
-  const messages = resolvedSessionId ? messagesBySession[resolvedSessionId] ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
+  const messages = activeSessionId ? messagesBySession[activeSessionId] ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
   const revertMessageId = activeSession?.revert?.messageID;
   const visibleMessages = useMemo(() => {
     if (!revertMessageId) return messages;
     return messages.filter((message) => message.id < revertMessageId);
   }, [messages, revertMessageId]);
-  const meta = resolvedSessionId ? messageMeta[resolvedSessionId] : undefined;
-  const status = resolvedSessionId ? sessionStatus[resolvedSessionId] : undefined;
+  const meta = activeSessionId ? messageMeta[activeSessionId] : undefined;
+  const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
   const isWorking = status?.type === 'busy' || status?.type === 'retry';
 
   const turns = useMemo(() => groupMessagesIntoTurns(visibleMessages), [visibleMessages]);
@@ -79,12 +78,12 @@ export function MessageList({ className }: MessageListProps) {
     }
   }, [turns.length, isWorking, autoScroll.forceScrollToBottom]);
 
-  const emptyState = !resolvedSessionId
+  const emptyState = !activeSessionId
     ? 'Start a new chat to create a session.'
     : visibleMessages.length === 0
       ? 'No messages yet.'
       : null;
-  const sessionId = resolvedSessionId ?? '';
+  const sessionId = activeSessionId ?? '';
 
   return (
     <div className={cn("relative flex-1 min-h-0", className)}>
@@ -165,7 +164,7 @@ export function MessageList({ className }: MessageListProps) {
                       </button>
                       {filteredSessions.map((session) => {
                         const label = session.title?.trim() || session.id;
-                        const isActive = session.id === resolvedSessionId;
+                        const isActive = session.id === activeSessionId;
                         return (
                           <button
                             key={session.id}
@@ -215,8 +214,8 @@ export function MessageList({ className }: MessageListProps) {
               type="button"
               disabled={meta.loading}
               onClick={() => {
-                if (!resolvedSessionId) return;
-                loadMoreMessages(resolvedSessionId).catch(() => undefined);
+                if (!activeSessionId) return;
+                loadMoreMessages(activeSessionId).catch(() => undefined);
               }}
               className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] disabled:opacity-50 transition-colors"
             >

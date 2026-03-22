@@ -367,49 +367,32 @@ export function CodeEditor({
   const resolveReview = useCallback(() => {
     const view = viewRef.current;
     if (!view) return;
-    if (!isReviewingRef.current) return; // Already resolved (guard against re-entry)
+    if (!isReviewingRef.current) return;
 
-    // 1. Capture mixed content
     const mixedContent = view.state.doc.toString();
 
-    // 2. Mark as no longer reviewing BEFORE dispatching, so the update
-    //    listener that fires synchronously during exitDiffReview() bails out
-    //    instead of calling resolveReview() again (infinite loop).
+    // Mark before dispatching to prevent re-entry from update listener
     isReviewingRef.current = false;
 
-    // 3. Exit merge view, clear keymap
+    // Exit merge view, clear keymap
     exitDiffReview(view, mergeViewCompartmentRef.current);
     view.dispatch({
       effects: diffKeymapCompartmentRef.current.reconfigure([]),
     });
 
-    // 4. Get review state
     const { reviewAfter, reviewingFilePath } = useDiffReviewStore.getState();
 
-    console.log('[resolveReview]', {
-      reviewingFilePath,
-      mixedLen: mixedContent.length,
-      afterLen: reviewAfter?.length ?? 0,
-      contentChanged: reviewAfter !== null && mixedContent !== reviewAfter,
-      hasSaveRef: !!onDiffSaveRef.current?.current,
-    });
-
-    // 5. Sync to workspace store
     onChangeRef.current?.(mixedContent);
 
-    // 6. Save to disk + mark saved. Always save: even when the user accepted
-    //    all chunks (mixedContent === reviewAfter), the file watcher was blocked
-    //    during review so the workspace store still has old content and needs
-    //    markFileSaved to stay in sync with what's on disk.
+    // Always save — file watcher was blocked during review so store needs sync
     if (reviewingFilePath) {
       const saveRef = onDiffSaveRef.current;
       if (saveRef?.current) {
-        console.log('[resolveReview] saving:', reviewingFilePath, mixedContent === reviewAfter ? '(matches AI, sync only)' : '(user changed content)');
         saveRef.current(reviewingFilePath, mixedContent).catch((err) => {
           console.error('[resolveReview] save failed:', err);
         });
       } else {
-        console.warn('[resolveReview] no save ref available!');
+        console.warn('[resolveReview] no save ref available');
       }
     }
 
@@ -525,40 +508,7 @@ export function CodeEditor({
       { tag: tags.invalid, color: 'var(--md-text-faint)' },
     ]);
 
-    // --- Explicit setup (replaces opaque `basicSetup` bundle) ---
-    // This gives us full control over which keymaps are active so every
-    // binding either lives in the shortcut registry or is explicitly
-    // documented as a CM-internal default.
-    //
-    // Registry-controlled shortcuts (customizable via Settings):
-    //   editor.save, editor.indent, editor.outdent,
-    //   editor.list.*, editor.slashMenu.*, editor.checkbox.toggle
-    //
-    // CM-internal shortcuts (not in registry, intentionally kept):
-    //   Undo/Redo           Mod-Z / Mod-Y / Mod-Shift-Z
-    //   Search               Mod-F / F3 / Shift-F3
-    //   Select next occur.   Mod-D
-    //   Select line          Alt-L (Ctrl-L on Mac)
-    //   Toggle comment       Mod-/
-    //   Block comment        Shift-Alt-A
-    //   Delete line          Shift-Mod-K
-    //   Move line up/down    Alt-Up / Alt-Down
-    //   Copy line up/down    Shift-Alt-Up / Shift-Alt-Down
-    //   Fold/unfold          Ctrl-Shift-[ / Ctrl-Shift-]
-    //   Start completion     Ctrl-Space
-    //   Bracket matching     Shift-Mod-\
-    //   Cursor navigation    Arrow keys, Home/End, Page Up/Down, etc.
-    //   Simplify selection   Escape (collapses multi-cursors)
-    //   Close completion     Escape (closes autocomplete popup)
-    //
-    // Excluded (conflict with registry app-level shortcuts):
-    //   Mod-G / Shift-Mod-G  (searchKeymap findNext/findPrevious)
-    //     → conflicts with app.graph.toggle (Mod+G)
-    //     → use F3/Shift-F3 for find next/prev instead
-
-    // Filter searchKeymap to remove Mod-g / Shift-Mod-g bindings that
-    // conflict with the app-level graph toggle shortcut (Mod+G).
-    // Find next/prev remain available via F3 / Shift-F3.
+    // Filter out Mod-g / Shift-Mod-g (conflicts with app.graph.toggle)
     const filteredSearchKeymap = searchKeymap.filter((binding) => {
       const key = binding.key?.toLowerCase() ?? '';
       return key !== 'mod-g' && key !== 'shift-mod-g';
@@ -896,7 +846,7 @@ export function CodeEditor({
       }
     );
     return unsub;
-  }, [filePath, handleAcceptAll, handleRejectAll, resolveReview]);
+  }, [filePath, handleAcceptAll, handleRejectAll]);
 
   return (
     <div

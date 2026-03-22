@@ -33,9 +33,6 @@ interface SearchResult {
   matchIndices?: number[];
 }
 
-/**
- * Find indices where query characters match in the text (for highlighting).
- */
 function findMatchIndices(text: string, query: string): number[] {
   const indices: number[] = [];
   const textLower = text.toLowerCase();
@@ -52,9 +49,6 @@ function findMatchIndices(text: string, query: string): number[] {
   return indices;
 }
 
-/**
- * Render text with highlighted characters.
- */
 function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: number[] }) {
   if (!matchIndices || matchIndices.length === 0) {
     return <span>{text}</span>;
@@ -96,7 +90,6 @@ export function QuickSwitcher({
   const listRef = useRef<HTMLDivElement>(null);
   const quickSwitcherShortcuts = useShortcutBindings(QUICK_SWITCHER_SHORTCUT_IDS);
 
-  // Focus input when modal opens
   useEffect(() => {
     if (isOpen) {
       setQuery('');
@@ -105,7 +98,6 @@ export function QuickSwitcher({
     }
   }, [isOpen]);
 
-  // Search results
   const results = useMemo((): SearchResult[] => {
     const items: SearchResult[] = [];
 
@@ -162,12 +154,10 @@ export function QuickSwitcher({
     return items;
   }, [query, fileTree, onCreateFile]);
 
-  // Reset selected index when results change
   useEffect(() => {
     setSelectedIndex(0);
   }, [results.length]);
 
-  // Scroll selected item into view
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -178,7 +168,6 @@ export function QuickSwitcher({
     }
   }, [selectedIndex]);
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -226,7 +215,6 @@ export function QuickSwitcher({
     [results, selectedIndex, onSelectFile, onCreateFile, onClose, quickSwitcherShortcuts]
   );
 
-  // Handle item click
   const handleItemClick = useCallback(
     (item: SearchResult) => {
       if (item.type === 'create' && onCreateFile) {

@@ -115,7 +115,6 @@ export function EditorPanel({
   const updateFileContent = useWorkspaceStore((s) => s.updateFileContent);
   const markFileSaved = useWorkspaceStore((s) => s.markFileSaved);
   const setCurrentFile = useWorkspaceStore((s) => s.setCurrentFile);
-  const closeFile = useWorkspaceStore((s) => s.closeFile);
   const openFile = useWorkspaceStore((s) => s.openFile);
 
   const historyRef = useRef<{ entries: string[]; index: number; navigating: boolean }>({

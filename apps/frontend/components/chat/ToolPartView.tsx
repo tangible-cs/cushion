@@ -24,7 +24,6 @@ function stripAnsi(text: string): string {
 }
 
 const INLINE_TOOLS = new Set(['read', 'glob', 'grep', 'list', 'webfetch', 'skill']);
-const BLOCK_TOOLS = new Set(['bash', 'edit', 'write', 'apply_patch', 'task', 'todowrite', 'question']);
 export const CONTEXT_GROUP_TOOLS = new Set(['read', 'glob', 'grep', 'list']);
 
 type AttachmentListProps = {
@@ -327,7 +326,7 @@ function BashToolContent({ part }: { part: ToolPart }) {
           </pre>
         </div>
       </div>
-      {error && <ToolError tool={part.tool} error={error} />}
+      {error && <ToolErrorCard tool={part.tool} error={error} />}
     </>
   );
 }
@@ -465,7 +464,7 @@ function EditToolContent({ part }: { part: ToolPart }) {
           </div>
         )}
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+        {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -480,7 +479,7 @@ function EditToolContent({ part }: { part: ToolPart }) {
         </ToolFileAccordion>
       </div>
       <DiagnosticsDisplay diagnostics={diagnostics} />
-      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+      {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -503,7 +502,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
           </ToolFileAccordion>
         </div>
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+        {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -518,7 +517,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
           </div>
         )}
         <DiagnosticsDisplay diagnostics={diagnostics} />
-        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+        {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -531,7 +530,7 @@ function WriteToolContent({ part }: { part: ToolPart }) {
         </ToolFileAccordion>
       </div>
       <DiagnosticsDisplay diagnostics={diagnostics} />
-      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+      {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -556,7 +555,7 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
             <Markdown text={output} cacheKey={`${part.id}-fallback`} />
           </div>
         )}
-        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+        {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -577,7 +576,7 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
             </div>
           </ToolFileAccordion>
         </div>
-        {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+        {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
       </>
     );
   }
@@ -589,7 +588,7 @@ function ApplyPatchContent({ part, files }: { part: ToolPart; files: ApplyPatchF
           <ApplyPatchFileEntry key={file.filePath} file={file} />
         ))}
       </div>
-      {error && <div className="pl-7"><ToolError tool={part.tool} error={error} /></div>}
+      {error && <div className="pl-7"><ToolErrorCard tool={part.tool} error={error} /></div>}
     </>
   );
 }
@@ -959,9 +958,6 @@ export function ToolPartView({ part }: ToolPartViewProps) {
   );
 }
 
-function ToolError({ tool, error }: { tool: string; error: string }) {
-  return <ToolErrorCard tool={tool} error={error} />;
-}
 
 function ToolContentBody({
   part,
@@ -994,7 +990,7 @@ function ToolContentBody({
         <TruncatedOutput text={output} maxLines={maxOutputLines} cacheKey={part.id} />
       )}
       {attachments && attachments.length > 0 && <AttachmentList parts={attachments} />}
-      {error && <ToolError tool={part.tool} error={error} />}
+      {error && <ToolErrorCard tool={part.tool} error={error} />}
     </>
   );
 }
@@ -1019,7 +1015,6 @@ function contextToolTriggerInfo(part: ToolPart): { title: string; subtitle?: str
   const offset = typeof inputRecord?.offset === 'number' ? inputRecord.offset : undefined;
   const limit = typeof inputRecord?.limit === 'number' ? inputRecord.limit : undefined;
 
-  const _getFilename = (p: string) => p.split(/[/\\]/).pop() || p;
   const _getDirectory = (p: string) => {
     const parts = p.split(/[/\\]/);
     return parts.length > 1 ? parts.slice(-2).join('/') : parts.pop() || p;
@@ -1030,7 +1025,7 @@ function contextToolTriggerInfo(part: ToolPart): { title: string; subtitle?: str
       const args: string[] = [];
       if (offset !== undefined) args.push('offset=' + offset);
       if (limit !== undefined) args.push('limit=' + limit);
-      return { title: 'Read', subtitle: filePath ? _getFilename(filePath) : undefined, args };
+      return { title: 'Read', subtitle: filePath ? getFilename(filePath) : undefined, args };
     }
     case 'list':
       return { title: 'List', subtitle: _getDirectory(path) };

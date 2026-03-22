@@ -3,9 +3,6 @@ import { useState, useEffect } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 
-/**
- * Hook that encapsulates workspace picker logic (browse, open recent, error state).
- */
 export function useWorkspacePicker(onWorkspaceOpened?: () => void) {
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);

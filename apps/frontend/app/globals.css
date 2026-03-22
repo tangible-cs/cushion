@@ -2984,3 +2984,29 @@ html, body {
     transition-duration: 0ms;
   }
 }
+
+/* Diff review bar buttons */
+.diff-btn-reject {
+  background-color: var(--accent-red-12);
+  color: var(--accent-red);
+}
+.diff-btn-reject:hover {
+  background-color: var(--accent-red);
+  color: white;
+}
+.diff-btn-exit {
+  background-color: var(--surface-hover);
+  color: var(--foreground-muted);
+}
+.diff-btn-exit:hover {
+  background-color: var(--border);
+  color: var(--foreground);
+}
+.diff-btn-accept {
+  background-color: var(--accent-green-12);
+  color: var(--accent-green);
+}
+.diff-btn-accept:hover {
+  background-color: var(--accent-green);
+  color: white;
+}

@@ -96,7 +96,6 @@ export function AccentColorPicker({ accentColor, onAccentChange }: AccentColorPi
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Row: label area is handled by parent, this is the toggle + swatch */}
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-medium">Accent color</div>
