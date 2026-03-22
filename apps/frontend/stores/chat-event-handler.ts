@@ -11,7 +11,6 @@ import {
   removeById,
   getPromptKey,
   getStoredPromptText,
-  getStoredContextItems,
   prunePromptSessions,
 } from './chat-store-utils';
 
@@ -38,7 +37,6 @@ export function handleApplyEvent(
         ...(state.activeSessionId
           ? {}
           : {
-              contextItems: getStoredContextItems(state, directory, session.id),
               promptText: getStoredPromptText(state, directory, session.id),
             }),
       }));
@@ -59,20 +57,15 @@ export function handleApplyEvent(
         const nextErrors = { ...state.sessionErrors };
         const sessionKey = getPromptKey(directory, session.id);
         const nextPromptBySession = { ...state.promptBySession };
-        const nextContextBySession = { ...state.contextBySession };
         delete nextPromptBySession[sessionKey];
-        delete nextContextBySession[sessionKey];
         const pruned = prunePromptSessions(
           state.promptSessionOrder.filter((key) => key !== sessionKey),
-          nextPromptBySession,
-          nextContextBySession
+          nextPromptBySession
         );
         const storedState = {
           ...state,
           promptBySession: pruned.promptBySession,
-          contextBySession: pruned.contextBySession,
         };
-        const nextContextItems = nextActive ? getStoredContextItems(storedState, directory, nextActive) : [];
         const nextPromptText = nextActive ? getStoredPromptText(storedState, directory, nextActive) : '';
         const nextActiveByDirectory = {
           ...state.activeSessionByDirectory,
@@ -92,7 +85,6 @@ export function handleApplyEvent(
           sessions: nextSessions,
           activeSessionId: nextActive,
           activeSessionByDirectory: nextActiveByDirectory,
-          contextItems: nextContextItems,
           promptText: nextPromptText,
           messages: nextMessages,
           messageMeta: nextMeta,
@@ -103,7 +95,6 @@ export function handleApplyEvent(
           questions: nextQuestions,
           sessionErrors: nextErrors,
           promptBySession: pruned.promptBySession,
-          contextBySession: pruned.contextBySession,
           promptSessionOrder: pruned.promptSessionOrder,
         };
       });
@@ -112,6 +103,14 @@ export function handleApplyEvent(
     case 'session.status': {
       const { sessionID, status } = event.properties;
       const isNowIdle = status.type !== 'busy' && status.type !== 'retry';
+
+      // Capture pending interrupt before set() clears it
+      const preState = get();
+      const pendingToSend =
+        isNowIdle && preState.pendingInterrupt?.sessionID === sessionID
+          ? preState.pendingInterrupt
+          : null;
+
       set((state) => {
         const next: Partial<typeof state> = {
           sessionStatus: {
@@ -129,9 +128,26 @@ export function handleApplyEvent(
           if (pList && pList.length > 0) {
             next.permissions = { ...state.permissions, [sessionID]: [] };
           }
+          // Clear aborting flag
+          if (state.abortingSessions[sessionID]) {
+            const nextAborting = { ...state.abortingSessions };
+            delete nextAborting[sessionID];
+            next.abortingSessions = nextAborting;
+          }
+          // Clear pending interrupt (will be sent via deferred call below)
+          if (state.pendingInterrupt?.sessionID === sessionID) {
+            next.pendingInterrupt = null;
+          }
         }
         return next;
       });
+
+      // Deferred send: fire queued interrupt prompt now that session is idle
+      if (pendingToSend) {
+        queueMicrotask(() => {
+          get().sendPrompt(pendingToSend.payload).catch(() => undefined);
+        });
+      }
       break;
     }
     case 'session.diff': {
@@ -147,7 +163,15 @@ export function handleApplyEvent(
     case 'session.error': {
       const sessionID = event.properties.sessionID;
       if (!sessionID) break;
-      const sdkError = mapSdkError(event.properties.error);
+      // Ignore abort errors — they're expected when the user stops a session
+      const rawError = event.properties.error;
+      if (
+        rawError &&
+        typeof rawError === 'object' &&
+        'name' in rawError &&
+        (rawError as { name?: string }).name === 'MessageAbortedError'
+      ) break;
+      const sdkError = mapSdkError(rawError);
       set((state) => ({
         sessionErrors: {
           ...state.sessionErrors,

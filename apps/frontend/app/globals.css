@@ -681,13 +681,20 @@ html, body {
 [data-component="user-message"] {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: flex-end;
+  gap: 0;
+  width: 100%;
 }
 
 [data-slot="user-message-text"] {
   position: relative;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(82%, 64ch);
+  margin-left: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow: hidden;
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   padding: 8px 12px;
@@ -767,12 +774,37 @@ html, body {
   width: 100%;
   justify-content: flex-end;
   gap: 12px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 [data-component="text-part"]:hover [data-slot="text-part-copy-wrapper"],
 [data-component="text-part"]:focus-within [data-slot="text-part-copy-wrapper"] {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Message Divider (interrupted turn separator) */
+[data-component="message-divider"] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+[data-slot="message-divider-line"] {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border);
+}
+
+[data-slot="message-divider-label"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  user-select: none;
 }
 
 /* ========================================
@@ -863,21 +895,6 @@ html, body {
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--overlay-10) transparent;
-}
-
-.thin-scrollbar::-webkit-scrollbar {
-  height: 4px;
-  width: 4px;
-  background: transparent;
-}
-
-.thin-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--overlay-20);
-  border-radius: 2px;
-}
-
-.thin-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--overlay-20) 50%, var(--overlay-50));
 }
 
 .chat-dock [data-slot="prompt-input-form"],

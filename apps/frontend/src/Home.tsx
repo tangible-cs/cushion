@@ -19,6 +19,7 @@ import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useConfigSync } from '@/hooks/useConfigSync';
+import { useDiffReviewBridge } from '@/hooks/useDiffReviewBridge';
 import { EditorTabRow } from '@/components/editor/EditorTabRow';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
@@ -78,7 +79,7 @@ export default function Home() {
   const openFiles = useWorkspaceStore((state) => state.openFiles);
   const connectChat = useChatStore((state) => state.connect);
   const disconnectChat = useChatStore((state) => state.disconnect);
-  const addContextItem = useChatStore((state) => state.addContextItem);
+  const syncCurrentFile = useChatStore((state) => state.syncCurrentFile);
   const setActiveSession = useChatStore((state) => state.setActiveSession);
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
@@ -123,6 +124,9 @@ export default function Home() {
       }
     }, []),
   });
+
+  // Bridge: chat diffs → inline editor review
+  useDiffReviewBridge();
 
   const appShortcuts = useShortcutBindings(APP_SHORTCUT_IDS);
   const closeTopmostAppOverlay = useCallback(() => {
@@ -197,6 +201,11 @@ export default function Home() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Sync active file → chat store so @current-file badge updates
+  useEffect(() => {
+    syncCurrentFile(currentFile);
+  }, [currentFile, syncCurrentFile]);
 
   useEffect(() => {
     if (!client || metadata || autoOpenAttempted.current) {
@@ -315,10 +324,26 @@ export default function Home() {
     setRightPanelMode((mode) => (mode === 'none' ? lastRightPanelModeRef.current : 'none'));
   }, []);
 
-  const handleAskAIFile = useCallback((filePath: string) => {
-    addContextItem({ path: filePath });
+  const handleAddSelectionToChat = useCallback((data: { path: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number }; preview: string }) => {
+    const { promptParts, setPromptParts } = useChatStore.getState();
+    const startLine = Math.min(data.selection.startLine, data.selection.endLine);
+    const endLine = Math.max(data.selection.startLine, data.selection.endLine);
+    const filename = data.path.split(/[/\\]/).pop() || data.path;
+    const content = startLine === endLine ? `${filename}:${startLine}` : `${filename}:${startLine}-${endLine}`;
+    const lastPart = promptParts[promptParts.length - 1];
+    const position = lastPart ? lastPart.end : 0;
+    const newPart = {
+      type: 'file' as const,
+      content,
+      path: data.path,
+      selection: { startLine, endLine },
+      start: position,
+      end: position + content.length,
+    };
+    const newParts = [...promptParts, newPart, { type: 'text' as const, content: ' ', start: newPart.end, end: newPart.end + 1 }];
+    setPromptParts(newParts);
     setRightPanelMode('chat');
-  }, [addContextItem]);
+  }, []);
 
   const handleSidebarToggle = useCallback((collapsed: boolean) => {
     setSidebarCollapsed(collapsed);
@@ -466,7 +491,6 @@ export default function Home() {
           onSidebarToggle={handleSidebarToggle}
           isCollapsed={isSidebarHidden}
           onSearch={() => setShowQuickSwitcher(true)}
-          onAskAIFile={handleAskAIFile}
           onSettings={() => {
             setShowSettings(true);
           }}
@@ -484,6 +508,7 @@ export default function Home() {
                 onToggleFocusMode={toggleFocusMode}
                 onNewNote={handleNewNote}
                 onGoToFile={() => setShowQuickSwitcher(true)}
+                onAddSelectionToChat={handleAddSelectionToChat}
               />
             ) : (
               <EditorPlaceholder />

@@ -20,7 +20,6 @@ type LocalCommandDeps = {
 
 export function useLocalCommands({ clearAttachments, setTriggerState }: LocalCommandDeps) {
   const setPromptText = useChatStore((state) => state.setPromptText);
-  const clearContextItems = useChatStore((state) => state.clearContextItems);
   const undoSession = useChatStore((state) => state.undoSession);
   const redoSession = useChatStore((state) => state.redoSession);
   const compactSession = useChatStore((state) => state.compactSession);
@@ -37,7 +36,6 @@ export function useLocalCommands({ clearAttachments, setTriggerState }: LocalCom
     if (id === 'reset') {
       setPromptText('');
       clearAttachments();
-      clearContextItems();
       setTriggerState(null);
       return true;
     }
@@ -135,7 +133,6 @@ export function useLocalCommands({ clearAttachments, setTriggerState }: LocalCom
     return false;
   }, [
     clearAttachments,
-    clearContextItems,
     compactSession,
     redoSession,
     setPromptText,

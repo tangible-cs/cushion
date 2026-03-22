@@ -1,5 +1,5 @@
 import type { Agent, Message, Provider, Session } from '@opencode-ai/sdk/v2/client';
-import type { PromptContextItem, PromptSelection, SelectedModel } from '@/stores/chat-store-utils';
+import type { PromptSelection, SelectedModel } from '@/stores/chat-store-utils';
 
 // ---------------------------------------------------------------------------
 // ID generation
@@ -105,103 +105,6 @@ export function buildFileUrl(directory: string, path: string, selection?: Prompt
   const start = Math.min(selection.startLine, selection.endLine);
   const end = Math.max(selection.startLine, selection.endLine);
   return `file://${encodedPath}?start=${start}&end=${end}`;
-}
-
-// ---------------------------------------------------------------------------
-// Inline reference parsing
-// ---------------------------------------------------------------------------
-
-type InlineToken = {
-  raw: string;
-  token: string;
-  start: number;
-  end: number;
-};
-
-export type InlineFileReference = {
-  path: string;
-  selection?: PromptSelection;
-  start: number;
-  end: number;
-  value: string;
-};
-
-export type InlineAgentReference = {
-  name: string;
-  start: number;
-  end: number;
-  value: string;
-};
-
-function parseInlineTokens(text: string): InlineToken[] {
-  const matches: InlineToken[] = [];
-  const regex = /@([^\s]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text))) {
-    const raw = match[0];
-    const token = match[1] ?? '';
-    if (!token) continue;
-    const start = match.index ?? 0;
-    matches.push({ raw, token, start, end: start + raw.length });
-  }
-  return matches;
-}
-
-export function resolveInlineReferences(
-  text: string,
-  contextItems: PromptContextItem[],
-  agents: Agent[]
-) {
-  const tokens = parseInlineTokens(text);
-  const agentMap = new Map(
-    agents
-      .filter((agent) => !agent.hidden && agent.mode !== 'primary')
-      .map((agent) => [agent.name.toLowerCase(), agent.name])
-  );
-  const fileMap = new Map<string, PromptContextItem[]>();
-
-  for (const item of contextItems) {
-    const name = item.path.split(/[/\\]/).pop() || item.path;
-    const key = name.toLowerCase();
-    const list = fileMap.get(key);
-    if (list) {
-      list.push(item);
-    } else {
-      fileMap.set(key, [item]);
-    }
-    const normalizedPath = normalizePath(item.path).toLowerCase();
-    if (!fileMap.has(normalizedPath)) {
-      fileMap.set(normalizedPath, [item]);
-    }
-  }
-
-  const fileIndices = new Map<string, number>();
-  const fileRefs: InlineFileReference[] = [];
-  const agentRefs: InlineAgentReference[] = [];
-
-  for (const token of tokens) {
-    const key = token.token.toLowerCase();
-    const agentName = agentMap.get(key);
-    if (agentName) {
-      agentRefs.push({ name: agentName, start: token.start, end: token.end, value: token.raw });
-      continue;
-    }
-
-    const files = fileMap.get(key);
-    if (!files || files.length === 0) continue;
-    const index = fileIndices.get(key) ?? 0;
-    const item = files[index] ?? files[0];
-    fileIndices.set(key, index + 1);
-    fileRefs.push({
-      path: item.path,
-      selection: item.selection,
-      start: token.start,
-      end: token.end,
-      value: token.raw,
-    });
-  }
-
-  return { fileRefs, agentRefs };
 }
 
 // ---------------------------------------------------------------------------

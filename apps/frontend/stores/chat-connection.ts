@@ -18,12 +18,117 @@ import {
   initialState,
   getPromptKey,
   getStoredPromptText,
-  getStoredContextItems,
   touchPromptSessions,
   prunePromptSessions,
   getDirectoryClient,
   unwrap,
 } from './chat-store-utils';
+import { useDiffReviewStore } from './diffReviewStore';
+import { useWorkspaceStore } from './workspaceStore';
+
+/**
+ * Convert a path from OpenCode's namespace to the workspace store's namespace
+ * (relative to the workspace folder / projectPath).
+ *
+ * Handles two cases:
+ * 1. Absolute path (e.g. "C:/Projects/app/notes/file.md") — strip projectPath prefix.
+ * 2. Relative path (relative to git root) — strip the workspace subfolder prefix
+ *    so the remainder is relative to projectPath.
+ */
+function toWorkspacePath(openCodePath: string): string {
+  const wsState = useWorkspaceStore.getState();
+  const projectPath = wsState.metadata?.projectPath;
+  if (!projectPath) return openCodePath;
+
+  const normPath = openCodePath.replace(/\\/g, '/');
+  const normProject = projectPath.replace(/\\/g, '/');
+
+  // Absolute path — just make it relative to projectPath
+  const isAbsolute = /^[A-Za-z]:[\\/]/.test(normPath) || normPath.startsWith('/');
+  if (isAbsolute) {
+    if (normPath.startsWith(normProject + '/')) {
+      const result = normPath.slice(normProject.length + 1);
+      console.log('[toWorkspacePath] absolute → relative:', openCodePath, '→', result);
+      return result;
+    }
+    console.warn('[toWorkspacePath] absolute path outside project:', openCodePath, '| project:', normProject);
+    return openCodePath;
+  }
+
+  // Relative path — strip workspace subfolder prefix (git root → projectPath offset)
+  const gitRoot = wsState.metadata?.gitRoot;
+  if (gitRoot) {
+    const normGitRoot = gitRoot.replace(/\\/g, '/');
+    if (normProject === normGitRoot) {
+      console.log('[toWorkspacePath] relative, project=gitRoot, pass-through:', openCodePath);
+      return openCodePath;
+    }
+
+    const subFolder = normProject.startsWith(normGitRoot + '/')
+      ? normProject.slice(normGitRoot.length + 1)
+      : null;
+    if (subFolder && normPath.startsWith(subFolder + '/')) {
+      const result = normPath.slice(subFolder.length + 1);
+      console.log('[toWorkspacePath] stripped subfolder:', openCodePath, '→', result);
+      return result;
+    }
+  }
+
+  // Already relative to projectPath (or no git root) — return as-is
+  console.log('[toWorkspacePath] pass-through (no transform):', openCodePath, '| gitRoot:', gitRoot ?? 'none');
+  return openCodePath;
+}
+
+function captureEditSnapshot(perm: Record<string, unknown>) {
+  const metadata = perm.metadata as Record<string, unknown> | undefined;
+  if (!metadata) return;
+
+  const sessionID = perm.sessionID as string;
+  const { captureSnapshot } = useDiffReviewStore.getState();
+
+  // apply_patch: metadata.files[] has { relativePath, filePath, before, after }
+  // Prefer filePath (absolute) — it's unambiguous on any OS, git or not.
+  // relativePath is relative to Instance.worktree which is "/" without git.
+  const files = metadata.files as Array<{
+    relativePath?: string;
+    filePath?: string;
+    before?: string;
+    after?: string;
+  }> | undefined;
+
+  if (files && Array.isArray(files)) {
+    console.log('[captureEditSnapshot] apply_patch files:', files.map(f => ({
+      filePath: f.filePath, relativePath: f.relativePath,
+      hasBefore: f.before !== undefined, hasAfter: f.after !== undefined,
+    })));
+    for (const file of files) {
+      const fp = file.filePath ?? file.relativePath;
+      if (fp && file.before !== undefined && file.after !== undefined) {
+        const wsPath = toWorkspacePath(fp);
+        console.log('[captureEditSnapshot] capturing snapshot:', { raw: fp, wsPath, beforeLen: file.before.length, afterLen: file.after.length });
+        captureSnapshot(wsPath, file.before, file.after, sessionID);
+      }
+    }
+    return;
+  }
+
+  // edit tool: metadata.filepath + metadata.diff — no explicit after available
+  // Fall back to reading current editor content as before; after will come from disk later
+  const filepath = metadata.filepath as string | undefined;
+  if (filepath) {
+    const patterns = (perm.patterns as string[] | undefined) ?? [];
+    const rawPath = patterns[0] ?? filepath;
+    const wsPath = toWorkspacePath(rawPath);
+    console.log('[captureEditSnapshot] edit tool:', { filepath, rawPath, wsPath });
+
+    const content = useWorkspaceStore.getState().openFiles.get(wsPath)?.content;
+    if (content !== undefined) {
+      captureSnapshot(wsPath, content, content, sessionID);
+    } else {
+      console.warn('[captureEditSnapshot] edit tool: no content in openFiles for', wsPath);
+    }
+  }
+}
 
 let unsubscribeEvents: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
@@ -69,7 +174,6 @@ export async function handleConnect(
   if (!isCurrent()) return;
   const state = get();
   const activeSessionId = state.activeSessionByDirectory[directory] ?? null;
-  const contextItems = getStoredContextItems(state, directory, activeSessionId);
   const promptText = getStoredPromptText(state, directory, activeSessionId);
   const selectedAgent = state.selectedAgentByDirectory[directory] ?? null;
   const storedModel = state.selectedModelByDirectory[directory] ?? null;
@@ -80,7 +184,6 @@ export async function handleConnect(
     directory,
     client,
     connection: getOpenCodeStatus(),
-    contextItems,
     promptText,
     activeSessionId,
     selectedAgent,
@@ -125,13 +228,11 @@ export async function handleConnect(
     const sessionKey = getPromptKey(directory, nextActive);
     const pruned = prunePromptSessions(
       touchPromptSessions(prev.promptSessionOrder, [sessionKey]),
-      prev.promptBySession,
-      prev.contextBySession
+      prev.promptBySession
     );
     const storedState = {
       ...prev,
       promptBySession: pruned.promptBySession,
-      contextBySession: pruned.contextBySession,
     };
     return {
       sessions,
@@ -140,7 +241,6 @@ export async function handleConnect(
         ...prev.activeSessionByDirectory,
         [directory]: nextActive,
       },
-      contextItems: getStoredContextItems(storedState, directory, nextActive),
       promptText: getStoredPromptText(storedState, directory, nextActive),
       agents,
       selectedAgent: selectedAgentResolved,
@@ -163,7 +263,6 @@ export async function handleConnect(
       },
       promptSessionOrder: pruned.promptSessionOrder,
       promptBySession: pruned.promptBySession,
-      contextBySession: pruned.contextBySession,
     };
   });
   if (!isCurrent()) return;
@@ -178,14 +277,29 @@ export async function handleConnect(
   });
 
   unsubscribeEvents = onOpenCodeEvent(directory, (event, eventDirectory) => {
-    if (event.type === 'permission.asked' && get().autoAccept) {
+    if (event.type === 'permission.asked') {
       const perm = event.properties;
       if (perm?.sessionID && perm?.id) {
+        const autoAccept = get().autoAccept;
+        const isEdit = perm.permission === 'edit';
+        console.log('[permission.asked]', {
+          permission: perm.permission,
+          autoAccept,
+          willCapture: isEdit && !autoAccept,
+          patterns: perm.patterns,
+        });
+
+        // Always auto-accept (edits are never blocked now)
         get().respondToPermission({
           sessionID: perm.sessionID,
           permissionID: perm.id,
           response: 'once',
         }).catch(() => undefined);
+
+        // Capture snapshot when review is desired (autoAccept OFF)
+        if (isEdit && !autoAccept) {
+          captureEditSnapshot(perm);
+        }
       }
     }
     get().applyEvent(event, eventDirectory);
@@ -199,7 +313,6 @@ export function handleDisconnect(get: ChatStoreGet, set: ChatStoreSet) {
   set((state) => ({
     ...initialState,
     connection: getOpenCodeStatus(),
-    contextBySession: state.contextBySession,
     promptBySession: state.promptBySession,
     promptSessionOrder: state.promptSessionOrder,
     activeSessionByDirectory: state.activeSessionByDirectory,

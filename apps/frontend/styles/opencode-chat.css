@@ -636,15 +636,6 @@
   color: var(--oc-text-base);
 }
 
-/* --- Scrollbar thumb --- */
-[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--oc-surface-base-hover);
-}
-
-[data-chat-theme="opencode"] .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--oc-surface-weak);
-}
-
 /* --- User message meta & text-part meta --- */
 [data-chat-theme="opencode"] [data-slot="user-message-meta"],
 [data-chat-theme="opencode"] [data-slot="text-part-meta"] {

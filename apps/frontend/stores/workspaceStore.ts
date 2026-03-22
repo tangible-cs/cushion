@@ -448,6 +448,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const { openFiles } = get();
           const file = openFiles.get(filePath);
           if (!file) return;
+          if (file.content === content && file.savedContent === content) return;
 
           const frontmatter = extractFrontmatter(filePath, content);
           const updatedFile: FileState = {

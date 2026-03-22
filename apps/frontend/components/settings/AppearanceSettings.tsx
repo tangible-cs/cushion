@@ -1,5 +1,6 @@
 
 import { useAppearanceStore } from '@/stores/appearanceStore';
+import { AccentColorPicker } from './AccentColorPicker';
 import { cn } from '@/lib/utils';
 
 interface AppearanceSettingsProps {
@@ -10,18 +11,6 @@ const THEME_OPTIONS = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
   { value: 'system', label: 'System' },
-] as const;
-
-/** HSL accent presets — stored as "h s l" (no % signs in storage, added on apply) */
-const ACCENT_PRESETS = [
-  { label: 'Purple', value: '258 88 66', preview: 'hsl(258 88% 66%)' },
-  { label: 'Blue', value: '213 100 50', preview: 'hsl(213 100% 50%)' },
-  { label: 'Cyan', value: '180 100 37', preview: 'hsl(180 100% 37%)' },
-  { label: 'Green', value: '145 91 38', preview: 'hsl(145 91% 38%)' },
-  { label: 'Yellow', value: '45 100 44', preview: 'hsl(45 100% 44%)' },
-  { label: 'Orange', value: '27 100 46', preview: 'hsl(27 100% 46%)' },
-  { label: 'Red', value: '355 82 56', preview: 'hsl(355 82% 56%)' },
-  { label: 'Pink', value: '330 67 52', preview: 'hsl(330 67% 52%)' },
 ] as const;
 
 export function AppearanceSettings({ embedded = false }: AppearanceSettingsProps) {
@@ -66,27 +55,7 @@ export function AppearanceSettings({ embedded = false }: AppearanceSettingsProps
 
       {/* Accent color */}
       <div className="py-2 mt-2">
-        <div className="text-sm font-medium mb-2">Accent color</div>
-        <div className="flex flex-wrap gap-2">
-          {ACCENT_PRESETS.map((preset) => {
-            const isActive = accentColor === preset.value || (!accentColor && preset.label === 'Purple');
-            return (
-              <button
-                key={preset.value}
-                type="button"
-                onClick={() => setAccentColor(preset.label === 'Purple' ? '' : preset.value)}
-                className={cn(
-                  'w-7 h-7 rounded-full border-2 transition-all',
-                  isActive
-                    ? 'border-foreground scale-110'
-                    : 'border-transparent hover:scale-105'
-                )}
-                style={{ backgroundColor: preset.preview }}
-                title={preset.label}
-              />
-            );
-          })}
-        </div>
+        <AccentColorPicker accentColor={accentColor} onAccentChange={setAccentColor} />
       </div>
 
     </div>

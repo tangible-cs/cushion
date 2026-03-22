@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode, ConnectionState, WorkspaceMetadata } from '@cushion/types';
@@ -145,6 +146,12 @@ export function useFileTree({
     });
 
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
+      // Skip updates for files with a pending snapshot or being reviewed —
+      // prevents the watcher from flashing new content before the merge view appears
+      const diffState = useDiffReviewStore.getState();
+      if (diffState.reviewingFilePath === filePath) return;
+      if (diffState.fileSnapshots[filePath]) return;
+
       // Binary files (images, PDFs) are handled by their own viewers, not text content
       if (BINARY_FILE_EXTENSIONS.test(filePath)) return;
 

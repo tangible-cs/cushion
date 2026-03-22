@@ -1,6 +1,6 @@
 
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Share2, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditorNavRowProps {
@@ -83,7 +83,7 @@ export function EditorNavRow({
             title={focusModeEnabled ? 'Exit focus mode' : 'Enter focus mode'}
             aria-pressed={!!focusModeEnabled}
           >
-            <Target size={16} />
+            <Eye size={16} />
           </button>
         )}
 

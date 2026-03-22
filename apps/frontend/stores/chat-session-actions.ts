@@ -10,8 +10,8 @@ import {
   type ChatStoreSet,
   DEFAULT_MESSAGE_LIMIT,
   getPromptKey,
+  getStoredPromptParts,
   getStoredPromptText,
-  getStoredContextItems,
   touchPromptSessions,
   prunePromptSessions,
   getDirectoryClient,
@@ -30,13 +30,11 @@ export async function handleSetActiveSession(
     const sessionKey = getPromptKey(directory, sessionID);
     const pruned = prunePromptSessions(
       touchPromptSessions(state.promptSessionOrder, [sessionKey]),
-      state.promptBySession,
-      state.contextBySession
+      state.promptBySession
     );
     const storedState = {
       ...state,
       promptBySession: pruned.promptBySession,
-      contextBySession: pruned.contextBySession,
     };
     return {
       activeSessionId: sessionID,
@@ -44,10 +42,9 @@ export async function handleSetActiveSession(
         ...state.activeSessionByDirectory,
         [directory]: sessionID,
       },
-      contextItems: getStoredContextItems(storedState, directory, sessionID),
+      promptParts: getStoredPromptParts(storedState, directory, sessionID),
       promptText: getStoredPromptText(storedState, directory, sessionID),
       promptBySession: pruned.promptBySession,
-      contextBySession: pruned.contextBySession,
       promptSessionOrder: pruned.promptSessionOrder,
     };
   });
@@ -147,6 +144,15 @@ export async function handleAbortSession(
   const directory = state.directory;
   const targetSession = sessionID ?? state.activeSessionId;
   if (!directory || !targetSession) return;
+
+  // Double-abort guard: if already aborting this session, skip
+  if (state.abortingSessions[targetSession]) return;
+
+  // Set aborting flag (cleared when SSE session.status → idle fires)
+  set({
+    abortingSessions: { ...state.abortingSessions, [targetSession]: true },
+  });
+
   const client = getDirectoryClient(directory, state.baseUrl);
   await client.session.abort({ sessionID: targetSession, directory }).catch(() => undefined);
 }

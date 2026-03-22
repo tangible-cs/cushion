@@ -784,6 +784,9 @@ export function ToolPartView({ part }: ToolPartViewProps) {
     const files = getApplyPatchFiles(part);
     const defaultOpen = status === 'completed' && editExpanded;
     const trigger = buildApplyPatchTrigger(part, files);
+    const hasContent = files.length > 0 ||
+      (status === 'error' && part.state && 'error' in part.state) ||
+      (status === 'completed' && part.state && 'output' in part.state);
 
     return (
       <div data-component="apply-patch-tool">
@@ -791,10 +794,10 @@ export function ToolPartView({ part }: ToolPartViewProps) {
           icon="code-lines"
           trigger={trigger}
           status={status}
-          defaultOpen={defaultOpen}
+          defaultOpen={defaultOpen && hasContent}
           defer
         >
-          <ApplyPatchContent part={part} files={files} />
+          {hasContent ? <ApplyPatchContent part={part} files={files} /> : undefined}
         </BasicTool>
       </div>
     );

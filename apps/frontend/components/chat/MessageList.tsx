@@ -8,6 +8,7 @@ import { Icon } from './Icon';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Turn } from './Turn';
 import { DisplayOptionsPopover } from './DisplayOptionsPopover';
+import { SessionContextUsage } from './SessionContextUsage';
 import { MessageDivider } from './MessageDivider';
 import { groupMessagesIntoTurns, EMPTY_MESSAGES } from './message-helpers';
 
@@ -99,7 +100,7 @@ export function MessageList({ className }: MessageListProps) {
         </button>
       </div>
       <div
-        className="h-full overflow-auto"
+        className="h-full overflow-auto thin-scrollbar"
         ref={autoScroll.scrollRef}
         onScroll={autoScroll.handleScroll}
         data-slot="session-turn-content"
@@ -191,6 +192,7 @@ export function MessageList({ className }: MessageListProps) {
                 </PopoverContent>
               </Popover>
               <div className="flex items-center gap-1">
+                <SessionContextUsage />
                 <DisplayOptionsPopover />
                 <button
                   type="button"

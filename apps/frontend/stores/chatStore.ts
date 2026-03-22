@@ -3,13 +3,12 @@ import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { getOpenCodeStatus } from '@/lib/shared-opencode-client';
 import {
-  createContextId,
-  sameSelection,
   resolveModel,
   resolveModelVariant,
 } from '@/lib/chat-helpers';
 import { wrapSdk } from '@/lib/sdk-result';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+import { useDiffReviewStore } from './diffReviewStore';
 import { handleApplyEvent } from './chat-event-handler';
 import { handleSendPrompt } from './chat-send-prompt';
 import { handleConnect, handleDisconnect } from './chat-connection';
@@ -29,13 +28,10 @@ import {
   type ModelVisibility,
   type ChatState,
   type ChatActions,
-  type PromptContextItem,
   type SelectedModel,
-  MAX_CONTEXT_ITEMS,
   initialState,
   getPromptKey,
   getStoredPromptText,
-  getStoredContextItems,
   touchPromptSessions,
   prunePromptSessions,
   getModelVisibilityKey,
@@ -46,7 +42,7 @@ import {
   isValidBaseUrl,
 } from './chat-store-utils';
 
-export type { PromptAttachment, PromptSelection, PromptContextItem, PromptInputPayload, SelectedModel, DisplayPreferences } from './chat-store-utils';
+export type { PromptAttachment, PromptSelection, PromptInputPayload, SelectedModel, DisplayPreferences, CurrentFileContext } from './chat-store-utils';
 
 // ---------------------------------------------------------------------------
 // Store
@@ -58,102 +54,29 @@ export const useChatStore = create<ChatState & ChatActions>()(
       (set, get) => ({
         ...initialState,
 
-    addContextItem: (item: Omit<PromptContextItem, 'id'>) => {
-      const next = { ...item, id: createContextId() };
-      set((state) => {
-        const exists = state.contextItems.some((entry) =>
-          entry.path === next.path
-          && sameSelection(entry.selection, next.selection)
-          && (entry.commentID ?? entry.comment ?? '') === (next.commentID ?? next.comment ?? '')
-        );
-        if (exists) return state;
-        const contextItems = [...state.contextItems, next].slice(-MAX_CONTEXT_ITEMS);
-        const directory = state.directory;
-        if (!directory) return { contextItems };
-        const sessionKey = getPromptKey(directory, state.activeSessionId);
-        const nextContextBySession = {
-          ...state.contextBySession,
-          [sessionKey]: contextItems,
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(state.promptSessionOrder, [sessionKey]),
-          state.promptBySession,
-          nextContextBySession
-        );
-        return {
-          contextItems,
-          contextBySession: pruned.contextBySession,
-          promptBySession: pruned.promptBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-        };
-      });
-    },
-
-    removeContextItem: (id: string) => {
-      set((state) => {
-        const contextItems = state.contextItems.filter((entry) => entry.id !== id);
-        const directory = state.directory;
-        if (!directory) return { contextItems };
-        const sessionKey = getPromptKey(directory, state.activeSessionId);
-        const nextContextBySession = {
-          ...state.contextBySession,
-          [sessionKey]: contextItems,
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(state.promptSessionOrder, [sessionKey]),
-          state.promptBySession,
-          nextContextBySession
-        );
-        return {
-          contextItems,
-          contextBySession: pruned.contextBySession,
-          promptBySession: pruned.promptBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-        };
-      });
-    },
-
-    clearContextItems: () => {
-      set((state) => {
-        const directory = state.directory;
-        if (!directory) return { contextItems: [] };
-        const sessionKey = getPromptKey(directory, state.activeSessionId);
-        const nextContextBySession = {
-          ...state.contextBySession,
-          [sessionKey]: [],
-        };
-        const pruned = prunePromptSessions(
-          touchPromptSessions(state.promptSessionOrder, [sessionKey]),
-          state.promptBySession,
-          nextContextBySession
-        );
-        return {
-          contextItems: [],
-          contextBySession: pruned.contextBySession,
-          promptBySession: pruned.promptBySession,
-          promptSessionOrder: pruned.promptSessionOrder,
-        };
-      });
-    },
-
     setPromptText: (text: string) => {
+      const parts = [{ type: 'text' as const, content: text, start: 0, end: text.length }];
+      get().setPromptParts(parts);
+    },
+
+    setPromptParts: (parts) => {
+      const text = parts.map((p) => p.content).join('');
       set((state) => {
         const directory = state.directory;
-        if (!directory) return { promptText: text };
+        if (!directory) return { promptText: text, promptParts: parts };
         const sessionKey = getPromptKey(directory, state.activeSessionId);
         const nextPromptBySession = {
           ...state.promptBySession,
-          [sessionKey]: text,
+          [sessionKey]: parts,
         };
         const pruned = prunePromptSessions(
           touchPromptSessions(state.promptSessionOrder, [sessionKey]),
-          nextPromptBySession,
-          state.contextBySession
+          nextPromptBySession
         );
         return {
           promptText: text,
+          promptParts: parts,
           promptBySession: pruned.promptBySession,
-          contextBySession: pruned.contextBySession,
           promptSessionOrder: pruned.promptSessionOrder,
         };
       });
@@ -352,6 +275,28 @@ export const useChatStore = create<ChatState & ChatActions>()(
     unshareSession: () => handleUnshareSession(get, set),
     sendPrompt: (input) => handleSendPrompt(input, get, set),
 
+    syncCurrentFile: (path: string | null) => {
+      if (!path || path === '__new_tab__') {
+        set({ currentFileContext: null });
+        return;
+      }
+      set((state) => ({
+        currentFileContext: { path, enabled: state.includeCurrentFile },
+      }));
+    },
+
+    toggleIncludeCurrentFile: () => {
+      set((state) => {
+        const next = !state.includeCurrentFile;
+        return {
+          includeCurrentFile: next,
+          currentFileContext: state.currentFileContext
+            ? { ...state.currentFileContext, enabled: next }
+            : null,
+        };
+      });
+    },
+
     toggleShowThinking: () => {
       set((state) => ({
         displayPreferences: {
@@ -383,25 +328,21 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const next = !get().autoAccept;
       set({ autoAccept: next });
       if (next) {
-        // Retroactively auto-respond to any pending permissions
-        const { permissions, activeSessionId } = get();
-        const pending = activeSessionId ? permissions[activeSessionId] ?? [] : [];
-        for (const perm of pending) {
-          get().respondToPermission({
-            sessionID: perm.sessionID,
-            permissionID: perm.id,
-            response: 'once',
-          }).catch(() => undefined);
+        // Switching ON: clear snapshots + exit any active review (no review desired)
+        const diffStore = useDiffReviewStore.getState();
+        diffStore.clearSnapshots();
+        if (diffStore.reviewingFilePath) {
+          diffStore.finishReview();
         }
       }
+      // Switching OFF: no action needed — snapshots will be captured on next edit permission
     },
       }),
       {
         name: 'cushion-chat',
-        version: 4,
+        version: 6,
         partialize: (state) => ({
           baseUrl: state.baseUrl,
-          contextBySession: state.contextBySession,
           promptBySession: state.promptBySession,
           promptSessionOrder: state.promptSessionOrder,
           activeSessionByDirectory: state.activeSessionByDirectory,
@@ -410,40 +351,38 @@ export const useChatStore = create<ChatState & ChatActions>()(
           selectedVariantByDirectory: state.selectedVariantByDirectory,
           modelVisibility: state.modelVisibility,
           displayPreferences: state.displayPreferences,
+          includeCurrentFile: state.includeCurrentFile,
           autoAccept: state.autoAccept,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;
-          if (version >= 4) return state as ChatState;
-          if (version === 3) {
-            return { ...state, autoAccept: false } as ChatState;
+          if (version >= 6) return state as ChatState;
+          // v5 → v6: drop contextItems / contextBySession (now inline pills)
+          if (version === 5) {
+            const legacy = state as Record<string, unknown>;
+            const { contextItems: _, contextBySession: __, ...rest } = legacy;
+            return rest as ChatState;
           }
-          const legacy = state as ChatState & {
-            contextByDirectory?: Record<string, PromptContextItem[]>;
-            promptSessionOrder?: string[];
-          };
-          const contextBySession: Record<string, PromptContextItem[]> = { ...legacy.contextBySession };
-
-          if (version < 2 && legacy.contextByDirectory) {
-            for (const [directory, items] of Object.entries(legacy.contextByDirectory)) {
-              const key = getPromptKey(directory, null);
-              if (!contextBySession[key]) {
-                contextBySession[key] = items;
+          if (version === 4) {
+            const legacy = state as ChatState & { promptBySession?: Record<string, string | unknown[]> };
+            const oldMap = legacy.promptBySession ?? {};
+            const newMap: Record<string, unknown[]> = {};
+            for (const [key, value] of Object.entries(oldMap)) {
+              if (typeof value === 'string') {
+                newMap[key] = value
+                  ? [{ type: 'text', content: value, start: 0, end: value.length }]
+                  : [];
+              } else {
+                newMap[key] = value as unknown[];
               }
             }
+            return { ...legacy, promptBySession: newMap, autoAccept: (legacy as Record<string, unknown>).autoAccept ?? false } as ChatState;
           }
-
-          const promptBySession = legacy.promptBySession ?? {};
-          const promptSessionOrder = legacy.promptSessionOrder
-            ?? Array.from(new Set([...Object.keys(promptBySession), ...Object.keys(contextBySession)]));
-          const pruned = prunePromptSessions(promptSessionOrder, promptBySession, contextBySession);
-
-          return {
-            ...legacy,
-            contextBySession: pruned.contextBySession,
-            promptBySession: pruned.promptBySession,
-            promptSessionOrder: pruned.promptSessionOrder,
-          } as ChatState;
+          if (version === 3) {
+            return { ...state, autoAccept: false, promptBySession: {} } as ChatState;
+          }
+          // v0-v2: wipe old data
+          return { ...(state as Record<string, unknown>), promptBySession: {}, promptSessionOrder: [] } as unknown as ChatState;
         },
       }
     )

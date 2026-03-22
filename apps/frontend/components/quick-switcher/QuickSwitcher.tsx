@@ -250,7 +250,7 @@ export function QuickSwitcher({
   return createPortal(
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--overlay-50)] p-4" onClick={onClose}>
       <div
-        className="flex h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[var(--shadow-lg)]"
+        className="flex h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-modal-border bg-modal-bg shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}

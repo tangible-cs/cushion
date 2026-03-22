@@ -23,7 +23,9 @@ export function ChatSidebar() {
   const todos = useChatStore((state) => state.todos);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const isConnected = connection.status === 'connected' || connection.status === 'reconnecting';
-  const pendingPermissions = activeSessionId ? permissions[activeSessionId] ?? [] : [];
+  const allPendingPermissions = activeSessionId ? permissions[activeSessionId] ?? [] : [];
+  // Filter out edit permissions — they're handled by inline diff review in the editor
+  const pendingPermissions = allPendingPermissions.filter((p) => p.permission !== 'edit');
   const pendingQuestions = activeSessionId ? questions[activeSessionId] ?? [] : [];
   const promptDockRef = useRef<HTMLDivElement | null>(null);
   const [promptDockHeight, setPromptDockHeight] = useState(0);

@@ -55,8 +55,16 @@ import {
   updateWikiLinkFileTree,
   setWikiLinkNavigateCallback,
   setFocusMode,
+  diffTheme,
+  enterDiffReview,
+  exitDiffReview,
+  acceptAllChunks,
+  rejectAllChunks,
+  getChunkCount,
+  diffReviewKeymap,
   type WikiLinkNavigateCallback,
 } from '@/lib/codemirror-wysiwyg';
+import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath, BlockMath } from '@/lib/markdown-extensions';
 import { createListKeymap } from '@/lib/codemirror-wysiwyg/list-commands';
 import { createFormatKeymap } from '@/lib/codemirror-wysiwyg/format-commands';
@@ -80,6 +88,14 @@ interface CodeEditorProps {
   onPasteImages?: (params: { files: File[]; view: EditorView; filePath: string }) => void;
   /** Optional container where search panel should render */
   searchPanelContainerRef?: RefObject<HTMLDivElement | null>;
+  /** Callback refs for diff review actions (exposed for DiffReviewBar) */
+  onDiffAcceptAll?: React.MutableRefObject<(() => void) | null>;
+  onDiffRejectAll?: React.MutableRefObject<(() => void) | null>;
+  onDiffExitReview?: React.MutableRefObject<(() => void) | null>;
+  /** Save callback for diff overwrite (writes to disk + marks saved + cancels autosave) */
+  onDiffSave?: React.MutableRefObject<((filePath: string, content: string) => Promise<void>) | null>;
+  /** Callback to add the current selection as chat context */
+  onAddSelectionToChat?: (data: { path: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number }; preview: string }) => void;
 }
 
 
@@ -87,6 +103,7 @@ const EDITOR_SHORTCUT_IDS = [
   'editor.save',
   'editor.indent',
   'editor.outdent',
+  'editor.addSelectionToChat',
 ] as const;
 
 const EDITOR_FORMAT_SHORTCUT_IDS = [
@@ -158,6 +175,11 @@ export function CodeEditor({
   focusModeEnabled = false,
   onPasteImages,
   searchPanelContainerRef,
+  onDiffAcceptAll,
+  onDiffRejectAll,
+  onDiffExitReview,
+  onDiffSave,
+  onAddSelectionToChat,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -166,6 +188,7 @@ export function CodeEditor({
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
   const focusModeEnabledRef = useRef(focusModeEnabled);
   const onPasteImagesRef = useRef(onPasteImages);
+  const onAddSelectionToChatRef = useRef(onAddSelectionToChat);
   const typewriterRafRef = useRef<number | null>(null);
   const typewriterScrollRafRef = useRef<number | null>(null);
   const typewriterScrollTargetRef = useRef<number | null>(null);
@@ -178,6 +201,9 @@ export function CodeEditor({
   const closeBracketsCompartmentRef = useRef(new Compartment());
   const foldGutterCompartmentRef = useRef(new Compartment());
   const readableLineLengthCompartmentRef = useRef(new Compartment());
+  const mergeViewCompartmentRef = useRef(new Compartment());
+  const diffKeymapCompartmentRef = useRef(new Compartment());
+  const isReviewingRef = useRef(false);
 
   const editorShortcuts = useShortcutBindings(EDITOR_SHORTCUT_IDS);
   const listShortcuts = useShortcutBindings(EDITOR_LIST_SHORTCUT_IDS);
@@ -207,8 +233,28 @@ export function CodeEditor({
     addBindings(editorShortcuts['editor.indent'], indentMore);
     addBindings(editorShortcuts['editor.outdent'], indentLess);
 
+    addBindings(editorShortcuts['editor.addSelectionToChat'], (view) => {
+      const sel = view.state.selection.main;
+      if (sel.empty) return false;
+      const startLine = view.state.doc.lineAt(sel.from);
+      const endLine = view.state.doc.lineAt(sel.to);
+      const text = view.state.sliceDoc(sel.from, sel.to);
+      const preview = text.length > 200 ? text.slice(0, 200) + '…' : text;
+      onAddSelectionToChatRef.current?.({
+        path: filePath,
+        selection: {
+          startLine: startLine.number,
+          startChar: sel.from - startLine.from,
+          endLine: endLine.number,
+          endChar: sel.to - endLine.from,
+        },
+        preview,
+      });
+      return true;
+    });
+
     return bindings;
-  }, [editorShortcuts]);
+  }, [editorShortcuts, filePath]);
 
   const listKeymap = useMemo(() => {
     return createListKeymap({
@@ -238,6 +284,7 @@ export function CodeEditor({
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
   focusModeEnabledRef.current = focusModeEnabled;
   onPasteImagesRef.current = onPasteImages;
+  onAddSelectionToChatRef.current = onAddSelectionToChat;
 
   const stopTypewriterScroll = useCallback(() => {
     if (typewriterScrollRafRef.current !== null) {
@@ -313,6 +360,96 @@ export function CodeEditor({
       centerCursorInView(view);
     });
   }, [centerCursorInView]);
+
+  const onDiffSaveRef = useRef(onDiffSave);
+  onDiffSaveRef.current = onDiffSave;
+
+  const resolveReview = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    if (!isReviewingRef.current) return; // Already resolved (guard against re-entry)
+
+    // 1. Capture mixed content
+    const mixedContent = view.state.doc.toString();
+
+    // 2. Mark as no longer reviewing BEFORE dispatching, so the update
+    //    listener that fires synchronously during exitDiffReview() bails out
+    //    instead of calling resolveReview() again (infinite loop).
+    isReviewingRef.current = false;
+
+    // 3. Exit merge view, clear keymap
+    exitDiffReview(view, mergeViewCompartmentRef.current);
+    view.dispatch({
+      effects: diffKeymapCompartmentRef.current.reconfigure([]),
+    });
+
+    // 4. Get review state
+    const { reviewAfter, reviewingFilePath } = useDiffReviewStore.getState();
+
+    console.log('[resolveReview]', {
+      reviewingFilePath,
+      mixedLen: mixedContent.length,
+      afterLen: reviewAfter?.length ?? 0,
+      contentChanged: reviewAfter !== null && mixedContent !== reviewAfter,
+      hasSaveRef: !!onDiffSaveRef.current?.current,
+    });
+
+    // 5. Sync to workspace store
+    onChangeRef.current?.(mixedContent);
+
+    // 6. Save to disk + mark saved. Always save: even when the user accepted
+    //    all chunks (mixedContent === reviewAfter), the file watcher was blocked
+    //    during review so the workspace store still has old content and needs
+    //    markFileSaved to stay in sync with what's on disk.
+    if (reviewingFilePath) {
+      const saveRef = onDiffSaveRef.current;
+      if (saveRef?.current) {
+        console.log('[resolveReview] saving:', reviewingFilePath, mixedContent === reviewAfter ? '(matches AI, sync only)' : '(user changed content)');
+        saveRef.current(reviewingFilePath, mixedContent).catch((err) => {
+          console.error('[resolveReview] save failed:', err);
+        });
+      } else {
+        console.warn('[resolveReview] no save ref available!');
+      }
+    }
+
+    // 7. Done
+    useDiffReviewStore.getState().finishReview();
+  }, []);
+
+  const handleAcceptAll = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    acceptAllChunks(view);
+    resolveReview();
+  }, [resolveReview]);
+
+  const handleRejectAll = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    rejectAllChunks(view);
+    resolveReview();
+  }, [resolveReview]);
+
+  const handleExitReview = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    // Unresolved chunks keep AI content
+    acceptAllChunks(view);
+    resolveReview();
+  }, [resolveReview]);
+
+  // Expose diff review handlers to parent
+  useEffect(() => {
+    if (onDiffAcceptAll) onDiffAcceptAll.current = handleAcceptAll;
+    if (onDiffRejectAll) onDiffRejectAll.current = handleRejectAll;
+    if (onDiffExitReview) onDiffExitReview.current = handleExitReview;
+    return () => {
+      if (onDiffAcceptAll) onDiffAcceptAll.current = null;
+      if (onDiffRejectAll) onDiffRejectAll.current = null;
+      if (onDiffExitReview) onDiffExitReview.current = null;
+    };
+  }, [handleAcceptAll, handleRejectAll, handleExitReview, onDiffAcceptAll, onDiffRejectAll, onDiffExitReview]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -477,8 +614,18 @@ export function CodeEditor({
       adaptiveTheme,
       syntaxHighlighting(adaptiveHighlight),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
+        if (update.docChanged && !isReviewingRef.current) {
           onChangeRef.current?.(update.state.doc.toString());
+        }
+      }),
+      // Sync chunk count during diff review
+      EditorView.updateListener.of((update) => {
+        if (!isReviewingRef.current) return;
+        const count = getChunkCount(update.state);
+        useDiffReviewStore.getState().updateChunkCount(count);
+        // Auto-exit when all chunks are resolved (individual accept/reject)
+        if (count === 0) {
+          resolveReview();
         }
       }),
       EditorView.domEventHandlers({
@@ -555,6 +702,10 @@ export function CodeEditor({
           ? EditorView.theme({ '.cm-content': { maxWidth: 'var(--md-content-max-width, 900px)' } })
           : EditorView.theme({ '.cm-content': { maxWidth: 'none' } })
       ),
+      // Diff review: merge view (starts empty, enabled dynamically)
+      mergeViewCompartmentRef.current.of([]),
+      diffKeymapCompartmentRef.current.of([]),
+      diffTheme,
     ];
 
     const initEditor = async () => {
@@ -716,6 +867,36 @@ export function CodeEditor({
       stopTypewriterScroll();
     }
   }, [focusModeEnabled, scheduleTypewriterCentering, stopTypewriterScroll]);
+
+  // Subscribe to pending diff reviews
+  useEffect(() => {
+    const unsub = useDiffReviewStore.subscribe(
+      (state) => state.pendingDiff,
+      (pendingDiff) => {
+        const view = viewRef.current;
+        if (!view || !pendingDiff) return;
+        if (pendingDiff.filePath !== filePath) return;
+        if (pendingDiff.before === pendingDiff.after) return;
+
+        // Enable diff review keymap
+        view.dispatch({
+          effects: diffKeymapCompartmentRef.current.reconfigure(
+            Prec.highest(diffReviewKeymap(handleAcceptAll, handleRejectAll))
+          ),
+        });
+
+        // Enter diff review
+        isReviewingRef.current = true;
+        useDiffReviewStore.getState().startReview(filePath);
+        enterDiffReview(view, mergeViewCompartmentRef.current, pendingDiff.before, pendingDiff.after);
+
+        // Sync initial chunk count
+        const count = getChunkCount(view.state);
+        useDiffReviewStore.getState().updateChunkCount(count);
+      }
+    );
+    return unsub;
+  }, [filePath, handleAcceptAll, handleRejectAll, resolveReview]);
 
   return (
     <div

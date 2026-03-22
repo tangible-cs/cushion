@@ -4,7 +4,6 @@ import {
   type PromptPart,
   type InsertPart,
   ZERO_WIDTH_SPACE,
-  buildPromptParts,
   isPromptEqual,
   createTextFragment,
   createPill,
@@ -24,11 +23,9 @@ type PromptEditorDeps = {
 };
 
 export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrigger }: PromptEditorDeps) {
+  const promptParts = useChatStore((state) => state.promptParts);
   const promptText = useChatStore((state) => state.promptText);
-  const setPromptText = useChatStore((state) => state.setPromptText);
-  const contextItems = useChatStore((state) => state.contextItems);
-  const removeContextItem = useChatStore((state) => state.removeContextItem);
-  const agents = useChatStore((state) => state.agents);
+  const setPromptParts = useChatStore((state) => state.setPromptParts);
 
   const editorRef = useRef<HTMLDivElement | null>(null);
   const mirror = useRef({ input: false });
@@ -51,7 +48,9 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    const parts = buildPromptParts(promptText, contextItems, agents);
+    const parts = promptParts.length > 0
+      ? promptParts
+      : [{ type: 'text' as const, content: '', start: 0, end: 0 }];
     const domParts = parseFromDOM(editor);
 
     if (mirror.current.input) {
@@ -70,7 +69,7 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     if (cursorPosition !== null) {
       setCursorPosition(editor, cursorPosition);
     }
-  }, [promptText, contextItems, agents]);
+  }, [promptParts]);
 
   const handleInput = () => {
     const editor = editorRef.current;
@@ -81,35 +80,22 @@ export function usePromptEditor({ disabled, trigger, setTriggerState, updateTrig
     const hasNonText = rawParts.some((part) => part.type !== 'text');
     const shouldReset = trimmed.length === 0 && !hasNonText;
 
-    const syncContextItems = () => {
-      if (contextItems.length === 0) return;
-      const remainingPaths = new Set(
-        rawParts.filter((p) => p.type === 'file').map((p) => (p as { path: string }).path)
-      );
-      for (const item of contextItems) {
-        if (!remainingPaths.has(item.path)) removeContextItem(item.id);
-      }
-    };
-
     if (shouldReset) {
       setTriggerState(null);
       if (promptText !== '') {
         mirror.current.input = true;
-        setPromptText('');
+        setPromptParts([]);
       }
-      syncContextItems();
       return;
     }
 
     const cursorPosition = getCursorPosition(editor);
     updateTrigger(rawText, cursorPosition);
 
-    if (rawText !== promptText) {
+    if (!isPromptEqual(rawParts, promptParts)) {
       mirror.current.input = true;
-      setPromptText(rawText);
+      setPromptParts(rawParts);
     }
-
-    syncContextItems();
   };
 
   const refreshTriggerFromSelection = () => {
