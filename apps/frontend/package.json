@@ -41,6 +41,7 @@
     "diff": "^8.0.3",
     "dompurify": "^3.3.1",
     "fuzzysort": "^3.1.0",
+    "highlight.js": "^11.11.1",
     "katex": "^0.16.28",
     "lucide-react": "^0.546.0",
     "marked": "^17.0.1",

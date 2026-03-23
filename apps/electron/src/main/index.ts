@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeImage } from 'electron';
+import './pdf-export';
 import { join } from 'path';
 import windowStateKeeper from 'electron-window-state';
 import { startCoordinator, stopCoordinator, getCoordinatorPort } from './coordinator';

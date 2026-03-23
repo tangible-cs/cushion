@@ -71,7 +71,7 @@
   --oc-text-weak: #8f8f8f;
   --oc-text-weaker: #c7c7c7;
   --oc-text-strong: #171717;
-  --oc-text-interactive-base: #7c3aed;
+  --oc-text-interactive-base: var(--accent-primary);
   --oc-text-on-brand-base: rgba(0, 0, 0, 0.574);
   --oc-text-on-critical-base: #ed4831;
   --oc-text-on-critical-weak: #fe806a;
@@ -109,7 +109,7 @@
   --oc-icon-weak-base: #dbdbdb;
   --oc-icon-weaker: #dbdbdb;
   --oc-icon-strong-base: #171717;
-  --oc-icon-interactive-base: #7c3aed;
+  --oc-icon-interactive-base: var(--accent-primary);
   --oc-icon-success-base: #7add71;
   --oc-icon-critical-base: #ed4831;
   --oc-icon-warning-base: #ebb76e;
@@ -120,10 +120,10 @@
   --oc-icon-agent-plan-base: #a753ae;
   --oc-icon-agent-docs-base: #fcb239;
   --oc-icon-agent-ask-base: #8b5cf6;
-  --oc-icon-agent-build-base: #7c3aed;
+  --oc-icon-agent-build-base: var(--accent-primary);
 
   /* ---- Syntax highlighting ---- */
-  --oc-syntax-string: #6d28d9;
+  --oc-syntax-string: var(--accent-primary);
 
   /* ---- Shadows ---- */
   --oc-shadow-xs-border:
@@ -157,9 +157,6 @@
   --background-modifier-border: var(--oc-border-weak-base);
   --background-modifier-border-hover: var(--oc-border-weaker-base);
   --background-modifier-border-focus: var(--oc-border-base);
-  --interactive-accent: var(--oc-text-interactive-base);
-  --interactive-accent-hover: #0240d9;
-  --accent-primary: var(--oc-text-interactive-base);
   --accent-green: var(--oc-surface-success-strong);
   --accent-red: var(--oc-surface-critical-strong);
   --accent-yellow: var(--oc-surface-warning-strong);
@@ -167,7 +164,6 @@
   --accent-red-12: var(--oc-surface-critical-weak);
   --overlay-10: var(--oc-surface-base);
   --overlay-20: var(--oc-surface-base-hover);
-  --text-accent: var(--oc-text-interactive-base);
 }
 
 /* ================================================================
@@ -226,7 +222,7 @@
   --oc-text-weak: rgba(255, 255, 255, 0.422);
   --oc-text-weaker: rgba(255, 255, 255, 0.284);
   --oc-text-strong: rgba(255, 255, 255, 0.936);
-  --oc-text-interactive-base: #be9dfe;
+  --oc-text-interactive-base: var(--accent-primary);
   --oc-text-on-brand-base: rgba(255, 255, 255, 0.603);
   --oc-text-on-critical-base: #fc533a;
   --oc-text-on-critical-weak: #b72d1a;
@@ -261,7 +257,7 @@
   --oc-icon-weak-base: #343434;
   --oc-icon-weaker: #343434;
   --oc-icon-strong-base: #ededed;
-  --oc-icon-interactive-base: #7c3aed;
+  --oc-icon-interactive-base: var(--accent-primary);
   --oc-icon-success-base: #12c905;
   --oc-icon-critical-base: #fc533a;
   --oc-icon-warning-base: #fbb73c;
@@ -272,9 +268,9 @@
   --oc-icon-agent-plan-base: #edb2f1;
   --oc-icon-agent-docs-base: #fbb73c;
   --oc-icon-agent-ask-base: #a78bfa;
-  --oc-icon-agent-build-base: #be9dfe;
+  --oc-icon-agent-build-base: var(--accent-primary);
 
-  --oc-syntax-string: #be9dfe;
+  --oc-syntax-string: var(--accent-primary);
 
   --oc-shadow-xs-border:
     0 0 0 1px var(--oc-border-base), 0 1px 2px -1px rgba(19, 16, 16, 0.04),
@@ -296,9 +292,6 @@
   --background-modifier-border: var(--oc-border-weak-base);
   --background-modifier-border-hover: var(--oc-border-weaker-base);
   --background-modifier-border-focus: var(--oc-border-base);
-  --interactive-accent: var(--oc-text-interactive-base);
-  --interactive-accent-hover: #7ea9ff;
-  --accent-primary: var(--oc-text-interactive-base);
   --accent-green: var(--oc-surface-success-strong);
   --accent-red: var(--oc-surface-critical-strong);
   --accent-yellow: var(--oc-surface-warning-strong);
@@ -306,7 +299,6 @@
   --accent-red-12: var(--oc-surface-critical-weak);
   --overlay-10: var(--oc-surface-base);
   --overlay-20: var(--oc-surface-base-hover);
-  --text-accent: var(--oc-text-interactive-base);
 }
 
 /* ================================================================
@@ -327,26 +319,13 @@
   color: var(--oc-text-strong);
 }
 
-/* --- Sticky turn headers --- */
-[data-chat-theme="opencode"] [data-slot="session-turn-sticky"] {
-  background-color: var(--oc-background-stronger);
-}
-
-[data-chat-theme="opencode"] [data-slot="session-turn-sticky"]::before {
-  background-color: var(--oc-background-stronger);
-}
-
-[data-chat-theme="opencode"] [data-slot="session-turn-sticky"]::after {
-  background: linear-gradient(to bottom, var(--oc-background-stronger), transparent);
-}
-
 /* --- Markdown in chat --- */
 [data-chat-theme="opencode"] [data-component="markdown"] {
   color: var(--oc-text-strong);
 }
 
 [data-chat-theme="opencode"] [data-component="markdown"] a {
-  color: var(--oc-text-interactive-base);
+  color: var(--accent-primary);
 }
 
 [data-chat-theme="opencode"] [data-component="markdown"] :not(pre) > code {
@@ -361,6 +340,7 @@
 [data-chat-theme="opencode"] [data-component="markdown"] pre,
 [data-chat-theme="opencode"] [data-component="markdown"] .shiki {
   border-color: var(--oc-border-weak-base);
+  background: var(--oc-surface-base-hover);
 }
 
 [data-chat-theme="opencode"] [data-component="markdown"] th {
@@ -507,6 +487,13 @@
 [data-chat-theme="opencode"] [data-component="tool-output"]:focus-within [data-component="copy-button"] {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* --- Bash output box --- */
+[data-chat-theme="opencode"] [data-component="bash-output"] [data-slot="bash-pre"] {
+  border: 1px solid var(--oc-border-base);
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 
 /* --- Copy button --- */
