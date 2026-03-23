@@ -22,6 +22,9 @@ import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 import { DiffReviewBar } from './DiffReviewBar';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
+import { exportToPdf } from '@/lib/pdf-export';
+import { ExportOptionsDialog } from './ExportOptionsDialog';
+import type { PdfExportOptions } from '@cushion/types';
 
 interface EditorPanelProps {
   client: CoordinatorClient;
@@ -169,6 +172,7 @@ export function EditorPanel({
   const openedUrisRef = useRef<Set<string>>(new Set());
   const [pdfData, setPdfData] = useState<PdfDataState | null>(null);
   const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   useEffect(() => {
     historyRef.current = {
@@ -460,6 +464,22 @@ export function EditorPanel({
     );
   }, []);
 
+  const handleShare = useCallback(() => {
+    if (!currentFile) return;
+    setShowExportDialog(true);
+  }, [currentFile]);
+
+  const handleExportPdf = useCallback(async (options: PdfExportOptions) => {
+    setShowExportDialog(false);
+    if (!currentFile) return;
+    const file = useWorkspaceStore.getState().openFiles.get(currentFile);
+    if (!file) return;
+    const pathParts = currentFile.split(/[/\\]/);
+    const fileName = pathParts[pathParts.length - 1];
+    const baseName = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
+    await exportToPdf(file.content, baseName, options);
+  }, [currentFile]);
+
   const pdfFilePath = pdfData?.filePath ?? currentFile ?? null;
 
   const readPdfChunk = useCallback(
@@ -523,6 +543,7 @@ export function EditorPanel({
             onGoForward={goForward}
             focusModeEnabled={focusModeEnabled}
             onToggleFocusMode={onToggleFocusMode}
+            onShare={handleShare}
             centerContent={breadcrumb.text}
             centerTitle={breadcrumb.title}
           />
@@ -646,6 +667,12 @@ export function EditorPanel({
           </div>
         )}
       </div>
+
+      <ExportOptionsDialog
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={handleExportPdf}
+      />
     </div>
   );
 }

@@ -251,3 +251,4 @@ export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
 export * from './rpc.js';
 export * from './config.js';
+export * from './pdf-export.js';

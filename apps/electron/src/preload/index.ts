@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenWorkspace: (callback: (path: string) => void) => {
     ipcRenderer.on('open-workspace', (_event, path) => callback(path));
   },
+  exportPdf: (data: { html: string; title: string; options: unknown }) =>
+    ipcRenderer.invoke('export:pdf', data),
 });

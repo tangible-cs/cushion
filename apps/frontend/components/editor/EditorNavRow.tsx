@@ -10,6 +10,7 @@ interface EditorNavRowProps {
   onGoForward: () => void;
   focusModeEnabled?: boolean;
   onToggleFocusMode?: () => void;
+  onShare?: () => void;
   centerContent?: ReactNode;
   centerTitle?: string;
 }
@@ -21,6 +22,7 @@ export function EditorNavRow({
   onGoForward,
   focusModeEnabled,
   onToggleFocusMode,
+  onShare,
   centerContent,
   centerTitle,
 }: EditorNavRowProps) {
@@ -88,6 +90,7 @@ export function EditorNavRow({
         )}
 
         <button
+          onClick={onShare}
           className={cn(
             'h-8 w-8 flex-shrink-0 flex items-center justify-center rounded',
             'text-muted-foreground hover:text-foreground',

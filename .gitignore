@@ -35,6 +35,7 @@ nul
 
 # IDE
 .vscode/
+.cushion/
 
 # Testing
 coverage/

@@ -166,7 +166,7 @@ export const MAX_PROMPT_SESSIONS = 20;
 
 export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   showThinking: true,
-  shellToolPartsExpanded: true,
+  shellToolPartsExpanded: false,
   editToolPartsExpanded: false,
 };
 

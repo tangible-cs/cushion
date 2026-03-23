@@ -10,7 +10,8 @@
     "type-check": "tsc -b"
   },
   "dependencies": {
-    "@cushion/types": "workspace:*"
+    "@cushion/types": "workspace:*",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

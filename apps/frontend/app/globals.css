@@ -847,8 +847,6 @@ body {
 
 [data-slot="session-turn-sticky"] {
   width: calc(100% + 9px);
-  position: sticky;
-  top: var(--session-title-height, 0px);
   z-index: 20;
   background-color: var(--sidebar-bg);
   margin-left: -9px;
@@ -891,24 +889,6 @@ body {
   border-color: var(--background-modifier-border-focus);
 }
 
-[data-slot="session-turn-sticky"]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: var(--sidebar-bg);
-  z-index: -1;
-}
-
-[data-slot="session-turn-sticky"]::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 32px;
-  background: linear-gradient(to bottom, var(--sidebar-bg), transparent);
-  pointer-events: none;
-}
 
 [data-slot="session-turn-message-content"] {
   margin-top: 0;
