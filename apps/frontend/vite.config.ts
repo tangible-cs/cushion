@@ -15,6 +15,9 @@ export default defineConfig({
       'pdfjs-dist/legacy/web/pdf_viewer.mjs',
     ],
   },
+  define: {
+    'process.env.IS_PREACT': JSON.stringify('false'),
+  },
   build: {
     target: 'chrome130',
   },

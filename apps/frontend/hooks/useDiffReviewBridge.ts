@@ -12,14 +12,14 @@ export function useDiffReviewBridge() {
     const unsub = useChatStore.subscribe(
       (state) => {
         const sid = state.activeSessionId;
-        if (!sid) return { status: null, autoAccept: state.autoAccept };
+        if (!sid) return { status: null, reviewMode: state.reviewMode };
         return {
           status: state.sessionStatus[sid] ?? null,
-          autoAccept: state.autoAccept,
+          reviewMode: state.reviewMode,
         };
       },
-      ({ status, autoAccept }) => {
-        if (autoAccept) return; // No review when fully auto
+      ({ status, reviewMode }) => {
+        if (!reviewMode) return; // No review when review mode is off
 
         const isIdle = !status || (status.type !== 'busy' && status.type !== 'retry');
         if (!isIdle) { wasIdle = false; return; }

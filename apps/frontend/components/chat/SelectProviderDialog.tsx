@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, RefreshCw, Search } from 'lucide-react';
-import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+import { useChatStore } from '@/stores/chatStore';
+import { getDirectoryClient } from '@/stores/chat-store-utils';
+import { POPULAR_PROVIDER_IDS } from '@/lib/popular-providers';
 import { ProviderIcon } from './ProviderIcon';
 import { resolveProviderIcon } from './provider-icons/types';
 import { cn } from '@/lib/utils';
@@ -68,40 +70,29 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [popularProviders, setPopularProviders] = useState<string[]>([]);
+  const popularProviders = POPULAR_PROVIDER_IDS;
+
+  const fetchProviders = async () => {
+    const { directory, baseUrl } = useChatStore.getState();
+    if (!directory) return;
+    const opencode = getDirectoryClient(directory, baseUrl);
+    const result = await opencode.provider.list({ directory });
+    const data = 'data' in result ? result.data : result;
+    const all = (data?.all ?? []) as Array<{ id: string; name: string }>;
+    setProviders(all.map((p) => ({ id: p.id, name: p.name })));
+    setConnected(new Set(data?.connected ?? []));
+  };
 
   useEffect(() => {
-    async function loadProviders() {
-      try {
-        const client = await getSharedCoordinatorClient();
-        const [providersResult, popularResult] = await Promise.all([
-          client.listProviders(),
-          client.getPopularProviders(),
-        ]);
-        setProviders(providersResult.providers);
-        setConnected(new Set(providersResult.connected));
-        setPopularProviders(popularResult.ids);
-      } catch (error) {
-        console.error('[SelectProviderDialog] Failed to load providers:', error);
-      }
-    }
-
-    loadProviders();
+    fetchProviders().catch((error) => {
+      console.error('[SelectProviderDialog] Failed to load providers:', error);
+    });
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const client = await getSharedCoordinatorClient();
-      await client.refreshProviders();
-
-      const [providersResult, popularResult] = await Promise.all([
-        client.listProviders(),
-        client.getPopularProviders(),
-      ]);
-      setProviders(providersResult.providers);
-      setConnected(new Set(providersResult.connected));
-      setPopularProviders(popularResult.ids);
+      await fetchProviders();
     } catch (error) {
       console.error('[SelectProviderDialog] Failed to refresh providers:', error);
     } finally {

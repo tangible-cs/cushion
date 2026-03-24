@@ -96,7 +96,7 @@ export function OpenCodeSettings({ embedded = false }: OpenCodeSettingsProps) {
             if (error) setError(null);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="http://localhost:4097"
+          placeholder="http://localhost:14097"
           spellCheck={false}
           className="w-full px-3 py-2 text-sm rounded-md bg-surface border border-border text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-primary)]"
         />

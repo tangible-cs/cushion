@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ArrowLeft, Loader2 } from 'lucide-react';
-import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+import { useChatStore } from '@/stores/chatStore';
+import { getDirectoryClient } from '@/stores/chat-store-utils';
 import { useToast } from './Toast';
 
 type AuthMethod = {
@@ -32,16 +33,98 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   const [confirmationCode, setConfirmationCode] = useState<string>('');
 
 
+  function getOpenCodeClient() {
+    const { directory, baseUrl } = useChatStore.getState();
+    if (!directory) throw new Error('No directory connected');
+    return getDirectoryClient(directory, baseUrl);
+  }
+
+  async function startOAuthFlow(index: number) {
+    setSelectedMethodIndex(index);
+    setLoading(true);
+    setError('');
+    setOAuthState('pending');
+    setOAuthMethod(null);
+    setConfirmationCode('');
+
+    try {
+      const client = getOpenCodeClient();
+      const result = await client.provider.oauth.authorize({ providerID: providerId, method: index });
+      const data = 'data' in result ? result.data : result;
+      setOAuthUrl(data.url);
+      setOAuthMethod(data.method === 'code' ? 'code' : 'auto');
+
+      if (data.instructions && data.method === 'auto') {
+        if (data.instructions.includes(':')) {
+          const code = data.instructions.split(':')[1]?.trim();
+          setConfirmationCode(code || data.instructions);
+        } else {
+          setConfirmationCode(data.instructions);
+        }
+      }
+
+      if (data.method === 'code') {
+        setTimeout(() => {
+          window.open(data.url, '_blank');
+          setLoading(false);
+        }, 500);
+      } else if (data.method === 'auto') {
+        setTimeout(() => {
+          window.open(data.url, '_blank');
+
+          setTimeout(async () => {
+            try {
+              await client.provider.oauth.callback({ providerID: providerId, method: index });
+
+              setOAuthState('complete');
+              showToast({
+                variant: 'success',
+                title: `Connected to ${providerName}`,
+                description: `${providerName} provider has been connected successfully`,
+                duration: 4000,
+              });
+              onSuccess?.();
+              onClose();
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'OAuth callback failed';
+              setError(message);
+              setOAuthState('error');
+              showToast({
+                variant: 'error',
+                title: 'OAuth failed',
+                description: message,
+                duration: 5000,
+              });
+            } finally {
+              setLoading(false);
+            }
+          }, 1000);
+        }, 500);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start OAuth flow';
+      setError(message);
+      setOAuthState('error');
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     async function loadAuthMethods() {
       try {
-        const client = await getSharedCoordinatorClient();
-        const methods = await client.listProviderAuthMethods();
+        const client = getOpenCodeClient();
+        const result = await client.provider.auth();
+        const data = 'data' in result ? result.data : result;
+        const methods = (data as Record<string, Array<{ type: 'api' | 'oauth'; label: string }>>);
         const providerMethods = methods[providerId] || [{ type: 'api', label: 'API Key' }];
         setAuthMethods(providerMethods);
 
         if (providerMethods.length === 1) {
-          setSelectedMethodIndex(0);
+          if (providerMethods[0].type === 'oauth') {
+            startOAuthFlow(0);
+          } else {
+            setSelectedMethodIndex(0);
+          }
         }
       } catch (error) {
         console.error('[ConnectProviderDialog] Failed to load auth methods:', error);
@@ -54,75 +137,11 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
   const selectedMethod = selectedMethodIndex !== undefined ? authMethods[selectedMethodIndex] : null;
 
   const handleMethodSelect = async (index: number) => {
-    setSelectedMethodIndex(index);
     const method = authMethods[index];
-
     if (method.type === 'oauth') {
-      setLoading(true);
-      setError('');
-      setOAuthState('pending');
-      setOAuthMethod(null);
-      setConfirmationCode('');
-
-      try {
-        const client = await getSharedCoordinatorClient();
-        const result = await client.authorizeOAuth({ providerID: providerId, method: index });
-        setOAuthUrl(result.url);
-        setOAuthMethod(result.method === 'code' ? 'code' : 'auto');
-
-        if (result.instructions && result.method === 'auto') {
-          if (result.instructions.includes(':')) {
-            const code = result.instructions.split(':')[1]?.trim();
-            setConfirmationCode(code || result.instructions);
-          } else {
-            setConfirmationCode(result.instructions);
-          }
-        }
-
-        if (result.method === 'code') {
-          setTimeout(() => {
-            window.open(result.url, '_blank');
-            setLoading(false);
-          }, 500);
-        } else if (result.method === 'auto') {
-          setTimeout(() => {
-            window.open(result.url, '_blank');
-
-            setTimeout(async () => {
-              try {
-                await client.oauthCallback({ providerID: providerId, method: index });
-
-                setOAuthState('complete');
-                showToast({
-                  variant: 'success',
-                  title: `Connected to ${providerName}`,
-                  description: `${providerName} provider has been connected successfully`,
-                  duration: 4000,
-                });
-                onSuccess?.();
-                onClose();
-              } catch (err) {
-                const message = err instanceof Error ? err.message : 'OAuth callback failed';
-                setError(message);
-                setOAuthState('error');
-                showToast({
-                  variant: 'error',
-                  title: 'OAuth failed',
-                  description: message,
-                  duration: 5000,
-                });
-              } finally {
-                setLoading(false);
-              }
-            }, 1000);
-          }, 500);
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to start OAuth flow';
-        setError(message);
-        setOAuthState('error');
-        setLoading(false);
-      }
+      startOAuthFlow(index);
+    } else {
+      setSelectedMethodIndex(index);
     }
   };
 
@@ -135,8 +154,8 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     setError('');
 
     try {
-      const client = await getSharedCoordinatorClient();
-      await client.oauthCallback({ providerID: providerId, method: selectedMethodIndex, code: oauthCode });
+      const client = getOpenCodeClient();
+      await client.provider.oauth.callback({ providerID: providerId, method: selectedMethodIndex, code: oauthCode });
 
       setOAuthState('complete');
       showToast({
@@ -169,21 +188,19 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
     setError('');
 
     try {
-      const client = await getSharedCoordinatorClient();
-
-      // Set the API key (coordinator validates it with provider API)
-      await client.setProviderAuth({ providerID: providerId, apiKey });
+      const client = getOpenCodeClient();
+      await client.auth.set({ providerID: providerId, auth: { type: 'api', key: apiKey } });
 
       showToast({
         variant: 'success',
-        title: `Connected to ${providerName}`,
-        description: `${providerName} provider has been connected successfully`,
+        title: 'Key saved',
+        description: 'Connection will be verified on first use',
         duration: 4000,
       });
       onSuccess?.();
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect provider';
+      const message = err instanceof Error ? err.message : 'Failed to save key';
       setError(message);
       showToast({
         variant: 'error',
@@ -275,7 +292,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Your API key will be stored locally in <code className="bg-muted px-1 py-0.5 rounded">~/.cushion/config.json</code>
+                  Your API key will be stored in OpenCode's auth configuration.
                 </p>
               </div>
               <div className="flex justify-end gap-2 mt-6">

@@ -11,6 +11,9 @@ export interface ElectronAPI {
   // Open workspace from OS
   onOpenWorkspace: (callback: (path: string) => void) => void;
 
+  // MCP OAuth
+  openOAuthWindow: (authUrl: string) => Promise<string | null>;
+
   // PDF export
   exportPdf: (data: {
     html: string;

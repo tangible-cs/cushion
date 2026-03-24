@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { RefreshCw, Search, X } from 'lucide-react';
 import { useChatStore, type SelectedModel } from '@/stores/chatStore';
 import { createModelSorter } from '@/lib/model-constants';
-import { usePopularProviders } from '@/hooks/usePopularProviders';
+import { POPULAR_PROVIDER_IDS } from '@/lib/popular-providers';
 import { ProviderIcon } from './ProviderIcon';
 import { resolveProviderIcon } from './provider-icons/types';
 import { Icon } from './Icon';
@@ -29,7 +29,7 @@ type ProviderGroup = {
 };
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
-  const popularProviderIDs = usePopularProviders();
+  const popularProviderIDs = POPULAR_PROVIDER_IDS;
   const providers = useChatStore((state) => state.providers);
   const modelVisibility = useChatStore((state) => state.modelVisibility);
   const setModelVisibility = useChatStore((state) => state.setModelVisibility);

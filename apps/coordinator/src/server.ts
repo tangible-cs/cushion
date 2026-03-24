@@ -19,9 +19,7 @@ import type {
 import { WorkspaceManager } from './workspace/manager.js';
 import { ConfigManager } from './workspace/config-manager.js';
 import { ConfigWatcher } from './workspace/config-watcher.js';
-import { CredentialStorage } from './providers/storage.js';
-import { getModelsDevCache } from './providers/models-dev.js';
-import { getOAuthHandler } from './providers/oauth.js';
+import { ensurePermissionDefaults } from './providers/opencode-config.js';
 
 import {
   handleOpenWorkspace,
@@ -45,17 +43,9 @@ import {
   handleConfigWrite,
 } from './handlers/config.js';
 
-import {
-  handleProviderList,
-  handleProviderRefresh,
-  handleProviderPopular,
-  handleProviderAuthMethods,
-  handleProviderAuthSet,
-  handleProviderAuthRemove,
-  handleProviderOAuthAuthorize,
-  handleProviderOAuthCallback,
-  handleProviderSync,
-} from './handlers/provider.js';
+import { handleSkillInstallZip } from './handlers/skill.js';
+import { handleShellExec, handleLoginStart, handleLoginFinish } from './handlers/shell.js';
+
 
 function parseAllowedOrigins(): string[] | null {
   const env = process.env.COORDINATOR_ALLOWED_ORIGINS;
@@ -69,8 +59,6 @@ export class CoordinatorServer {
   private workspaceManager: WorkspaceManager;
   private configManager: ConfigManager;
   private configWatcher: ConfigWatcher;
-  private credentialStorage: CredentialStorage;
-  private oauthCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private binDir: string;
   private origins: string[] | null;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,7 +71,6 @@ export class CoordinatorServer {
     this.configManager = new ConfigManager();
     this.configWatcher = new ConfigWatcher();
     this.configManager.setConfigWatcher(this.configWatcher);
-    this.credentialStorage = new CredentialStorage();
     this.binDir = path.join(__dirname, '..', 'bin');
 
     const origins = this.allowedOrigins ?? parseAllowedOrigins();
@@ -91,12 +78,6 @@ export class CoordinatorServer {
 
     this.createWebSocketServer();
     this.setupWatcherCallbacks();
-
-    // Cleanup expired OAuth states every 5 minutes
-    this.oauthCleanupInterval = setInterval(() => {
-      const oauth = getOAuthHandler();
-      oauth.cleanupExpiredStates();
-    }, 5 * 60 * 1000);
   }
 
   private createWebSocketServer() {
@@ -268,50 +249,20 @@ export class CoordinatorServer {
           result = await handleSaveFileBase64(this.workspaceManager, request.params as RPCParams<'workspace/save-file-base64'>);
           break;
 
-        // Provider handlers
-        case 'provider/list':
-          result = await handleProviderList(this.credentialStorage);
+        // Skill handlers
+        case 'skill/install-zip':
+          result = await handleSkillInstallZip(request.params as RPCParams<'skill/install-zip'>);
           break;
 
-        case 'provider/refresh':
-          result = await handleProviderRefresh(this.credentialStorage);
+        // Shell handlers
+        case 'shell/exec':
+          result = await handleShellExec(request.params as RPCParams<'shell/exec'>);
           break;
-
-        case 'provider/popular':
-          result = handleProviderPopular();
+        case 'shell/login-start':
+          result = handleLoginStart();
           break;
-
-        case 'provider/auth/methods':
-          result = await handleProviderAuthMethods();
-          break;
-
-        case 'provider/auth/set':
-          result = await handleProviderAuthSet(this.credentialStorage, request.params as RPCParams<'provider/auth/set'>);
-          await handleProviderSync(this.credentialStorage).catch((err) =>
-            console.error('[Coordinator] Auto-sync after auth/set failed:', err)
-          );
-          break;
-
-        case 'provider/auth/remove':
-          result = await handleProviderAuthRemove(this.credentialStorage, request.params as RPCParams<'provider/auth/remove'>);
-          await handleProviderSync(this.credentialStorage).catch((err) =>
-            console.error('[Coordinator] Auto-sync after auth/remove failed:', err)
-          );
-          break;
-
-        case 'provider/oauth/authorize':
-          result = await handleProviderOAuthAuthorize(request.params as RPCParams<'provider/oauth/authorize'>);
-          break;
-
-        case 'provider/oauth/callback':
-          result = await handleProviderOAuthCallback(this.credentialStorage, request.params as RPCParams<'provider/oauth/callback'>);
-          await handleProviderSync(this.credentialStorage).catch((err) =>
-            console.error('[Coordinator] Auto-sync after oauth/callback failed:', err)
-          );
-          break;
-
-        case 'provider/sync':
-          result = await handleProviderSync(this.credentialStorage);
+        case 'shell/login-finish':
+          result = handleLoginFinish();
           break;
 
         // Config handlers
@@ -443,13 +394,7 @@ export class CoordinatorServer {
       this.restartTimer = null;
     }
 
-    if (this.oauthCleanupInterval) {
-      clearInterval(this.oauthCleanupInterval);
-      this.oauthCleanupInterval = null;
-    }
-
     this.clients.clear();
-    getModelsDevCache().stopAutoRefresh();
     this.workspaceManager.stopWatcher();
     this.configWatcher.stop();
     this.wss.close();
@@ -462,6 +407,7 @@ if (import.meta.main) {
   console.log('=== Cushion Coordinator ===');
   console.log(`Starting server on port ${PORT}...`);
 
+  await ensurePermissionDefaults();
   const server = new CoordinatorServer(PORT);
 
   process.on('SIGINT', () => {

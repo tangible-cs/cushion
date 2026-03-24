@@ -7,8 +7,6 @@
 
 import type {
   FileTreeNode,
-  Provider,
-  AuthMethod,
   FileChange,
   DidOpenTextDocumentParams,
   DidChangeTextDocumentParams,
@@ -98,46 +96,24 @@ export interface RPCMethodMap {
     result: { success: boolean };
   };
 
-  // Provider
-  'provider/list': {
-    params: void;
-    result: { providers: Provider[]; connected: string[] };
-  };
-  'provider/refresh': {
-    params: void;
-    result: { providers: Provider[]; connected: string[] };
-  };
-  'provider/popular': {
-    params: void;
-    result: { ids: string[] };
-  };
-  'provider/auth/methods': {
-    params: void;
-    result: Record<string, AuthMethod[]>;
-  };
-  'provider/auth/set': {
-    params: { providerID: string; apiKey: string };
+  // Skills
+  'skill/install-zip': {
+    params: { skillName: string; files: Array<{ path: string; content: string }> };
     result: { success: boolean };
   };
-  'provider/auth/remove': {
-    params: { providerID: string };
-    result: { success: boolean };
+
+  // Shell (scoped to setup commands)
+  'shell/exec': {
+    params: { command: string; args: string[] };
+    result: { stdout: string; stderr: string; exitCode: number };
   };
-  'provider/oauth/authorize': {
-    params: {
-      providerID: string;
-      method: number;
-      inputs?: Record<string, string>;
-    };
-    result: { url: string; method: 'auto' | 'code'; instructions: string };
-  };
-  'provider/oauth/callback': {
-    params: { providerID: string; method: number; code?: string };
-    result: { success: boolean };
-  };
-  'provider/sync': {
+  'shell/login-start': {
     params: void;
-    result: { success: boolean };
+    result: { started: boolean };
+  };
+  'shell/login-finish': {
+    params: void;
+    result: { finished: boolean };
   };
 
   // Config

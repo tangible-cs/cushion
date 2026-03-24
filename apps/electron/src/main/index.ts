@@ -113,6 +113,64 @@ app.on('second-instance', (_event, commandLine) => {
   if (openPath) focusAndOpenWorkspace(openPath);
 });
 
+/* IPC: OAuth window for MCP authentication */
+const OAUTH_CALLBACK_ORIGIN = 'http://127.0.0.1:19876';
+const OAUTH_CALLBACK_PATH = '/mcp/oauth/callback';
+
+ipcMain.handle('oauth:openWindow', (_event, authUrl: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const oauthWin = new BrowserWindow({
+      width: 600,
+      height: 700,
+      parent: mainWindow ?? undefined,
+      modal: false,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    let resolved = false;
+    const finish = (code: string | null) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(code);
+      setImmediate(() => { if (!oauthWin.isDestroyed()) oauthWin.close(); });
+    };
+
+    const isCallbackUrl = (url: string) =>
+      url.startsWith(`${OAUTH_CALLBACK_ORIGIN}${OAUTH_CALLBACK_PATH}`);
+
+    // Intercept server-side redirects (HTTP 302) to the callback URL
+    oauthWin.webContents.on('will-redirect', (e, url) => {
+      if (isCallbackUrl(url)) {
+        e.preventDefault();
+        finish(new URL(url).searchParams.get('code'));
+      }
+    });
+
+    // Intercept client-side navigations (window.location) to the callback URL
+    oauthWin.webContents.on('will-navigate', (e, url) => {
+      if (isCallbackUrl(url)) {
+        e.preventDefault();
+        finish(new URL(url).searchParams.get('code'));
+      }
+    });
+
+    oauthWin.on('closed', () => finish(null));
+
+    // Validate URL protocol before loading
+    try {
+      const parsed = new URL(authUrl);
+      if (!['https:', 'http:'].includes(parsed.protocol)) {
+        finish(null);
+        return;
+      }
+    } catch {
+      finish(null);
+      return;
+    }
+    oauthWin.loadURL(authUrl);
+  });
+});
+
 app.whenReady().then(async () => {
   const cliPath = extractPathArg(process.argv.slice(1));
   if (cliPath) {

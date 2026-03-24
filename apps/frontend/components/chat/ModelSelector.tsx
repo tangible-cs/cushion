@@ -10,9 +10,8 @@ import { resolveProviderIcon } from './provider-icons/types';
 import { SelectProviderDialog } from './SelectProviderDialog';
 import { ConnectProviderDialog } from './ConnectProviderDialog';
 import { ManageModelsDialog } from './ManageModelsDialog';
-import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { createModelSorter } from '@/lib/model-constants';
-import { usePopularProviders } from '@/hooks/usePopularProviders';
+import { POPULAR_PROVIDER_IDS } from '@/lib/popular-providers';
 
 type ModelSelectorProps = {
   disabled?: boolean;
@@ -50,7 +49,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const [showSelectProviderDialog, setShowSelectProviderDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState<{ id: string; name: string } | null>(null);
   const [showManageDialog, setShowManageDialog] = useState(false);
-  const popularProviderIDs = usePopularProviders();
+  const popularProviderIDs = POPULAR_PROVIDER_IDS;
   const resolvedLevel = resolveCompactLevel(compactLevel);
 
   useEffect(() => {
@@ -135,8 +134,6 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const handleConnectSuccess = async () => {
     setShowConnectDialog(null);
     try {
-      const client = await getSharedCoordinatorClient();
-      await client.listProviders();
       await useChatStore.getState().refreshProviders();
     } catch (error) {
       console.error('[ModelSelector] Failed to refresh providers:', error);

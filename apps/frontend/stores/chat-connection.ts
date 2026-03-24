@@ -10,7 +10,7 @@ import {
   resolveModelVariant,
   resolveAgentName,
 } from '@/lib/chat-helpers';
-import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+
 import {
   type OpenCodeDirectory,
   type ChatStoreGet,
@@ -86,7 +86,9 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
       const fp = file.filePath ?? file.relativePath;
       if (fp && file.before !== undefined && file.after !== undefined) {
         const wsPath = toWorkspacePath(fp);
-        captureSnapshot(wsPath, file.before, file.after, sessionID);
+        if (/\.(md|markdown)$/i.test(wsPath)) {
+          captureSnapshot(wsPath, file.before, file.after, sessionID);
+        }
       }
     }
     return;
@@ -100,9 +102,11 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
     const rawPath = patterns[0] ?? filepath;
     const wsPath = toWorkspacePath(rawPath);
 
-    const content = useWorkspaceStore.getState().openFiles.get(wsPath)?.content;
-    if (content !== undefined) {
-      captureSnapshot(wsPath, content, content, sessionID);
+    if (/\.(md|markdown)$/i.test(wsPath)) {
+      const content = useWorkspaceStore.getState().openFiles.get(wsPath)?.content;
+      if (content !== undefined) {
+        captureSnapshot(wsPath, content, content, sessionID);
+      }
     }
   }
 }
@@ -175,8 +179,22 @@ export async function handleConnect(
   if (!isCurrent()) return;
   const commandData = commandResult ? unwrap(commandResult) : undefined;
   const commands = commandData ?? state.commands;
-  const coordinatorForConnect = await getSharedCoordinatorClient();
-  await coordinatorForConnect.syncProviders().catch(() => undefined);
+  // Sync disabled skills to OpenCode config on connect.
+  // Fetch all skills so we can explicitly "allow" non-disabled ones,
+  // clearing any stale "deny" entries left in opencode.json.
+  const disabledSkills = get().disabledSkills;
+  const skillsResult = await localClient.app.skills({ directory }).catch(() => undefined);
+  if (!isCurrent()) return;
+  const allSkillNames: string[] = Array.isArray(skillsResult?.data)
+    ? skillsResult.data.map((s: { name: string }) => s.name)
+    : [];
+  const skillPerm: Record<string, 'allow' | 'deny'> = { '*': 'allow' };
+  for (const name of allSkillNames) {
+    skillPerm[name] = disabledSkills.includes(name) ? 'deny' : 'allow';
+  }
+  await localClient.global.config.update({
+    config: { permission: { skill: skillPerm } },
+  }).catch((err: unknown) => console.error('[skills] connect sync failed', err));
   if (!isCurrent()) return;
   const providerResult = await localClient.config.providers({ directory }).catch(() => undefined);
   if (!isCurrent()) return;
@@ -236,6 +254,7 @@ export async function handleConnect(
       },
       promptSessionOrder: pruned.promptSessionOrder,
       promptBySession: pruned.promptBySession,
+      allSkillNames,
     };
   });
   if (!isCurrent()) return;
@@ -253,7 +272,7 @@ export async function handleConnect(
     if (event.type === 'permission.asked') {
       const perm = event.properties;
       if (perm?.sessionID && perm?.id) {
-        const autoAccept = get().autoAccept;
+        const reviewMode = get().reviewMode;
         const isEdit = perm.permission === 'edit';
 
         // Always auto-accept (edits are never blocked now)
@@ -263,8 +282,8 @@ export async function handleConnect(
           response: 'once',
         }).catch(() => undefined);
 
-        // Capture snapshot when review is desired (autoAccept OFF)
-        if (isEdit && !autoAccept) {
+        // Capture snapshot when review mode is ON
+        if (isEdit && reviewMode) {
           captureEditSnapshot(perm);
         }
       }
@@ -287,5 +306,6 @@ export function handleDisconnect(get: ChatStoreGet, set: ChatStoreSet) {
     selectedModelByDirectory: state.selectedModelByDirectory,
     selectedVariantByDirectory: state.selectedVariantByDirectory,
     modelVisibility: state.modelVisibility,
+    disabledSkills: state.disabledSkills,
   }));
 }

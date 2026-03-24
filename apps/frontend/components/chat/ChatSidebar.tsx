@@ -6,7 +6,7 @@ import { PromptInput } from './PromptInput';
 import { TodoDock } from './TodoDock';
 import { QuestionDock } from './QuestionDock';
 import { useToast } from './Toast';
-import type { PermissionRequest } from '@opencode-ai/sdk/v2/client';
+
 
 export function ChatSidebar() {
   const connection = useChatStore((state) => state.connection);
@@ -14,18 +14,12 @@ export function ChatSidebar() {
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const sessionErrors = useChatStore((state) => state.sessionErrors);
   const providerAuthErrors = useChatStore((state) => state.providerAuthErrors);
-  const permissions = useChatStore((state) => state.permissions);
   const questions = useChatStore((state) => state.questions);
-  const respondToPermission = useChatStore((state) => state.respondToPermission);
   const replyToQuestion = useChatStore((state) => state.replyToQuestion);
   const rejectQuestion = useChatStore((state) => state.rejectQuestion);
-  const autoAccept = useChatStore((state) => state.autoAccept);
   const todos = useChatStore((state) => state.todos);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const isConnected = connection.status === 'connected' || connection.status === 'reconnecting';
-  const allPendingPermissions = activeSessionId ? permissions[activeSessionId] ?? [] : [];
-  // Filter out edit permissions — they're handled by inline diff review in the editor
-  const pendingPermissions = allPendingPermissions.filter((p) => p.permission !== 'edit');
   const pendingQuestions = activeSessionId ? questions[activeSessionId] ?? [] : [];
   const promptDockRef = useRef<HTMLDivElement | null>(null);
   const [promptDockHeight, setPromptDockHeight] = useState(0);
@@ -106,14 +100,6 @@ export function ChatSidebar() {
               isAuthError={hasProviderAuthError}
             />
           )}
-          {!autoAccept && pendingPermissions.length > 0 && (
-            <div className="chat-dock-panel rounded-md border border-border bg-background/90 px-3 py-3 space-y-3">
-              <PermissionPanel
-                requests={pendingPermissions}
-                onRespond={(input) => respondToPermission(input).catch(() => undefined)}
-              />
-            </div>
-          )}
           {pendingQuestions.map((request) => (
             <QuestionDock
               key={request.id}
@@ -131,50 +117,6 @@ export function ChatSidebar() {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-type PermissionPanelProps = {
-  requests: PermissionRequest[];
-  onRespond: (input: { sessionID: string; permissionID: string; response: 'once' | 'always' | 'reject' }) => void;
-};
-
-function PermissionPanel({ requests, onRespond }: PermissionPanelProps) {
-  return (
-    <div className="space-y-2">
-      {requests.map((request) => (
-        <div key={request.id} className="rounded-md border border-border bg-muted/20 p-2 text-xs">
-          <div className="text-muted-foreground">Permission required</div>
-          <div className="mt-1 text-foreground">{request.permission}</div>
-          {request.patterns?.length > 0 && (
-            <div className="mt-1 text-muted-foreground">{request.patterns.join(', ')}</div>
-          )}
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'once' })}
-              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
-            >
-              Allow once
-            </button>
-            <button
-              type="button"
-              onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'always' })}
-              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
-            >
-              Always allow
-            </button>
-            <button
-              type="button"
-              onClick={() => onRespond({ sessionID: request.sessionID, permissionID: request.id, response: 'reject' })}
-              className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
-            >
-              Deny
-            </button>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

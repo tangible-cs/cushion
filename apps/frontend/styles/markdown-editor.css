@@ -73,7 +73,7 @@
   --md-highlight-orange: rgba(255, 152, 0, 0.3);
 
   /* Colors - Selection */
-  --md-selection-bg: var(--accent-primary-12);
+  --md-selection-bg: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.25);
   --md-active-line-bg: var(--overlay-white-08);
   --md-active-line-gutter-bg: var(--overlay-white-08);
   --md-code-info-hover-bg: var(--overlay-white-08);

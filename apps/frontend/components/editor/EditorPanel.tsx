@@ -1,20 +1,12 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { CodeEditor } from './CodeEditor';
 import { EditorNavRow } from './EditorNavRow';
 import { buildEditorBreadcrumb } from './editor-path';
-import { PdfViewerNative as PdfViewer } from './PdfViewerNative';
-import { ImageViewer } from './ImageViewer';
 import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
 import { uint8ArrayToBase64 } from '@/lib/pdf-bytes';
-import { isPdfProgressiveLoadingEnabled } from '@/lib/pdf-feature-flags';
-import {
-  createPdfTelemetrySession,
-  pdfTelemetryNow,
-  type PdfTelemetrySession,
-} from '@/lib/pdf-telemetry';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
@@ -25,6 +17,10 @@ import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { exportToPdf } from '@/lib/pdf-export';
 import { ExportOptionsDialog } from './ExportOptionsDialog';
 import type { PdfExportOptions } from '@cushion/types';
+import { getViewForFile } from '@/lib/view-registry';
+import { EditorPanelProvider } from './EditorPanelContext';
+
+const MonacoEditor = lazy(() => import('./MonacoEditor'));
 
 interface EditorPanelProps {
   client: CoordinatorClient;
@@ -83,22 +79,6 @@ function joinWorkspacePath(...parts: string[]): string {
   return parts.filter(Boolean).join('/').replace(/\\/g, '/');
 }
 
-type PdfDataState =
-  | {
-      mode: 'base64';
-      filePath: string;
-      base64: string;
-      telemetrySession: PdfTelemetrySession | null;
-    }
-  | {
-      mode: 'progressive';
-      filePath: string;
-      telemetrySession: null;
-    };
-
-const PDF_RANGE_CHUNK_SIZE = 256 * 1024;
-
-const pdfProgressiveLoadingEnabled = isPdfProgressiveLoadingEnabled();
 
 export function EditorPanel({
   client,
@@ -170,8 +150,6 @@ export function EditorPanel({
   }, [setCurrentFile]);
 
   const openedUrisRef = useRef<Set<string>>(new Set());
-  const [pdfData, setPdfData] = useState<PdfDataState | null>(null);
-  const [imageData, setImageData] = useState<{ filePath: string; base64: string; mimeType: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   useEffect(() => {
@@ -181,15 +159,10 @@ export function EditorPanel({
       navigating: false,
     };
     openedUrisRef.current.clear();
-    setPdfData(null);
-    setImageData(null);
     forceUpdate((n) => n + 1);
   }, [workspacePath]);
 
   const fileState = currentFile ? openFiles.get(currentFile) : null;
-  const isPdf = currentFile?.toLowerCase().endsWith('.pdf') ?? false;
-  const imageExtensions = /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i;
-  const isImage = imageExtensions.test(currentFile ?? '');
 
   useEffect(() => {
     if (preferences.autoSave) return;
@@ -207,57 +180,6 @@ export function EditorPanel({
     };
   }, []);
 
-  useEffect(() => {
-    if (!isPdf || !currentFile) {
-      setPdfData(null);
-      return;
-    }
-
-    if (pdfProgressiveLoadingEnabled) {
-      setPdfData({
-        mode: 'progressive',
-        filePath: currentFile,
-        telemetrySession: null,
-      });
-      return;
-    }
-
-    let cancelled = false;
-    const readStartedAtMs = pdfTelemetryNow();
-    client.readFileBase64(currentFile).then((result) => {
-      if (cancelled) return;
-
-      const telemetrySession = createPdfTelemetrySession({
-        filePath: currentFile,
-        base64Data: result.base64,
-        fileReadDurationMs: pdfTelemetryNow() - readStartedAtMs,
-      });
-
-      setPdfData({
-        mode: 'base64',
-        filePath: currentFile,
-        base64: result.base64,
-        telemetrySession,
-      });
-    }).catch((err) => {
-      console.error('[EditorPanel] Failed to load PDF:', err);
-    });
-    return () => { cancelled = true; };
-  }, [isPdf, currentFile, client]);
-
-  useEffect(() => {
-    if (!isImage || !currentFile) {
-      setImageData(null);
-      return;
-    }
-    let cancelled = false;
-    client.readFileBase64(currentFile).then((result) => {
-      if (!cancelled) setImageData({ filePath: currentFile, base64: result.base64, mimeType: result.mimeType });
-    }).catch((err) => {
-      console.error('[EditorPanel] Failed to load image:', err);
-    });
-    return () => { cancelled = true; };
-  }, [isImage, currentFile, client]);
 
   if (fileState && currentFile && !openedUrisRef.current.has(currentFile)) {
     openedUrisRef.current.add(currentFile);
@@ -480,29 +402,6 @@ export function EditorPanel({
     await exportToPdf(file.content, baseName, options);
   }, [currentFile]);
 
-  const pdfFilePath = pdfData?.filePath ?? currentFile ?? null;
-
-  const readPdfChunk = useCallback(
-    async (offset: number, length: number) => {
-      if (!pdfFilePath) {
-        throw new Error('No PDF file selected');
-      }
-
-      return client.readFileBase64Chunk(pdfFilePath, offset, length);
-    },
-    [client, pdfFilePath]
-  );
-
-  const readPdfBase64 = useCallback(async () => {
-    if (!pdfFilePath) {
-      throw new Error('No PDF file selected');
-    }
-
-    const result = await client.readFileBase64(pdfFilePath);
-    return result.base64;
-  }, [client, pdfFilePath]);
-
-
   const handleWikiLinkNavigate: WikiLinkNavigateCallback = useCallback(
     async (href, resolvedPath, createIfMissing) => {
       if (resolvedPath) {
@@ -531,7 +430,24 @@ export function EditorPanel({
     [client, openFile, onFileRenamed]
   );
 
+  const contextValue = useMemo(() => ({
+    client,
+    handleChange,
+    handleSave,
+    handlePasteImages,
+    handleWikiLinkNavigate,
+    fileTree,
+    focusModeEnabled: focusModeEnabled ?? false,
+    searchPanelContainerRef,
+    onAddSelectionToChat,
+    diffAcceptAllRef,
+    diffRejectAllRef,
+    diffExitReviewRef,
+    diffSaveRef,
+  }), [client, handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, fileTree, focusModeEnabled, onAddSelectionToChat]);
+
   return (
+    <EditorPanelProvider value={contextValue}>
     <div className="flex flex-col w-full h-full bg-background">
       {/* Header rows */}
       {!focusModeEnabled && (
@@ -567,105 +483,74 @@ export function EditorPanel({
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
-        {isPdf && !pdfData ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">Loading PDF…</div>
-        ) : isPdf && pdfData ? (
-          <PdfViewer
-            filePath={pdfData.filePath}
-            base64Data={pdfData.mode === 'base64' ? pdfData.base64 : undefined}
-            telemetrySession={pdfData.telemetrySession}
-            progressiveLoading={pdfData.mode === 'progressive' ? {
-              readChunk: readPdfChunk,
-              rangeChunkSize: PDF_RANGE_CHUNK_SIZE,
-            } : null}
-            readOriginalBase64={readPdfBase64}
-            onSave={async (data: Uint8Array) => {
-              const activeFile = pdfData.filePath;
-
-              try {
-                const base64 = uint8ArrayToBase64(data);
-                await client.saveFileBase64(activeFile, base64);
-              } catch (err) {
-                console.error('[EditorPanel] PDF save failed:', err);
-                alert('Failed to save PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
-              }
-            }}
-          />
-        ) : isImage && !imageData ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">Loading image…</div>
-        ) : isImage && imageData ? (
-          <ImageViewer
-            filePath={currentFile!}
-            base64Data={imageData.base64}
-            mimeType={imageData.mimeType}
-          />
-        ) : fileState && currentFile ? (
-          <>
-            {/* File title header */}
-            <FileHeader
-              filePath={currentFile}
-              editable={true}
-              onRename={handleRename}
-              onExit={handleHeaderExit}
-              showExtension={!/\.(md|markdown)$/i.test(currentFile)}
-            />
-            {/* Editor */}
-            <CodeEditor
-              filePath={currentFile}
-              content={fileState.content}
-              language={fileState.language}
-              onChange={handleChange}
-              onSave={handleSave}
-              focusModeEnabled={focusModeEnabled}
-              fileTree={fileTree}
-              onWikiLinkNavigate={handleWikiLinkNavigate}
-              onPasteImages={handlePasteImages}
-              searchPanelContainerRef={searchPanelContainerRef}
-              onDiffAcceptAll={diffAcceptAllRef}
-              onDiffRejectAll={diffRejectAllRef}
-              onDiffExitReview={diffExitReviewRef}
-              onDiffSave={diffSaveRef}
-              onAddSelectionToChat={onAddSelectionToChat}
-            />
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
-            <button
-              onClick={onNewNote}
-              className="text-accent hover:underline cursor-pointer"
-            >
-              Create new note (Ctrl + N)
-            </button>
-            <button
-              onClick={onGoToFile}
-              className="text-accent hover:underline cursor-pointer"
-            >
-              Go to file (Ctrl + O)
-            </button>
-            {currentFile === '__new_tab__' && (
+        {(() => {
+          const resolved = currentFile ? getViewForFile(currentFile) : null;
+          if (resolved && currentFile) {
+            const ResolvedComponent = resolved.component;
+            return <ResolvedComponent filePath={currentFile} />;
+          }
+          if (fileState && currentFile) {
+            const isMarkdown = /\.(md|markdown)$/i.test(currentFile);
+            return (
+              <>
+                {isMarkdown && (
+                  <FileHeader
+                    filePath={currentFile}
+                    editable={true}
+                    onRename={handleRename}
+                    onExit={handleHeaderExit}
+                    showExtension={false}
+                  />
+                )}
+                {isMarkdown ? (
+                  <CodeEditor filePath={currentFile} />
+                ) : (
+                  <Suspense fallback={<div className="flex-1" />}>
+                    <MonacoEditor filePath={currentFile} />
+                  </Suspense>
+                )}
+              </>
+            );
+          }
+          return (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
               <button
-                onClick={() => {
-                  const store = useWorkspaceStore.getState();
-                  const tab = store.tabs.find(
-                    (t) => t.filePath === '__new_tab__' && t.isActive
-                  );
-                  if (tab) {
-                    store.removeTab(tab.id);
-                    const remaining = useWorkspaceStore.getState().tabs;
-                    if (remaining.length > 0) {
-                      store.setActiveTab(remaining[remaining.length - 1].id);
-                    } else {
-                      store.setCurrentFile(null);
-                    }
-                  }
-                }}
+                onClick={onNewNote}
                 className="text-accent hover:underline cursor-pointer"
               >
-                Close
+                Create new note (Ctrl + N)
               </button>
-            )}
-          </div>
-        )}
+              <button
+                onClick={onGoToFile}
+                className="text-accent hover:underline cursor-pointer"
+              >
+                Go to file (Ctrl + O)
+              </button>
+              {currentFile === '__new_tab__' && (
+                <button
+                  onClick={() => {
+                    const store = useWorkspaceStore.getState();
+                    const tab = store.tabs.find(
+                      (t) => t.filePath === '__new_tab__' && t.isActive
+                    );
+                    if (tab) {
+                      store.removeTab(tab.id);
+                      const remaining = useWorkspaceStore.getState().tabs;
+                      if (remaining.length > 0) {
+                        store.setActiveTab(remaining[remaining.length - 1].id);
+                      } else {
+                        store.setCurrentFile(null);
+                      }
+                    }
+                  }}
+                  className="text-accent hover:underline cursor-pointer"
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <ExportOptionsDialog
@@ -674,5 +559,6 @@ export function EditorPanel({
         onExport={handleExportPdf}
       />
     </div>
+    </EditorPanelProvider>
   );
 }
