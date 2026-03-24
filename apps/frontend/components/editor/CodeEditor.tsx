@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
 import {
   EditorView,
@@ -47,7 +47,6 @@ import { markdown } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
-import type { FileTreeNode } from '@cushion/types';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   wysiwygExtension,
@@ -62,7 +61,6 @@ import {
   rejectAllChunks,
   getChunkCount,
   diffReviewKeymap,
-  type WikiLinkNavigateCallback,
 } from '@/lib/codemirror-wysiwyg';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { TaskListWithCanceled, Highlight, DisableSetextHeading, InlineMath, BlockMath } from '@/lib/markdown-extensions';
@@ -71,31 +69,10 @@ import { createFormatKeymap } from '@/lib/codemirror-wysiwyg/format-commands';
 import { modernSearchExtension } from '@/lib/codemirror-search-panel';
 import { useShortcutBindings } from '@/lib/shortcuts';
 import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
+import { useEditorPanelContext } from './EditorPanelContext';
 
 interface CodeEditorProps {
   filePath: string;
-  content: string;
-  language?: string;
-  onChange?: (content: string) => void;
-  onSave?: () => void;
-  /** File tree for wiki-link resolution */
-  fileTree?: FileTreeNode[];
-  /** Callback when a wiki-link is clicked (Ctrl+Click) */
-  onWikiLinkNavigate?: WikiLinkNavigateCallback;
-  /** Whether focus mode is enabled */
-  focusModeEnabled?: boolean;
-  /** Handle image pastes in markdown */
-  onPasteImages?: (params: { files: File[]; view: EditorView; filePath: string }) => void;
-  /** Optional container where search panel should render */
-  searchPanelContainerRef?: RefObject<HTMLDivElement | null>;
-  /** Callback refs for diff review actions (exposed for DiffReviewBar) */
-  onDiffAcceptAll?: React.MutableRefObject<(() => void) | null>;
-  onDiffRejectAll?: React.MutableRefObject<(() => void) | null>;
-  onDiffExitReview?: React.MutableRefObject<(() => void) | null>;
-  /** Save callback for diff overwrite (writes to disk + marks saved + cancels autosave) */
-  onDiffSave?: React.MutableRefObject<((filePath: string, content: string) => Promise<void>) | null>;
-  /** Callback to add the current selection as chat context */
-  onAddSelectionToChat?: (data: { path: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number }; preview: string }) => void;
 }
 
 
@@ -164,23 +141,23 @@ function getClipboardImageFiles(clipboard: DataTransfer): File[] {
   return Array.from(clipboard.files ?? []).filter((file) => file.type.startsWith('image/'));
 }
 
-export function CodeEditor({
-  filePath,
-  content,
-  language,
-  onChange,
-  onSave,
-  fileTree,
-  onWikiLinkNavigate,
-  focusModeEnabled = false,
-  onPasteImages,
-  searchPanelContainerRef,
-  onDiffAcceptAll,
-  onDiffRejectAll,
-  onDiffExitReview,
-  onDiffSave,
-  onAddSelectionToChat,
-}: CodeEditorProps) {
+export function CodeEditor({ filePath }: CodeEditorProps) {
+  const {
+    handleChange: onChange,
+    handleSave: onSave,
+    fileTree,
+    handleWikiLinkNavigate: onWikiLinkNavigate,
+    focusModeEnabled,
+    handlePasteImages: onPasteImages,
+    searchPanelContainerRef,
+    diffAcceptAllRef: onDiffAcceptAll,
+    diffRejectAllRef: onDiffRejectAll,
+    diffExitReviewRef: onDiffExitReview,
+    diffSaveRef: onDiffSave,
+    onAddSelectionToChat,
+  } = useEditorPanelContext();
+  const content = useWorkspaceStore((s) => s.openFiles.get(filePath)?.content ?? '');
+  const language = useWorkspaceStore((s) => s.openFiles.get(filePath)?.language);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -396,7 +373,6 @@ export function CodeEditor({
       }
     }
 
-    // 7. Done
     useDiffReviewStore.getState().finishReview();
   }, []);
 

@@ -37,12 +37,16 @@ export function usePromptSuggestions() {
       }));
   }, [agents]);
 
+  const disabledSkills = useChatStore((state) => state.disabledSkills);
+
   const commandSuggestions = useMemo(() => {
     const builtinIds = new Set(BUILTIN_COMMANDS.map((item) => item.id));
+    const disabled = new Set(disabledSkills);
     const dynamic = commands
-      .filter((command) => !builtinIds.has(command.name))
+      .filter((command) => !builtinIds.has(command.name) &&
+        !(command.source === 'skill' && disabled.has(command.name)))
       .map((command) => {
-        const template = command.template?.trim() ?? '';
+        const template = typeof command.template === 'string' ? command.template.trim() : '';
         const value = template ? `/${command.name} ${template}` : `/${command.name}`;
         return {
           id: `cmd-${command.name}`,
@@ -53,7 +57,7 @@ export function usePromptSuggestions() {
         };
       });
     return [...BUILTIN_COMMANDS, ...dynamic];
-  }, [commands]);
+  }, [commands, disabledSkills]);
 
   const suggestions = useMemo(() => {
     if (!trigger) return [];

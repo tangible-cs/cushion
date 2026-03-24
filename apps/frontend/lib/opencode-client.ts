@@ -7,13 +7,11 @@ import {
 
 export type OpenCodeEvent = Event;
 export type OpenCodeClient = OpencodeClient;
-export type OpenCodeClientConfig = OpencodeClientConfig;
-
-export type OpenCodeClientOptions = OpenCodeClientConfig & {
+type OpenCodeClientOptions = OpencodeClientConfig & {
   directory?: string;
 };
 
-const DEFAULT_OPENCODE_URL = 'http://localhost:4097';
+const DEFAULT_OPENCODE_URL = 'http://localhost:14097';
 
 export function getOpenCodeBaseUrl() {
   return import.meta.env.VITE_OPENCODE_URL ?? DEFAULT_OPENCODE_URL;

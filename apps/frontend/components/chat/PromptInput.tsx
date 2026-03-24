@@ -5,6 +5,7 @@ import {
   useChatStore,
   type PromptInputPayload,
 } from '@/stores/chatStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { getModelVariantOptions } from '@/lib/chat-helpers';
 import { getCursorPosition, parseFromDOM } from '@/lib/prompt-dom';
 
@@ -50,8 +51,6 @@ type PromptInputProps = {
   placeholder?: string;
   onSubmit?: (value: PromptInputPayload) => void;
   className?: string;
-  editorClassName?: string;
-  editorWrapperClassName?: string;
 };
 
 export function PromptInput({
@@ -59,8 +58,6 @@ export function PromptInput({
   placeholder,
   onSubmit,
   className,
-  editorClassName,
-  editorWrapperClassName,
 }: PromptInputProps) {
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
@@ -78,8 +75,10 @@ export function PromptInput({
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedVariant = useChatStore((state) => state.selectedVariant);
   const setSelectedVariant = useChatStore((state) => state.setSelectedVariant);
-  const autoAccept = useChatStore((state) => state.autoAccept);
-  const toggleAutoAccept = useChatStore((state) => state.toggleAutoAccept);
+  const reviewMode = useChatStore((state) => state.reviewMode);
+  const toggleReviewMode = useChatStore((state) => state.toggleReviewMode);
+  const currentFile = useWorkspaceStore((state) => state.currentFile);
+  const isMarkdown = currentFile != null && /\.(md|markdown)$/i.test(currentFile);
   const [composing, setComposing] = useState(false);
   const sessionStatus = useChatStore((state) => state.sessionStatus);
   const status = activeSessionId ? sessionStatus[activeSessionId] : undefined;
@@ -326,7 +325,7 @@ export function PromptInput({
       >
         <DragOverlay dragging={dragging} />
         <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
-        <div className={cn("relative max-h-[240px] overflow-y-auto thin-scrollbar", editorWrapperClassName)}>
+        <div className="relative max-h-[240px] overflow-y-auto thin-scrollbar">
           <div
             ref={editorRef}
             role="textbox"
@@ -350,8 +349,7 @@ export function PromptInput({
             onBlur={() => setComposing(false)}
             className={cn(
               "w-full min-h-[96px] whitespace-pre-wrap px-3 py-3 pr-12 text-sm text-foreground focus:outline-none",
-              shellMode && "font-mono",
-              editorClassName
+              shellMode && "font-mono"
             )}
           />
           {showPlaceholder && (
@@ -427,21 +425,23 @@ export function PromptInput({
                 {currentFileContext.enabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
               </button>
             )}
-            <button
-              type="button"
-              onClick={toggleAutoAccept}
-              className={cn(
-                "size-7 flex items-center justify-center rounded-md transition-colors",
-                autoAccept
-                  ? "text-[var(--accent-green)] hover:bg-[color-mix(in_srgb,var(--accent-green)_10%,transparent)]"
-                  : "text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground"
-              )}
-              title={autoAccept ? 'Auto-accept permissions (on)' : 'Auto-accept permissions (off)'}
-              aria-label={autoAccept ? 'Auto-accept permissions (on)' : 'Auto-accept permissions (off)'}
-              aria-pressed={autoAccept}
-            >
-              <Shield className="size-4" />
-            </button>
+            {isMarkdown && (
+              <button
+                type="button"
+                onClick={toggleReviewMode}
+                className={cn(
+                  "size-7 flex items-center justify-center rounded-md transition-colors",
+                  reviewMode
+                    ? "text-[var(--accent-green)] hover:bg-[color-mix(in_srgb,var(--accent-green)_10%,transparent)]"
+                    : "text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground"
+                )}
+                title={reviewMode ? 'Review mode (on)' : 'Review mode (off)'}
+                aria-label={reviewMode ? 'Review mode (on)' : 'Review mode (off)'}
+                aria-pressed={reviewMode}
+              >
+                <Shield className="size-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => inputRef.current?.click()}

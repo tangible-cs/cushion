@@ -7,7 +7,6 @@ import {
   resolveModelVariant,
 } from '@/lib/chat-helpers';
 import { wrapSdk } from '@/lib/sdk-result';
-import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { useDiffReviewStore } from './diffReviewStore';
 import { handleApplyEvent } from './chat-event-handler';
 import { handleSendPrompt } from './chat-send-prompt';
@@ -42,7 +41,7 @@ import {
   isValidBaseUrl,
 } from './chat-store-utils';
 
-export type { PromptAttachment, PromptSelection, PromptInputPayload, SelectedModel, DisplayPreferences, CurrentFileContext } from './chat-store-utils';
+export type { PromptAttachment, PromptInputPayload, SelectedModel } from './chat-store-utils';
 
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -172,9 +171,9 @@ export const useChatStore = create<ChatState & ChatActions>()(
     requestProviderAuth: async (providerID: string) => {
       const directory = get().directory;
       if (!directory) return null;
-      const coordinator = await getSharedCoordinatorClient();
+      const client = getDirectoryClient(directory, get().baseUrl);
       const result = await wrapSdk(() =>
-        coordinator.authorizeOAuth({ providerID, method: 0 })
+        client.provider.oauth.authorize({ providerID, method: 0 }).then(unwrap)
       );
       if (!result.ok) {
         set((state) => ({
@@ -185,14 +184,12 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }));
         return null;
       }
-      return result.data.url ?? null;
+      return result.data?.url ?? null;
     },
 
     refreshProviders: async () => {
       const directory = get().directory;
       if (!directory) return;
-      const coordinator = await getSharedCoordinatorClient();
-      await coordinator.syncProviders().catch(() => undefined);
       const client = getDirectoryClient(directory, get().baseUrl);
       await wrapSdk(() => client.instance.dispose());
       const result = await wrapSdk(() =>
@@ -321,23 +318,42 @@ export const useChatStore = create<ChatState & ChatActions>()(
       }));
     },
 
-    toggleAutoAccept: () => {
-      const next = !get().autoAccept;
-      set({ autoAccept: next });
-      if (next) {
-        // Switching ON: clear snapshots + exit any active review (no review desired)
+    toggleReviewMode: () => {
+      const next = !get().reviewMode;
+      set({ reviewMode: next });
+      if (!next) {
+        // Switching OFF: clear snapshots + exit any active review (no review desired)
         const diffStore = useDiffReviewStore.getState();
         diffStore.clearSnapshots();
         if (diffStore.reviewingFilePath) {
           diffStore.finishReview();
         }
       }
-      // Switching OFF: no action needed — snapshots will be captured on next edit permission
+      // Switching ON: no action needed — snapshots will be captured on next edit permission
+    },
+
+    setSkillDisabled: (name: string, disabled: boolean) => {
+      const current = get().disabledSkills;
+      const next = disabled
+        ? current.includes(name) ? current : [...current, name]
+        : current.filter((s) => s !== name);
+      set({ disabledSkills: next });
+      const { client, allSkillNames } = get();
+      if (!client) return;
+      // Full idempotent map: explicit allow/deny for every known skill
+      const skillPerm: Record<string, 'allow' | 'deny'> = { '*': 'allow' };
+      const disabled_ = new Set(next);
+      for (const s of allSkillNames) {
+        skillPerm[s] = disabled_.has(s) ? 'deny' : 'allow';
+      }
+      client.global.config.update({
+        config: { permission: { skill: skillPerm } },
+      }).catch((err: unknown) => console.error('[skills] config sync failed', err));
     },
       }),
       {
         name: 'cushion-chat',
-        version: 6,
+        version: 8,
         partialize: (state) => ({
           baseUrl: state.baseUrl,
           promptBySession: state.promptBySession,
@@ -349,16 +365,27 @@ export const useChatStore = create<ChatState & ChatActions>()(
           modelVisibility: state.modelVisibility,
           displayPreferences: state.displayPreferences,
           includeCurrentFile: state.includeCurrentFile,
-          autoAccept: state.autoAccept,
+          reviewMode: state.reviewMode,
+          disabledSkills: state.disabledSkills,
         }),
         migrate: (state, version) => {
           if (!state || typeof state !== 'object') return state as ChatState;
-          if (version >= 6) return state as ChatState;
-          // v5 → v6: drop contextItems / contextBySession (now inline pills)
+          if (version >= 8) return state as ChatState;
+          // v7 → v8: add disabledSkills
+          if (version === 7) {
+            return { ...(state as Record<string, unknown>), disabledSkills: [] } as unknown as ChatState;
+          }
+          // v6 → v7: rename autoAccept → reviewMode (inverted)
+          if (version === 6) {
+            const legacy = state as Record<string, unknown>;
+            const { autoAccept, ...rest } = legacy;
+            return { ...rest, reviewMode: !(autoAccept ?? true) } as ChatState;
+          }
+          // v5 → v7: drop contextItems / contextBySession + migrate autoAccept
           if (version === 5) {
             const legacy = state as Record<string, unknown>;
-            const { contextItems: _, contextBySession: __, ...rest } = legacy;
-            return rest as ChatState;
+            const { contextItems: _, contextBySession: __, autoAccept, ...rest } = legacy;
+            return { ...rest, reviewMode: !(autoAccept ?? true) } as ChatState;
           }
           if (version === 4) {
             const legacy = state as ChatState & { promptBySession?: Record<string, string | unknown[]> };
@@ -373,10 +400,10 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 newMap[key] = value as unknown[];
               }
             }
-            return { ...legacy, promptBySession: newMap, autoAccept: (legacy as Record<string, unknown>).autoAccept ?? false } as ChatState;
+            return { ...legacy, promptBySession: newMap, reviewMode: false } as ChatState;
           }
           if (version === 3) {
-            return { ...state, autoAccept: false, promptBySession: {} } as ChatState;
+            return { ...state, reviewMode: false, promptBySession: {} } as ChatState;
           }
           // v0-v2: wipe old data
           return { ...(state as Record<string, unknown>), promptBySession: {}, promptSessionOrder: [] } as unknown as ChatState;

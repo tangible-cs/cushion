@@ -3,16 +3,41 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatShortcutList, useShortcutBindings, useShortcutHandler } from '@/lib/shortcuts';
+import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+import type { ViewProps } from '@/lib/view-registry';
 
-interface ImageViewerProps {
+const IMAGE_SHORTCUT_IDS = ['image.zoom.in', 'image.zoom.out', 'image.reset'] as const;
+
+export function ImageViewer({ filePath }: ViewProps) {
+  const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSharedCoordinatorClient().then((client) => {
+      if (cancelled) return;
+      return client.readFileBase64(filePath);
+    }).then((result) => {
+      if (!cancelled && result) setImageData({ base64: result.base64, mimeType: result.mimeType });
+    }).catch((err) => {
+      console.error('[ImageViewer] Failed to load image:', err);
+    });
+    return () => { cancelled = true; };
+  }, [filePath]);
+
+  if (!imageData) {
+    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading image…</div>;
+  }
+
+  return <ImageViewerInner filePath={filePath} base64Data={imageData.base64} mimeType={imageData.mimeType} />;
+}
+
+interface ImageViewerInnerProps {
   filePath: string;
   base64Data: string;
   mimeType: string;
 }
 
-const IMAGE_SHORTCUT_IDS = ['image.zoom.in', 'image.zoom.out', 'image.reset'] as const;
-
-export function ImageViewer({ filePath, base64Data, mimeType }: ImageViewerProps) {
+function ImageViewerInner({ filePath, base64Data, mimeType }: ImageViewerInnerProps) {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);

@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-set OPENCODE_PORT=4097
+set OPENCODE_PORT=14097
 set RUN_OPENCODE=1
 
 call :is_port_listening %OPENCODE_PORT%

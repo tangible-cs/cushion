@@ -13,12 +13,16 @@ import { PdfToolbar, PdfSearchBar } from './PdfToolbar';
 import { usePdfZoom } from '@/hooks/usePdfZoom';
 import { usePdfSearch } from '@/hooks/usePdfSearch';
 import {
+  createPdfTelemetrySession,
   markPdfTelemetry,
   markPdfTelemetryDuration,
   pdfTelemetryNow,
   type PdfTelemetrySession,
 } from '@/lib/pdf-telemetry';
-import { base64ToUint8Array, downloadPdf, printPdf } from '@/lib/pdf-bytes';
+import { base64ToUint8Array, uint8ArrayToBase64, downloadPdf, printPdf } from '@/lib/pdf-bytes';
+import { isPdfProgressiveLoadingEnabled } from '@/lib/pdf-feature-flags';
+import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
+import type { ViewProps } from '@/lib/view-registry';
 
 interface PdfBase64Chunk {
   base64: string;
@@ -33,16 +37,8 @@ interface PdfProgressiveLoadingConfig {
   rangeChunkSize?: number;
 }
 
-interface PdfViewerNativeProps {
-  filePath: string;
-  base64Data?: string;
-  telemetrySession?: PdfTelemetrySession | null;
-  progressiveLoading?: PdfProgressiveLoadingConfig | null;
-  readOriginalBase64?: (() => Promise<string>) | null;
-  onSave?: (data: Uint8Array) => void | Promise<void>;
-}
-
 const DEFAULT_PDF_RANGE_CHUNK_SIZE = 256 * 1024;
+const pdfProgressiveLoadingEnabled = isPdfProgressiveLoadingEnabled();
 
 function mergeUint8Chunks(chunks: Uint8Array[], totalLength: number): Uint8Array {
   if (chunks.length === 1) {
@@ -194,17 +190,81 @@ function createCoordinatorRangeTransport(
 }
 
 /**
- * PDF Viewer using pdf.js native PDFViewer component with built-in annotation editors.
- * This uses pdf.js's own annotation editing which saves properly to PDF.
+ * Self-contained PDF viewer — loads its own data, handles saving.
+ * Registered in the view registry for `.pdf` files.
  */
-export function PdfViewerNative({
+export function PdfViewerNative({ filePath }: ViewProps) {
+  const [pdfState, setPdfState] = useState<{
+    base64Data?: string;
+    telemetrySession: PdfTelemetrySession | null;
+    progressiveLoading: PdfProgressiveLoadingConfig | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getSharedCoordinatorClient().then(async (client) => {
+      if (cancelled) return;
+
+      if (pdfProgressiveLoadingEnabled) {
+        const readChunk = (offset: number, length: number) =>
+          client.readFileBase64Chunk(filePath, offset, length);
+        setPdfState({
+          telemetrySession: null,
+          progressiveLoading: { readChunk, rangeChunkSize: DEFAULT_PDF_RANGE_CHUNK_SIZE },
+        });
+        return;
+      }
+
+      const readStartedAtMs = pdfTelemetryNow();
+      const result = await client.readFileBase64(filePath);
+      if (cancelled) return;
+
+      const session = createPdfTelemetrySession({
+        filePath,
+        base64Data: result.base64,
+        fileReadDurationMs: pdfTelemetryNow() - readStartedAtMs,
+      });
+
+      setPdfState({
+        base64Data: result.base64,
+        telemetrySession: session,
+        progressiveLoading: null,
+      });
+    }).catch((err) => {
+      console.error('[PdfViewerNative] Failed to load PDF:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [filePath]);
+
+  if (!pdfState) {
+    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading PDF…</div>;
+  }
+
+  return (
+    <PdfViewerInner
+      filePath={filePath}
+      base64Data={pdfState.base64Data}
+      telemetrySession={pdfState.telemetrySession}
+      progressiveLoading={pdfState.progressiveLoading}
+    />
+  );
+}
+
+interface PdfViewerInnerProps {
+  filePath: string;
+  base64Data?: string;
+  telemetrySession?: PdfTelemetrySession | null;
+  progressiveLoading?: PdfProgressiveLoadingConfig | null;
+}
+
+function PdfViewerInner({
   filePath,
   base64Data,
   telemetrySession,
   progressiveLoading,
-  readOriginalBase64,
-  onSave,
-}: PdfViewerNativeProps) {
+}: PdfViewerInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -302,17 +362,15 @@ export function PdfViewerNative({
   const progressiveRangeChunkSize = progressiveLoading?.rangeChunkSize;
 
   const readOriginalPdfBytes = useCallback(async () => {
-    if (readOriginalBase64) {
-      const originalBase64 = await readOriginalBase64();
-      return base64ToUint8Array(originalBase64);
-    }
-
     if (typeof base64Data === 'string') {
       return base64ToUint8Array(base64Data);
     }
 
-    throw new Error('Original PDF bytes are unavailable');
-  }, [base64Data, readOriginalBase64]);
+    // For progressive mode, re-read from coordinator
+    const client = await getSharedCoordinatorClient();
+    const result = await client.readFileBase64(filePath);
+    return base64ToUint8Array(result.base64);
+  }, [base64Data, filePath]);
 
   const annotatedFileName = filePath
     .split(/[/\\]/)
@@ -320,13 +378,15 @@ export function PdfViewerNative({
     ?.replace(/\.pdf$/i, '_annotated.pdf') ?? 'Document_annotated.pdf';
 
   const persistPdfBytes = useCallback(async (data: Uint8Array) => {
-    if (onSave) {
-      await onSave(data);
-      return;
+    try {
+      const client = await getSharedCoordinatorClient();
+      const base64 = uint8ArrayToBase64(data);
+      await client.saveFileBase64(filePath, base64);
+    } catch (err) {
+      console.error('[PdfViewerNative] PDF save failed:', err);
+      alert('Failed to save PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
-
-    downloadPdf(data, annotatedFileName);
-  }, [annotatedFileName, onSave]);
+  }, [filePath]);
 
   // Load CSS on mount
   useEffect(() => {
@@ -355,7 +415,6 @@ export function PdfViewerNative({
     let onScaleChanging: ((evt: any) => void) | null = null;
     let onPageRendered: ((evt: any) => void) | null = null;
     let onPagesInit: (() => void) | null = null;
-    let onAnnotationEditorParamsChanged: ((evt: any) => void) | null = null;
     let onFindControlStateChanged: ((evt: any) => void) | null = null;
     let onFindMatchesCountChanged: ((evt: any) => void) | null = null;
 
@@ -512,13 +571,6 @@ export function PdfViewerNative({
         };
         eventBus.on('pagesinit', onPagesInit);
 
-        // Sync param changes back from pdf.js (toolbar manages its own param state now)
-        onAnnotationEditorParamsChanged = (_evt: any) => {
-          if (cancelled) return;
-          // PdfToolbar owns the param state; pdf.js events are handled internally
-        };
-        eventBus.on('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
-
         onFindControlStateChanged = (evt: any) => {
           if (cancelled) return;
           handleFindControlState(evt);
@@ -581,9 +633,6 @@ export function PdfViewerNative({
         }
         if (onPagesInit) {
           loadedEventBus.off?.('pagesinit', onPagesInit);
-        }
-        if (onAnnotationEditorParamsChanged) {
-          loadedEventBus.off?.('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
         }
         if (onFindControlStateChanged) {
           loadedEventBus.off?.('updatefindcontrolstate', onFindControlStateChanged);

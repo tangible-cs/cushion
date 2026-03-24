@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Blocks, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useAutoScroll } from './useAutoScroll';
@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Turn } from './Turn';
 import { DisplayOptionsPopover } from './DisplayOptionsPopover';
 import { SessionContextUsage } from './SessionContextUsage';
+import { CustomizeDialog } from './CustomizeDialog';
 import { MessageDivider } from './MessageDivider';
 import { groupMessagesIntoTurns, EMPTY_MESSAGES } from './message-helpers';
 
@@ -28,6 +29,7 @@ export function MessageList({ className }: MessageListProps) {
   const compactedSessions = useChatStore((s) => s.compactedSessions);
   const [sessionQuery, setSessionQuery] = useState('');
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  const [showCustomizeDialog, setShowCustomizeDialog] = useState(false);
 
   const activeSession = useMemo(() => {
     if (!activeSessionId) return undefined;
@@ -192,6 +194,15 @@ export function MessageList({ className }: MessageListProps) {
               </Popover>
               <div className="flex items-center gap-1">
                 <SessionContextUsage />
+                <button
+                  type="button"
+                  onClick={() => setShowCustomizeDialog(true)}
+                  className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
+                  aria-label="Customize"
+                  title="Customize"
+                >
+                  <Blocks className="size-3.5" />
+                </button>
                 <DisplayOptionsPopover />
                 <button
                   type="button"
@@ -249,6 +260,7 @@ export function MessageList({ className }: MessageListProps) {
           )}
         </div>
       </div>
+      {showCustomizeDialog && <CustomizeDialog onClose={() => setShowCustomizeDialog(false)} />}
     </div>
   );
 }

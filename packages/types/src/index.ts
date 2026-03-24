@@ -173,66 +173,6 @@ export interface ResolvedWikiLink {
   targets: string[];
 }
 
-export interface ModelCapabilities {
-  text: boolean;
-  images: boolean;
-  audio: boolean;
-}
-
-export interface ModelCost {
-  input: number;
-  output: number;
-}
-
-export interface ModelLimit {
-  context: number;
-  maxTokens: number;
-}
-
-export interface Model {
-  id: string;
-  providerID: string;
-  name: string;
-  capabilities: ModelCapabilities;
-  cost: ModelCost;
-  limit: ModelLimit;
-}
-
-export type ProviderSource = 'env' | 'config' | 'custom' | 'api';
-
-export interface AuthMethod {
-  type: 'api' | 'oauth';
-  label: string;
-}
-
-export interface Provider {
-  id: string;
-  name: string;
-  source: ProviderSource;
-  models: Record<string, Model>;
-  authMethods?: AuthMethod[];
-}
-
-export interface ApiAuth {
-  type: 'api';
-  key: string;
-}
-
-export interface OAuthAuth {
-  type: 'oauth';
-  access: string;
-  refresh?: string;
-  expires?: number;
-  accountId?: string;
-}
-
-export type AuthCredential = ApiAuth | OAuthAuth;
-
-export interface Credential {
-  providerID: string;
-  auth: AuthCredential;
-}
-
 export interface FileChange {
   type: 'created' | 'modified' | 'deleted';
   path: string;

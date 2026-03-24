@@ -476,44 +476,4 @@ export class CoordinatorClient {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Provider RPCs
-  // ---------------------------------------------------------------------------
-
-  listProviders() {
-    return this.call('provider/list');
-  }
-
-  listProviderAuthMethods() {
-    return this.call('provider/auth/methods');
-  }
-
-  refreshProviders() {
-    return this.call('provider/refresh');
-  }
-
-  getPopularProviders() {
-    return this.call('provider/popular');
-  }
-
-  setProviderAuth(params: { providerID: string; apiKey: string }) {
-    return this.call('provider/auth/set', params);
-  }
-
-  removeProviderAuth(params: { providerID: string }) {
-    return this.call('provider/auth/remove', params);
-  }
-
-  syncProviders() {
-    return this.call('provider/sync');
-  }
-
-  authorizeOAuth(params: RPCParams<'provider/oauth/authorize'>) {
-    return this.call('provider/oauth/authorize', params);
-  }
-
-  oauthCallback(params: { providerID: string; method: number; code?: string }) {
-    return this.call('provider/oauth/callback', params);
-  }
-
 }

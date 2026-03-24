@@ -1,9 +1,7 @@
 /**
  * Model sorting utilities.
  *
- * The canonical list of popular provider IDs lives on the coordinator
- * (registry.ts) and is served via the `provider/popular` RPC.  Components
- * that need it should fetch via `getSharedCoordinatorClient().getPopularProviders()`.
+ * The canonical list of popular provider IDs lives in `lib/popular-providers.ts`.
  *
  * This module provides a reusable comparator so sorting logic is not
  * duplicated across ModelSelector and ManageModelsDialog.

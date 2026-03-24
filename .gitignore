@@ -48,6 +48,9 @@ scripts/
 apps/coordinator/bin/*.exe
 apps/coordinator/bin/*.cs
 
+# Excalidraw fonts (copied from node_modules)
+apps/frontend/public/excalidraw-assets/
+
 # TypeScript
 *.tsbuildinfo
 

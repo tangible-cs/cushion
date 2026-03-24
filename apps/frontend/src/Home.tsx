@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { registerBuiltinViews } from '@/lib/register-builtin-views';
 import { Link2, GitBranch } from 'lucide-react';
+
+registerBuiltinViews();
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useChatStore } from '@/stores/chatStore';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';

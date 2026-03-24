@@ -106,11 +106,15 @@ export type ChatState = {
   questions: Record<string, QuestionRequest[]>;
   sessionErrors: Record<string, string | undefined>;
   compactedSessions: Record<string, boolean>;
-  autoAccept: boolean;
+  reviewMode: boolean;
   /** Sessions currently being aborted (prevents double-abort, drives UI) */
   abortingSessions: Record<string, boolean>;
   /** Queued prompt to send after current session aborts (interrupt-and-send) */
   pendingInterrupt: { sessionID: string; payload: PromptInputPayload } | null;
+  /** All skill names discovered by OpenCode (refreshed on connect) */
+  allSkillNames: string[];
+  /** Skill names that the user has disabled */
+  disabledSkills: string[];
 };
 
 export type ChatActions = {
@@ -146,7 +150,8 @@ export type ChatActions = {
   toggleShowThinking: () => void;
   toggleShellToolPartsExpanded: () => void;
   toggleEditToolPartsExpanded: () => void;
-  toggleAutoAccept: () => void;
+  toggleReviewMode: () => void;
+  setSkillDisabled: (name: string, disabled: boolean) => void;
 };
 
 export type ChatStore = ChatState & ChatActions;
@@ -164,7 +169,7 @@ export const MAX_PROMPT_SESSIONS = 20;
 
 // Initial state
 
-export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   showThinking: true,
   shellToolPartsExpanded: false,
   editToolPartsExpanded: false,
@@ -207,9 +212,11 @@ export const initialState: ChatState = {
   questions: {},
   sessionErrors: {},
   compactedSessions: {},
-  autoAccept: false,
+  reviewMode: false,
   abortingSessions: {},
   pendingInterrupt: null,
+  allSkillNames: [],
+  disabledSkills: [],
 };
 
 // List utilities
