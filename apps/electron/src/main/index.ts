@@ -156,7 +156,6 @@ ipcMain.handle('oauth:openWindow', (_event, authUrl: string): Promise<string | n
 
     oauthWin.on('closed', () => finish(null));
 
-    // Validate URL protocol before loading
     try {
       const parsed = new URL(authUrl);
       if (!['https:', 'http:'].includes(parsed.protocol)) {

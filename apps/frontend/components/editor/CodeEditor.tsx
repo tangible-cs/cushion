@@ -373,7 +373,6 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
       }
     }
 
-    // 7. Done
     useDiffReviewStore.getState().finishReview();
   }, []);
 

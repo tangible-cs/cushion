@@ -30,18 +30,6 @@ export function registerView(
   }
 }
 
-export function unregisterView(id: string): void {
-  const registration = viewsById.get(id);
-  if (!registration) return;
-  for (const ext of registration.extensions) {
-    const key = normalizeExt(ext);
-    if (extensionIndex.get(key) === id) {
-      extensionIndex.delete(key);
-    }
-  }
-  viewsById.delete(id);
-}
-
 export function getViewForFile(filePath: string): ViewRegistration | null {
   const dot = filePath.lastIndexOf('.');
   if (dot < 0) return null;

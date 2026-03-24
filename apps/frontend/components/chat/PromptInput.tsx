@@ -51,8 +51,6 @@ type PromptInputProps = {
   placeholder?: string;
   onSubmit?: (value: PromptInputPayload) => void;
   className?: string;
-  editorClassName?: string;
-  editorWrapperClassName?: string;
 };
 
 export function PromptInput({
@@ -60,8 +58,6 @@ export function PromptInput({
   placeholder,
   onSubmit,
   className,
-  editorClassName,
-  editorWrapperClassName,
 }: PromptInputProps) {
   const promptText = useChatStore((state) => state.promptText);
   const setPromptText = useChatStore((state) => state.setPromptText);
@@ -329,7 +325,7 @@ export function PromptInput({
       >
         <DragOverlay dragging={dragging} />
         <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
-        <div className={cn("relative max-h-[240px] overflow-y-auto thin-scrollbar", editorWrapperClassName)}>
+        <div className="relative max-h-[240px] overflow-y-auto thin-scrollbar">
           <div
             ref={editorRef}
             role="textbox"
@@ -353,8 +349,7 @@ export function PromptInput({
             onBlur={() => setComposing(false)}
             className={cn(
               "w-full min-h-[96px] whitespace-pre-wrap px-3 py-3 pr-12 text-sm text-foreground focus:outline-none",
-              shellMode && "font-mono",
-              editorClassName
+              shellMode && "font-mono"
             )}
           />
           {showPlaceholder && (

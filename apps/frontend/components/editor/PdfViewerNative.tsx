@@ -415,7 +415,6 @@ function PdfViewerInner({
     let onScaleChanging: ((evt: any) => void) | null = null;
     let onPageRendered: ((evt: any) => void) | null = null;
     let onPagesInit: (() => void) | null = null;
-    let onAnnotationEditorParamsChanged: ((evt: any) => void) | null = null;
     let onFindControlStateChanged: ((evt: any) => void) | null = null;
     let onFindMatchesCountChanged: ((evt: any) => void) | null = null;
 
@@ -572,13 +571,6 @@ function PdfViewerInner({
         };
         eventBus.on('pagesinit', onPagesInit);
 
-        // Sync param changes back from pdf.js (toolbar manages its own param state now)
-        onAnnotationEditorParamsChanged = (_evt: any) => {
-          if (cancelled) return;
-          // PdfToolbar owns the param state; pdf.js events are handled internally
-        };
-        eventBus.on('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
-
         onFindControlStateChanged = (evt: any) => {
           if (cancelled) return;
           handleFindControlState(evt);
@@ -641,9 +633,6 @@ function PdfViewerInner({
         }
         if (onPagesInit) {
           loadedEventBus.off?.('pagesinit', onPagesInit);
-        }
-        if (onAnnotationEditorParamsChanged) {
-          loadedEventBus.off?.('annotationeditorparamschanged', onAnnotationEditorParamsChanged);
         }
         if (onFindControlStateChanged) {
           loadedEventBus.off?.('updatefindcontrolstate', onFindControlStateChanged);

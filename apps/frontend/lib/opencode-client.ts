@@ -7,9 +7,7 @@ import {
 
 export type OpenCodeEvent = Event;
 export type OpenCodeClient = OpencodeClient;
-export type OpenCodeClientConfig = OpencodeClientConfig;
-
-export type OpenCodeClientOptions = OpenCodeClientConfig & {
+type OpenCodeClientOptions = OpencodeClientConfig & {
   directory?: string;
 };
 

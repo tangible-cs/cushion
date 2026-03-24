@@ -41,7 +41,7 @@ import {
   isValidBaseUrl,
 } from './chat-store-utils';
 
-export type { PromptAttachment, PromptSelection, PromptInputPayload, SelectedModel, DisplayPreferences, CurrentFileContext } from './chat-store-utils';
+export type { PromptAttachment, PromptInputPayload, SelectedModel } from './chat-store-utils';
 
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -173,7 +173,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
       if (!directory) return null;
       const client = getDirectoryClient(directory, get().baseUrl);
       const result = await wrapSdk(() =>
-        client.provider.oauth.authorize({ providerID, method: 0 })
+        client.provider.oauth.authorize({ providerID, method: 0 }).then(unwrap)
       );
       if (!result.ok) {
         set((state) => ({
@@ -184,7 +184,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }));
         return null;
       }
-      return result.data.url ?? null;
+      return result.data?.url ?? null;
     },
 
     refreshProviders: async () => {

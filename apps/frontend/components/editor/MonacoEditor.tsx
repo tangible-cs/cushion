@@ -26,7 +26,6 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
   const { handleChange, handleSave } = useEditorPanelContext();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
 
   // Sync external content changes (e.g. file changed on disk)
   useEffect(() => {
@@ -43,7 +42,6 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
-    monacoRef.current = monaco;
 
     // Ctrl+S to save
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {

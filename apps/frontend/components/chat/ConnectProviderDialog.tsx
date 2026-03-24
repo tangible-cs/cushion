@@ -51,6 +51,7 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
       const client = getOpenCodeClient();
       const result = await client.provider.oauth.authorize({ providerID: providerId, method: index });
       const data = 'data' in result ? result.data : result;
+      if (!data) throw new Error('No data returned from OAuth authorize');
       setOAuthUrl(data.url);
       setOAuthMethod(data.method === 'code' ? 'code' : 'auto');
 
@@ -262,9 +263,6 @@ export function ConnectProviderDialog({ providerId, providerName, onClose, onBac
                     onClick={() => handleMethodSelect(index)}
                     className="w-full px-4 py-3 text-left text-sm border border-border rounded-md hover:bg-[var(--overlay-10)] transition-colors flex items-center gap-3"
                   >
-                    <div className="w-4 h-2 rounded-sm bg-muted flex items-center justify-center">
-                      <div className="w-2.5 h-0.5 ml-0 bg-muted-foreground hidden" />
-                    </div>
                     <span>{method.label}</span>
                   </button>
                 ))}

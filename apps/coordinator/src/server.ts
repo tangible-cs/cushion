@@ -331,15 +331,6 @@ export class CoordinatorServer {
     doc.version = params.textDocument.version;
   }
 
-  private sendNotification(ws: WebSocket, method: string, params: unknown) {
-    const notification: JSONRPCNotification = {
-      jsonrpc: '2.0',
-      method,
-      params,
-    };
-    ws.send(JSON.stringify(notification));
-  }
-
   private sendResponse(ws: WebSocket, id: string | number, result: unknown) {
     const response: JSONRPCResponse = {
       jsonrpc: '2.0',

@@ -49,7 +49,6 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const [showSelectProviderDialog, setShowSelectProviderDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState<{ id: string; name: string } | null>(null);
   const [showManageDialog, setShowManageDialog] = useState(false);
-  const popularProviderIDs = POPULAR_PROVIDER_IDS;
   const resolvedLevel = resolveCompactLevel(compactLevel);
 
   useEffect(() => {
@@ -97,8 +96,8 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       )
       : models;
 
-    return filtered.sort(createModelSorter(popularProviderIDs));
-  }, [providers, searchQuery, modelVisibility, popularProviderIDs]);
+    return filtered.sort(createModelSorter(POPULAR_PROVIDER_IDS));
+  }, [providers, searchQuery, modelVisibility, POPULAR_PROVIDER_IDS]);
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, typeof allModels> = {};

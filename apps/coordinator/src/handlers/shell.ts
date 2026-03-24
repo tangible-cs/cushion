@@ -1,12 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
-/** Commands allowed by shell/exec — only setup-related binaries. */
 const ALLOWED_COMMANDS = new Set(['pip', 'pip3', 'python', 'python3', 'py', 'playwright', 'notebooklm']);
-
-/** Shell metacharacters that must not appear in args. */
 const SHELL_META = /[;|&$`\\<>(){}!"'\n\r]/;
 
-/** Tracks the active login process so we can send Enter to it later. */
+// 10 MB max buffer per stream
+const MAX_BUFFER = 10 * 1024 * 1024;
+
 let loginProcess: ChildProcess | null = null;
 
 export async function handleShellExec(
@@ -33,11 +32,19 @@ export async function handleShellExec(
 
     let stdout = '';
     let stderr = '';
+    let killed = false;
 
-    child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+    child.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+      if (stdout.length > MAX_BUFFER) { killed = true; child.kill(); }
+    });
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+      if (stderr.length > MAX_BUFFER) { killed = true; child.kill(); }
+    });
 
     child.on('close', (code) => {
+      if (killed) stderr += '\n[killed: output exceeded 10 MB limit]';
       resolve({ stdout, stderr, exitCode: code ?? 1 });
     });
 
@@ -47,12 +54,7 @@ export async function handleShellExec(
   });
 }
 
-/**
- * Spawns `notebooklm login` in the background (opens browser).
- * The process stays alive waiting for Enter on stdin.
- */
 export function handleLoginStart(): { started: boolean } {
-  // Kill any existing login process
   if (loginProcess) {
     loginProcess.kill();
     loginProcess = null;
@@ -70,24 +72,18 @@ export function handleLoginStart(): { started: boolean } {
   return { started: true };
 }
 
-/**
- * Sends Enter to the login process stdin to finalize auth and close the browser.
- */
 export function handleLoginFinish(): { finished: boolean } {
   if (!loginProcess) {
     return { finished: false };
   }
 
-  loginProcess.stdin?.write('\n');
-  loginProcess.stdin?.end();
+  const proc = loginProcess;
+  loginProcess = null;
 
-  // Give it a moment then force-kill if still alive
-  setTimeout(() => {
-    if (loginProcess) {
-      loginProcess.kill();
-      loginProcess = null;
-    }
-  }, 5_000);
+  proc.stdin?.write('\n');
+  proc.stdin?.end();
+
+  setTimeout(() => { proc.kill(); }, 5_000);
 
   return { finished: true };
 }

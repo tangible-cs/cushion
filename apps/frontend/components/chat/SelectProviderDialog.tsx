@@ -70,7 +70,6 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const popularProviders = POPULAR_PROVIDER_IDS;
 
   const fetchProviders = async () => {
     const { directory, baseUrl } = useChatStore.getState();
@@ -110,8 +109,8 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
           || provider.id.toLowerCase().includes(normalizedQuery);
       })
       .sort((a, b) => {
-        const aIndex = popularProviders.indexOf(a.id);
-        const bIndex = popularProviders.indexOf(b.id);
+        const aIndex = POPULAR_PROVIDER_IDS.indexOf(a.id);
+        const bIndex = POPULAR_PROVIDER_IDS.indexOf(b.id);
 
         if (aIndex >= 0 && bIndex < 0) return -1;
         if (aIndex < 0 && bIndex >= 0) return 1;
@@ -119,14 +118,14 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
 
         return a.name.localeCompare(b.name);
       });
-  }, [providers, popularProviders, searchQuery]);
+  }, [providers, POPULAR_PROVIDER_IDS, searchQuery]);
 
   const groups = useMemo(
     () => ({
-      popular: filteredProviders.filter((provider) => popularProviders.includes(provider.id)),
-      other: filteredProviders.filter((provider) => !popularProviders.includes(provider.id)),
+      popular: filteredProviders.filter((provider) => POPULAR_PROVIDER_IDS.includes(provider.id)),
+      other: filteredProviders.filter((provider) => !POPULAR_PROVIDER_IDS.includes(provider.id)),
     }),
-    [filteredProviders, popularProviders]
+    [filteredProviders, POPULAR_PROVIDER_IDS]
   );
 
   return createPortal(

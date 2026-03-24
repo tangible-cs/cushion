@@ -1,10 +1,3 @@
-/**
- * OpenCode Config Helpers
- *
- * Provides the OpenCode config directory path (used by skill install)
- * and a one-time permission defaults initialiser that runs at coordinator startup.
- */
-
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -14,22 +7,14 @@ export function getOpenCodeConfigDir(): string {
   return path.join(xdgConfig, 'opencode');
 }
 
-/**
- * Set sensible permission defaults on startup so read-only tools run without
- * prompts while destructive actions still go through Cushion's auto-accept toggle.
- *
- * Writes directly to opencode.json (the coordinator has no SDK client).
- * Only writes if `permission` is not already set, so it won't overwrite user config.
- */
+// Sets default permissions in opencode.json if not already configured
 export async function ensurePermissionDefaults(): Promise<void> {
   const configPath = path.join(getOpenCodeConfigDir(), 'opencode.json');
   let config: Record<string, unknown> = {};
   try {
     const content = await fs.readFile(configPath, 'utf-8');
     config = JSON.parse(content);
-  } catch {
-    // File doesn't exist or is invalid — start fresh
-  }
+  } catch {}
 
   if (config.permission) return;
 

@@ -7,6 +7,7 @@ import { createModelSorter } from '@/lib/model-constants';
 import { POPULAR_PROVIDER_IDS } from '@/lib/popular-providers';
 import { ProviderIcon } from './ProviderIcon';
 import { resolveProviderIcon } from './provider-icons/types';
+import { VisibilityToggle } from './CustomizeDialog';
 import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 
@@ -29,7 +30,6 @@ type ProviderGroup = {
 };
 
 export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsDialogProps) {
-  const popularProviderIDs = POPULAR_PROVIDER_IDS;
   const providers = useChatStore((state) => state.providers);
   const modelVisibility = useChatStore((state) => state.modelVisibility);
   const setModelVisibility = useChatStore((state) => state.setModelVisibility);
@@ -64,8 +64,8 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
       })
       : models;
 
-    return filtered.sort(createModelSorter(popularProviderIDs));
-  }, [providers, searchQuery, popularProviderIDs]);
+    return filtered.sort(createModelSorter(POPULAR_PROVIDER_IDS));
+  }, [providers, searchQuery, POPULAR_PROVIDER_IDS]);
 
   const groupedModels = useMemo(() => {
     const groups: ProviderGroup[] = [];
@@ -236,37 +236,5 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
       </div>
     </div>,
     document.body
-  );
-}
-
-type VisibilityToggleProps = {
-  checked: boolean;
-  label: string;
-  onChange: (next: boolean) => void;
-};
-
-function VisibilityToggle({ checked, label, onChange }: VisibilityToggleProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        onChange(!checked);
-      }}
-      className={cn(
-        'relative inline-flex h-5 w-9 items-center rounded-full border border-border transition-colors',
-        checked ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]'
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-4 rounded-full bg-background shadow transition-transform',
-          checked ? 'translate-x-4' : 'translate-x-0.5'
-        )}
-      />
-    </button>
   );
 }

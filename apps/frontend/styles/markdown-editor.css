@@ -1120,19 +1120,6 @@
   position: relative;
 }
 
-/* Light theme overrides for wiki-links */
-.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-resolved {
-  color: var(--md-link-color);
-}
-
-.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-empty {
-  color: var(--md-link-empty);
-}
-
-.light .cm-editor.cm-markdown-wysiwyg .cm-wiki-link-ambiguous {
-  color: var(--md-link-external);
-}
-
 /* ============================================
    Wiki-Link Autocomplete
    Inspired by Tangent's autocomplete styling
@@ -1272,31 +1259,6 @@
   font-style: italic;
 }
 
-
-/* Light theme overrides */
-.light .cm-editor .cm-tooltip-autocomplete {
-  background: var(--md-bg);
-  border-color: var(--md-border);
-  box-shadow: var(--shadow-md);
-}
-
-.light .cm-editor .cm-tooltip-autocomplete > ul > li:hover {
-  background: var(--md-autocomplete-item-hover-bg);
-  color: var(--md-text);
-}
-
-.light .cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected="true"] {
-  background: var(--md-autocomplete-item-hover-bg);
-  color: var(--md-text);
-}
-
-.light .cm-editor .cm-completionMatchedText {
-  color: var(--md-text);
-}
-
-.light .cm-editor .cm-tooltip-autocomplete > ul::-webkit-scrollbar-thumb {
-  background: var(--md-border);
-}
 
 /* ============================================
    Heading Folding
