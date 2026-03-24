@@ -43,7 +43,6 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
   const providers = useChatStore((state) => state.providers);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
-  const modelVisibility = useChatStore((state) => state.modelVisibility);
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSelectProviderDialog, setShowSelectProviderDialog] = useState(false);
@@ -97,7 +96,7 @@ export function ModelSelector({ disabled = false, compactLevel }: ModelSelectorP
       : models;
 
     return filtered.sort(createModelSorter(POPULAR_PROVIDER_IDS));
-  }, [providers, searchQuery, modelVisibility, POPULAR_PROVIDER_IDS]);
+  }, [providers, searchQuery, isModelVisible]);
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, typeof allModels> = {};

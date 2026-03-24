@@ -30,7 +30,6 @@ export function McpsPanel() {
   const [authingMcp, setAuthingMcp] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
-  // AbortController to cancel auth request on unmount
   const authAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => { authAbortRef.current?.abort(); }, []);
 
@@ -75,8 +74,7 @@ export function McpsPanel() {
     const ctx = getClient();
     if (!ctx) return;
     try {
-      // Write enabled state to config first so it persists across server restarts,
-      // then connect/disconnect to apply immediately.
+      // Persist to config then apply immediately
       if (currentlyConnected) {
         await ctx.client.global.config.update({ config: { mcp: { [name]: { enabled: false } } } });
         await ctx.client.mcp.disconnect({ name, directory: ctx.directory });

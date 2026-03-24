@@ -53,14 +53,7 @@ function ImageViewerInner({ filePath, base64Data, mimeType }: ImageViewerInnerPr
   const zoomOut = useCallback(() => setScale(s => Math.max(s / 1.25, 0.1)), []);
   const resetView = useCallback(() => { setScale(1); setPosition({ x: 0, y: 0 }); }, []);
 
-  // Ctrl/Cmd + Scroll wheel zoom (non-customizable platform gesture).
-  // This is intentionally NOT part of the shortcut registry because:
-  //  - Wheel events are continuous gestures, not discrete key presses.
-  //  - Ctrl+Scroll-to-zoom is a universal platform convention (browsers, PDF
-  //    viewers, image editors) and users expect it to work without configuration.
-  //  - Keyboard alternatives (image.zoom.in / image.zoom.out) are registry-driven
-  //    and fully customizable in Settings.
-  // Policy: US-D2 — classified as non-customizable gesture.
+  // Ctrl+Scroll zoom — non-customizable platform gesture, not in shortcut registry
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;

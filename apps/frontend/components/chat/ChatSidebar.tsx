@@ -44,12 +44,10 @@ export function ChatSidebar() {
       return;
     }
     if (!isBusy && !allDone) {
-      // Session ended but todos not complete — clear after brief delay
       setShowDock(false);
       return;
     }
     if (allDone) {
-      // All done — close after 400ms
       closeTimer.current = window.setTimeout(() => setShowDock(false), 400);
       return;
     }

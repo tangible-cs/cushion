@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useEditorPanelContext } from './EditorPanelContext';
 
-/** Map store language IDs to Monaco language IDs */
+// Map store language IDs to Monaco language IDs
 function toMonacoLanguage(lang: string | undefined): string {
   if (!lang) return 'plaintext';
   const map: Record<string, string> = {
@@ -43,7 +43,6 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
 
-    // Ctrl+S to save
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
     });

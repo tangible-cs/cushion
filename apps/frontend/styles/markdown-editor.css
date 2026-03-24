@@ -1,8 +1,6 @@
 /* Markdown Editor Theme - Inspired by Tangent */
 
-/* ============================================
-   CSS Custom Properties (Theming System)
-   ============================================ */
+/* --- CSS Custom Properties --- */
 
 :root {
   /* Typography */
@@ -64,7 +62,7 @@
   --md-code-boolean: var(--color-purple);
   --md-code-null: var(--color-purple);
 
-  /* Colors - Highlights (unchanged) */
+  /* Colors - Highlights */
   --md-highlight-yellow: rgba(255, 235, 59, 0.3);
   --md-highlight-green: rgba(76, 175, 80, 0.3);
   --md-highlight-blue: rgba(33, 150, 243, 0.3);
@@ -123,7 +121,7 @@
   --md-code-boolean: var(--color-purple);
   --md-code-null: var(--color-purple);
 
-  /* Colors - Highlights (unchanged) */
+  /* Colors - Highlights */
   --md-highlight-yellow: rgba(255, 235, 59, 0.4);
   --md-highlight-green: rgba(76, 175, 80, 0.4);
   --md-highlight-blue: rgba(33, 150, 243, 0.4);
@@ -145,9 +143,7 @@
   --md-hr-color: var(--text-faint);
 }
 
-/* ============================================
-   Editor Container
-   ============================================ */
+/* --- Editor Container --- */
 
 .cm-editor.cm-markdown-wysiwyg {
   background: transparent;  /* Inherit from parent */
@@ -230,9 +226,7 @@
   background: transparent;
 }
 
-/* ============================================
-   Typography - Headings
-   ============================================ */
+/* --- Typography - Headings --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-1 {
   font-size: 1.618em;
@@ -286,15 +280,7 @@
   color: var(--md-text-muted);
 }
 
-/* ============================================
-   Hidden System (purrmd Single-Phase Pattern)
-   ============================================
-   Single-phase hiding:
-   - Add .cm-hidden ONLY when cursor is NOT in range
-   - When cursor IS in range, no decoration = syntax visible
-   This eliminates the race condition where CM resolves click
-   positions before decorations update.
-   ============================================ */
+/* --- Hidden System (single-phase: no decoration = cursor in range) --- */
 
 /* Hidden state - applied only when cursor NOT in range.
    !important guards against specificity conflicts with styling classes
@@ -307,9 +293,7 @@
   display: inline;
 }
 
-/* ============================================
-   Typography - Inline formatting
-   ============================================ */
+/* --- Typography - Inline formatting --- */
 
 /* Lezer-provided classes (syntax highlighting) */
 .cm-editor.cm-markdown-wysiwyg .cm-strong {
@@ -353,9 +337,7 @@
   border-radius: var(--md-border-radius-sm);
 }
 
-/* ============================================
-   Links
-   ============================================ */
+/* --- Links --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-link {
   color: var(--md-link-color);
@@ -377,9 +359,7 @@
   color: var(--md-text-faint);
 }
 
-/* ============================================
-   Blockquotes
-   ============================================ */
+/* --- Blockquotes --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-blockquote {
   border-left: 2px solid var(--md-blockquote-border);
@@ -397,9 +377,7 @@
   border-left-width: 9px;
 }
 
-/* ============================================
-   Lists
-   ============================================ */
+/* --- Lists --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-item {
   position: relative;
@@ -505,9 +483,7 @@
   color: var(--md-accent);
 }
 
-/* ============================================
-   Code Blocks
-   ============================================ */
+/* --- Code Blocks --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block {
   position: relative;
@@ -647,9 +623,7 @@
   color: var(--md-text) !important;
 }
 
-/* ============================================
-   Horizontal Rule
-   ============================================ */
+/* --- Horizontal Rule --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-hr-line {
   position: relative;
@@ -680,9 +654,7 @@
   color: var(--md-text-faint) !important;
 }
 
-/* ============================================
-   Images
-   ============================================ */
+/* --- Images --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-image-widget {
   display: block;
@@ -821,9 +793,7 @@
   display: block;
 }
 
-/* ============================================
-   Tags (pill style)
-   ============================================ */
+/* --- Tags --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-tag {
   display: inline-flex;
@@ -847,9 +817,7 @@
   opacity: 0.7;
 }
 
-/* ============================================
-   Front Matter
-   ============================================ */
+/* --- Front Matter --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-frontmatter {
   position: relative;
@@ -874,9 +842,7 @@
   border-bottom: 1px solid var(--md-border);
 }
 
-/* ============================================
-   Math (KaTeX)
-   ============================================ */
+/* --- Math (KaTeX) --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-math-syntax {
   color: var(--md-accent);
@@ -1003,17 +969,13 @@
   color: var(--md-text-faint) !important;
 }
 
-/* ============================================
-   Syntax Reveal (when cursor on line)
-   ============================================ */
+/* --- Syntax Reveal --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-syntax-revealed {
   color: var(--md-text-faint);
 }
 
-/* ============================================
-   Animations & Transitions
-   ============================================ */
+/* --- Animations & Transitions --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-line {
   transition: opacity 0.2s ease;
@@ -1025,9 +987,7 @@
   transition: all 0.15s ease;
 }
 
-/* ============================================
-   File Header (Title)
-   ============================================ */
+/* --- File Header (Title) --- */
 
 .file-header {
   /* No background - inherits from parent container */
@@ -1056,11 +1016,7 @@
   background: var(--md-bg);
 }
 
-/* ============================================
-   Wiki-Links [[link]]
-   Inspired by Tangent's link styling
-   Click to navigate (like Obsidian)
-   ============================================ */
+/* --- Wiki-Links [[link]] --- */
 
 /* Base wiki-link styling */
 .cm-editor.cm-markdown-wysiwyg .cm-wiki-link {
@@ -1120,10 +1076,7 @@
   position: relative;
 }
 
-/* ============================================
-   Wiki-Link Autocomplete
-   Inspired by Tangent's autocomplete styling
-   ============================================ */
+/* --- Wiki-Link Autocomplete --- */
 
 /* Autocomplete tooltip container */
 .cm-editor .cm-tooltip-autocomplete {
@@ -1260,10 +1213,7 @@
 }
 
 
-/* ============================================
-   Heading Folding
-   Notion/Obsidian-style collapsible headings
-   ============================================ */
+/* --- Heading Folding --- */
 
 /* Base foldable heading - positions chevron in left margin */
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-heading-foldable {
@@ -1357,9 +1307,7 @@
   color: var(--md-text-muted);
 }
 
-/* ============================================
-   Shared Embed Source Toggle
-   ============================================ */
+/* --- Shared Embed Source Toggle --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-embed-source-toggle {
   position: absolute;
@@ -1404,9 +1352,7 @@
   display: flex;
 }
 
-/* ============================================
-   PDF Widget
-   ============================================ */
+/* --- PDF Widget --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-pdf-widget {
   display: block;
@@ -1539,9 +1485,7 @@
   font-size: 14px;
 }
 
-/* ============================================
-   Note Embed Widget
-   ============================================ */
+/* --- Note Embed Widget --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-note-embed-widget {
   display: block;
@@ -1648,9 +1592,7 @@
   font-style: italic;
 }
 
-/* ============================================
-   Unsupported Embed Widget
-   ============================================ */
+/* --- Unsupported Embed Widget --- */
 
 .cm-editor.cm-markdown-wysiwyg .cm-unsupported-embed-widget {
   display: flex;

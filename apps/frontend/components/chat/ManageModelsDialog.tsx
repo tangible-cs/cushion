@@ -65,7 +65,7 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
       : models;
 
     return filtered.sort(createModelSorter(POPULAR_PROVIDER_IDS));
-  }, [providers, searchQuery, POPULAR_PROVIDER_IDS]);
+  }, [providers, searchQuery]);
 
   const groupedModels = useMemo(() => {
     const groups: ProviderGroup[] = [];
@@ -90,10 +90,6 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
 
     return groups;
   }, [allModels]);
-
-  const handleToggle = (model: SelectedModel, next: boolean) => {
-    setModelVisibility(model, next);
-  };
 
   const isProviderVisible = (group: ProviderGroup) => {
     return group.models.every((model) => isModelVisible({ providerID: group.providerID, modelID: model.modelID }));
@@ -214,16 +210,16 @@ export function ManageModelsDialog({ onClose, onConnectProvider }: ManageModelsD
                         className="flex w-full cursor-pointer items-center gap-4 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--overlay-10)]"
                         role="button"
                         tabIndex={0}
-                        onClick={() => handleToggle(key, !visible)}
+                        onClick={() => setModelVisibility(key, !visible)}
                         onKeyDown={(event) => {
                           if (event.key !== 'Enter' && event.key !== ' ') return;
                           event.preventDefault();
-                          handleToggle(key, !visible);
+                          setModelVisibility(key, !visible);
                         }}
                       >
                         <span className="min-w-0 flex-1 truncate text-[14px] text-foreground">{model.modelName}</span>
                         <div className="flex w-9 shrink-0 justify-end" onClick={(event) => event.stopPropagation()}>
-                          <VisibilityToggle checked={visible} label={label} onChange={(next) => handleToggle(key, next)} />
+                          <VisibilityToggle checked={visible} label={label} onChange={(next) => setModelVisibility(key, next)} />
                         </div>
                       </div>
                     );

@@ -88,7 +88,6 @@ export function SkillsPanel() {
       const zip = await JSZip.loadAsync(file);
       const entries = Object.keys(zip.files);
 
-      // Find SKILL.md at root or one level deep
       const skillMd = entries.find((e) => {
         const parts = e.split('/').filter(Boolean);
         const name = parts[parts.length - 1];
@@ -101,7 +100,6 @@ export function SkillsPanel() {
         return;
       }
 
-      // Read SKILL.md to extract name from frontmatter
       const skillMdContent = await zip.files[skillMd].async('string');
       const nameMatch = skillMdContent.match(/^---[\s\S]*?name:\s*(.+?)$/m);
       const skillName = nameMatch?.[1]?.trim().replace(/^["']|["']$/g, '');
@@ -112,11 +110,9 @@ export function SkillsPanel() {
         return;
       }
 
-      // Determine the prefix to strip (if SKILL.md is nested one level)
       const skillMdParts = skillMd.split('/').filter(Boolean);
       const prefix = skillMdParts.length > 1 ? skillMdParts[0] + '/' : '';
 
-      // Extract all files
       const files: Array<{ path: string; content: string }> = [];
       for (const [entryPath, zipEntry] of Object.entries(zip.files)) {
         if (zipEntry.dir) continue;
@@ -126,11 +122,9 @@ export function SkillsPanel() {
         files.push({ path: relativePath, content });
       }
 
-      // Send to coordinator
       const coordinator = await getSharedCoordinatorClient();
       await coordinator.call('skill/install-zip', { skillName, files });
 
-      // Refresh and close add zone
       setShowAddZone(false);
       await handleRefresh();
     } catch (err) {
@@ -155,7 +149,6 @@ export function SkillsPanel() {
 
   return (
     <>
-      {/* Search + actions */}
       <div className="flex items-center gap-2 px-4 pb-3">
         <div className="flex h-8 flex-1 items-center gap-2 rounded-md bg-surface px-2">
           <Search size={16} className="shrink-0 text-muted-foreground" />
@@ -205,9 +198,7 @@ export function SkillsPanel() {
         </button>
       </div>
 
-      {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
-        {/* Drop zone */}
         {showAddZone && (
           <div className="px-2 pb-2">
             <div
@@ -292,7 +283,6 @@ export function SkillsPanel() {
         )}
       </div>
 
-      {/* Footer */}
       {!loading && skills.length > 0 && (
         <div className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
           {enabledCount} of {skills.length} skills enabled

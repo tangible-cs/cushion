@@ -101,7 +101,6 @@ function TabButton({ icon, label, active, onClick, badge }: TabButtonProps) {
   );
 }
 
-// Shared toggle component used by both panels
 type VisibilityToggleProps = {
   checked: boolean;
   label: string;

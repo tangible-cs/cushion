@@ -329,7 +329,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
           diffStore.finishReview();
         }
       }
-      // Switching ON: no action needed — snapshots will be captured on next edit permission
     },
 
     setSkillDisabled: (name: string, disabled: boolean) => {

@@ -98,14 +98,12 @@ export default function Home() {
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
 
-  // File tree and connection state from useFileTree hook
   const { fileTree, connectionState, fetchFileTree } = useFileTree({
     client,
     metadata,
     onFilesChanged: () => fileBrowserRef.current?.refreshFileList(),
   });
 
-  // Link index from useLinkIndex hook
   const linkIndex = useLinkIndex({
     client,
     metadata,
@@ -113,7 +111,6 @@ export default function Home() {
     openFiles,
   });
 
-  // Config sync lifecycle (settings, workspace, appearance, chat)
   const { workspaceConfigLoadedRef } = useConfigSync({
     client,
     metadata,
@@ -128,7 +125,6 @@ export default function Home() {
     }, []),
   });
 
-  // Bridge: chat diffs → inline editor review
   useDiffReviewBridge();
 
   const appShortcuts = useShortcutBindings(APP_SHORTCUT_IDS);
@@ -439,7 +435,7 @@ export default function Home() {
   const backlinksShortcutLabel = formatShortcutList(appShortcuts['app.backlinks.toggle']);
   const graphShortcutLabel = formatShortcutList(appShortcuts['app.graph.toggle']);
 
-  // Feature 3/4: listen for workspace-open events from Electron
+  // Listen for workspace-open events from Electron
   useEffect(() => {
     if (!window.electronAPI?.onOpenWorkspace) return;
     window.electronAPI.onOpenWorkspace((path) => {
