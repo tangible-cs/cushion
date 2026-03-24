@@ -388,7 +388,6 @@ function PdfViewerInner({
     }
   }, [filePath]);
 
-  // Load CSS on mount
   useEffect(() => {
     const existingLink = document.querySelector('link[href="/pdfjs/pdf_viewer.css"]');
     if (!existingLink) {
@@ -399,7 +398,6 @@ function PdfViewerInner({
     }
   }, []);
 
-  // Initialize PDF viewer
   useEffect(() => {
     let cancelled = false;
     let loadingTask: any = null;
@@ -669,7 +667,6 @@ function PdfViewerInner({
     telemetrySession,
   ]);
 
-  // Handle editor mode changes
   useEffect(() => {
     const viewer = pdfViewerRef.current;
     if (!viewer) return;
@@ -787,7 +784,6 @@ function PdfViewerInner({
     }
   }, [base64Data, persistPdfBytes]);
 
-  // Keyboard shortcuts
   const pdfHandlers = useMemo(() => ({
     'pdf.search.open': () => { openSearch(); },
     'pdf.search.close': () => {
@@ -904,7 +900,7 @@ function PdfViewerInner({
         />
       )}
 
-      {/* PDF Viewer Container - structure required by pdf.js */}
+      {/* required by pdf.js */}
       <div className="flex-1 relative min-h-0">
         <div
           ref={containerRef}
@@ -921,7 +917,6 @@ function PdfViewerInner({
         </div>
       </div>
 
-      {/* Mode indicator */}
       {editorMode !== 'none' && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-tab-container text-foreground px-4 py-2 rounded-full text-sm shadow-lg border border-border flex items-center gap-2 z-50">
           {editorMode === 'freetext' && <><Type size={16} /> Click to add text</>}

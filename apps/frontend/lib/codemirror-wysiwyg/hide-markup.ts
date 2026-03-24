@@ -796,13 +796,25 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     return buildWidgetDecorations(state);
   },
   update(value, tr) {
-    if (tr.docChanged || tr.selection) {
-      return buildWidgetDecorations(tr.state);
-    }
-    if (syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
-      return buildWidgetDecorations(tr.state);
-    }
     if (tr.effects.some(e => e.is(embedSourceRevealEffect) || e.is(mouseSelectEffect))) {
+      return buildWidgetDecorations(tr.state);
+    }
+    const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
+    if (tr.docChanged) {
+      // Map positions through changes first to preserve stable decorations.
+      // Only do a full rebuild when the tree actually changed (Lezer finished
+      // reparsing) or an explicit selection transaction arrived in the same
+      // update.  This avoids a full-document rebuild on every keystroke that
+      // would use a potentially-incomplete tree and cause scroll jumps.
+      if (treeChanged || tr.selection) {
+        return buildWidgetDecorations(tr.state);
+      }
+      return value.map(tr.changes);
+    }
+    if (tr.selection) {
+      return buildWidgetDecorations(tr.state);
+    }
+    if (treeChanged) {
       return buildWidgetDecorations(tr.state);
     }
     return value;

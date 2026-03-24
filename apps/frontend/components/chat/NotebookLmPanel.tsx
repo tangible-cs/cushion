@@ -34,7 +34,6 @@ export function NotebookLmPanel() {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...update } : s)));
   };
 
-  // Auto-check on mount: if notebooklm is already installed and authenticated, mark all done
   useEffect(() => {
     (async () => {
       try {
@@ -58,10 +57,8 @@ export function NotebookLmPanel() {
   const runSetup = async () => {
     setRunning(true);
 
-    // Reset all steps
     setSteps((prev) => prev.map((s) => ({ ...s, status: 'pending' as const, error: undefined, output: undefined })));
 
-    // Step 1: Check Python
     updateStep('check', { status: 'running' });
     let pythonCmd = '';
     try {
@@ -84,7 +81,6 @@ export function NotebookLmPanel() {
       return;
     }
 
-    // Step 2: Install package (use python -m pip to match the found Python)
     updateStep('install', { status: 'running' });
     try {
       const pip = await shellExec(pythonCmd, ['-m', 'pip', 'install', 'notebooklm-py[browser]']);
@@ -106,7 +102,6 @@ export function NotebookLmPanel() {
       return;
     }
 
-    // Step 3: Install skill
     updateStep('skill', { status: 'running' });
     try {
       const result = await shellExec('notebooklm', ['skill', 'install']);
@@ -122,7 +117,6 @@ export function NotebookLmPanel() {
       return;
     }
 
-    // Step 4: Open login browser
     updateStep('login', { status: 'running' });
     try {
       const coordinator = await getSharedCoordinatorClient();
@@ -138,14 +132,12 @@ export function NotebookLmPanel() {
   const verifyLogin = async () => {
     setRunning(true);
 
-    // Close the login browser
     try {
       const coordinator = await getSharedCoordinatorClient();
       await coordinator.call('shell/login-finish');
     } catch { /* may already be closed */ }
     setBrowserOpen(false);
 
-    // Check auth
     updateStep('login', { status: 'running' });
     try {
       const result = await shellExec('notebooklm', ['list', '--json']);
@@ -156,7 +148,6 @@ export function NotebookLmPanel() {
       }
       updateStep('login', { status: 'done' });
 
-      // Step 5: Verify
       updateStep('verify', { status: 'running' });
       const parsed = JSON.parse(result.stdout);
       const count = parsed?.notebooks?.length ?? 0;
@@ -183,7 +174,6 @@ export function NotebookLmPanel() {
   return (
     <>
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-4">
-        {/* Unofficial badge */}
         <div className="mb-3 flex items-center gap-2 rounded-md bg-[var(--overlay-10)] px-3 py-2">
           <AlertTriangle className="size-4 shrink-0 text-yellow-500" />
           <span className="text-[12px] text-muted-foreground">
@@ -191,20 +181,16 @@ export function NotebookLmPanel() {
           </span>
         </div>
 
-        {/* Description */}
         <p className="mb-4 text-[13px] text-muted-foreground">
           Gives the AI agent full access to Google NotebookLM — create notebooks, add sources, generate podcasts, videos, quizzes, and more.
         </p>
 
-        {/* Capabilities */}
         <CapabilitiesSection />
 
-        {/* Global install warning */}
         <p className="mb-4 text-[12px] text-muted-foreground">
           Setup will install <span className="font-medium text-foreground">notebooklm-py</span> and <span className="font-medium text-foreground">Chromium</span> globally via pip. These are not installed in a virtual environment.
         </p>
 
-        {/* Steps */}
         <div className="space-y-1">
           {steps.map((step) => (
             <div key={step.id} className="rounded-md px-3 py-2">
@@ -225,7 +211,6 @@ export function NotebookLmPanel() {
           ))}
         </div>
 
-        {/* Login instructions — shown when browser is open */}
         {isAtLoginStep && (
           <div className="mt-4 rounded-lg border border-border bg-surface p-4">
             <p className="mb-2 text-[13px] font-medium text-foreground">
@@ -241,7 +226,6 @@ export function NotebookLmPanel() {
         )}
       </div>
 
-      {/* Footer actions */}
       <div className="border-t border-border px-4 py-3">
         {allDone ? (
           <div className="flex items-center justify-between">

@@ -255,7 +255,6 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
     });
   }, [formatShortcuts]);
 
-  // Keep callback refs up to date without re-creating the editor
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onWikiLinkNavigateRef.current = onWikiLinkNavigate;
@@ -348,10 +347,9 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
 
     const mixedContent = view.state.doc.toString();
 
-    // Mark before dispatching to prevent re-entry from update listener
+    // prevent re-entry
     isReviewingRef.current = false;
 
-    // Exit merge view, clear keymap
     exitDiffReview(view, mergeViewCompartmentRef.current);
     view.dispatch({
       effects: diffKeymapCompartmentRef.current.reconfigure([]),
@@ -642,7 +640,6 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
         extensions.push(langExt);
       }
 
-      // Add WYSIWYG rendering for markdown files
       const fileExt = filePath.split('.').pop()?.toLowerCase() || '';
       if (fileExt === 'md' || fileExt === 'markdown') {
         extensions.push(wysiwygExtension());
@@ -693,7 +690,7 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
         viewRef.current = null;
       }
     };
-    // Re-create editor when filePath or language changes; content is initial only per file
+    // content intentionally omitted — initial-value only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, language]);
 

@@ -107,9 +107,8 @@ function ExcalidrawCanvas({ filePath, initialData }: ExcalidrawCanvasProps) {
   const filesRef = useRef<Record<string, any>>(initialData.files ?? {});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filePathRef = useRef(filePath);
-  // Store last saved JSON so we can distinguish our own saves from external changes
+  // skip our own saves
   const lastSavedJsonRef = useRef<string | null>(null);
-  // Skip the very first onChange (Excalidraw fires it on mount with initialData)
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -149,7 +148,6 @@ function ExcalidrawCanvas({ filePath, initialData }: ExcalidrawCanvasProps) {
     saveTimerRef.current = setTimeout(flush, 1000);
   }, [flush]);
 
-  // Flush pending save on unmount
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
@@ -159,7 +157,7 @@ function ExcalidrawCanvas({ filePath, initialData }: ExcalidrawCanvasProps) {
     };
   }, [flush]);
 
-  // Watch for external file changes and update the scene via imperative API
+  // Watch for external file changes
   useEffect(() => {
     let unsubDisk: (() => void) | undefined;
     let unsubFiles: (() => void) | undefined;
@@ -206,7 +204,6 @@ function ExcalidrawCanvas({ filePath, initialData }: ExcalidrawCanvasProps) {
       appStateRef.current = appState;
       filesRef.current = files ?? {};
 
-      // Skip the initial mount onChange — Excalidraw fires it with initialData
       if (!mountedRef.current) {
         mountedRef.current = true;
         return;

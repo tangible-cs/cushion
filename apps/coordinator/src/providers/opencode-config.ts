@@ -7,7 +7,6 @@ export function getOpenCodeConfigDir(): string {
   return path.join(xdgConfig, 'opencode');
 }
 
-// Sets default permissions in opencode.json if not already configured
 export async function ensurePermissionDefaults(): Promise<void> {
   const configPath = path.join(getOpenCodeConfigDir(), 'opencode.json');
   let config: Record<string, unknown> = {};

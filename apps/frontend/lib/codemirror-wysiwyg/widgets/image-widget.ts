@@ -5,6 +5,10 @@ import { commitImageResize } from '../image-resize';
 
 const heightCache = new Map<string, number>();
 
+function heightKey(src: string, width: number | null): string {
+  return width ? `${src}|w=${width}` : src;
+}
+
 function showError(wrapper: HTMLElement, img: HTMLImageElement) {
   wrapper.classList.remove('cm-image-loading');
   wrapper.classList.add('cm-image-error');
@@ -29,13 +33,15 @@ export class ImageWidget extends WidgetType {
   }
 
   get estimatedHeight() {
-    return heightCache.get(this.src) ?? 200;
+    return heightCache.get(heightKey(this.src, this.width)) ?? 200;
   }
 
   toDOM() {
-    const cachedHeight = heightCache.get(this.src);
+    const key = heightKey(this.src, this.width);
+    const cachedHeight = heightCache.get(key);
     const knownImage = cachedHeight !== undefined;
     const src = this.src;
+    const width = this.width;
 
     const wrapper = document.createElement('div');
     wrapper.className = knownImage ? 'cm-image-widget' : 'cm-image-widget cm-image-loading';
@@ -52,10 +58,13 @@ export class ImageWidget extends WidgetType {
 
     img.onload = () => {
       wrapper.classList.remove('cm-image-loading');
-      wrapper.style.minHeight = '';
       queueMicrotask(() => {
         if (wrapper.isConnected) {
-          heightCache.set(src, wrapper.getBoundingClientRect().height);
+          const h = wrapper.getBoundingClientRect().height;
+          heightCache.set(heightKey(src, width), h);
+          // Keep minHeight in sync with actual height to avoid geometry
+          // flicker when the widget exits and re-enters the viewport.
+          wrapper.style.minHeight = `${h}px`;
           getEditorView(wrapper)?.requestMeasure();
         }
       });
@@ -112,7 +121,9 @@ export class ImageWidget extends WidgetType {
           document.body.style.userSelect = '';
           wrapper.classList.remove('cm-image-resizing');
 
-          heightCache.set(src, wrapper.getBoundingClientRect().height);
+          const h = wrapper.getBoundingClientRect().height;
+          heightCache.set(heightKey(src, width), h);
+          wrapper.style.minHeight = `${h}px`;
 
           const view = getEditorView(wrapper);
           if (!view) return;

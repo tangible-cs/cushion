@@ -303,8 +303,11 @@ export const headingFoldDecorationsField = StateField.define<DecorationSet>({
       e => e.is(toggleHeadingFoldEffect) || e.is(setHeadingFoldsEffect)
     );
 
-    if (tr.docChanged || foldChanged || treeChanged) {
+    if (foldChanged || treeChanged) {
       return buildHeadingFoldDecorations(tr.state);
+    }
+    if (tr.docChanged) {
+      return value.map(tr.changes);
     }
     return value;
   },

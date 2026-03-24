@@ -118,14 +118,14 @@ export function SelectProviderDialog({ onClose, onProviderSelect }: SelectProvid
 
         return a.name.localeCompare(b.name);
       });
-  }, [providers, POPULAR_PROVIDER_IDS, searchQuery]);
+  }, [providers, searchQuery]);
 
   const groups = useMemo(
     () => ({
       popular: filteredProviders.filter((provider) => POPULAR_PROVIDER_IDS.includes(provider.id)),
       other: filteredProviders.filter((provider) => !POPULAR_PROVIDER_IDS.includes(provider.id)),
     }),
-    [filteredProviders, POPULAR_PROVIDER_IDS]
+    [filteredProviders]
   );
 
   return createPortal(

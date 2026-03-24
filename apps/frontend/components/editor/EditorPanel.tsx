@@ -449,9 +449,7 @@ export function EditorPanel({
   return (
     <EditorPanelProvider value={contextValue}>
     <div className="flex flex-col w-full h-full bg-background">
-      {/* Header rows */}
       {!focusModeEnabled && (
-        <>
           <EditorNavRow
             canGoBack={canGoBack}
             canGoForward={canGoForward}
@@ -463,7 +461,6 @@ export function EditorPanel({
             centerContent={breadcrumb.text}
             centerTitle={breadcrumb.title}
           />
-        </>
       )}
 
       <div ref={searchPanelContainerRef} className="flex-shrink-0" />
@@ -476,7 +473,6 @@ export function EditorPanel({
         />
       )}
 
-      {/* Editor content with rounded top corners */}
       <div
         className="flex-1 min-h-0 min-w-0 overflow-auto rounded-tl-lg thin-scrollbar"
         ref={editorContainerRef}

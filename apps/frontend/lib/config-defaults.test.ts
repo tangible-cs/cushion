@@ -123,7 +123,7 @@ describe('DEFAULT_CHAT', () => {
 
   it('displayPreferences has valid defaults', () => {
     expect(DEFAULT_CHAT.displayPreferences).toEqual({
-      showThinking: true,
+      showThinking: false,
       shellToolPartsExpanded: true,
       editToolPartsExpanded: false,
     });

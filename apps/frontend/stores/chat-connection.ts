@@ -94,8 +94,7 @@ function captureEditSnapshot(perm: Record<string, unknown>) {
     return;
   }
 
-  // edit tool: metadata.filepath + metadata.diff — no explicit after available
-  // Fall back to reading current editor content as before; after will come from disk later
+  // edit tool: fall back to current editor content; after will come from disk
   const filepath = metadata.filepath as string | undefined;
   if (filepath) {
     const patterns = (perm.patterns as string[] | undefined) ?? [];
@@ -179,9 +178,7 @@ export async function handleConnect(
   if (!isCurrent()) return;
   const commandData = commandResult ? unwrap(commandResult) : undefined;
   const commands = commandData ?? state.commands;
-  // Sync disabled skills to OpenCode config on connect.
-  // Fetch all skills so we can explicitly "allow" non-disabled ones,
-  // clearing any stale "deny" entries left in opencode.json.
+  // Sync disabled skills: build explicit allow/deny map, clearing stale entries
   const disabledSkills = get().disabledSkills;
   const skillsResult = await localClient.app.skills({ directory }).catch(() => undefined);
   if (!isCurrent()) return;
@@ -275,7 +272,7 @@ export async function handleConnect(
         const reviewMode = get().reviewMode;
         const isEdit = perm.permission === 'edit';
 
-        // Always auto-accept (edits are never blocked now)
+        // Always auto-accept
         get().respondToPermission({
           sessionID: perm.sessionID,
           permissionID: perm.id,
