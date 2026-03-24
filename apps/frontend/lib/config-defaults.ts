@@ -44,7 +44,7 @@ export const DEFAULT_CHAT: Required<CushionChat> = {
   selectedAgent: null,
   selectedVariant: null,
   displayPreferences: {
-    showThinking: true,
+    showThinking: false,
     shellToolPartsExpanded: true,
     editToolPartsExpanded: false,
   },
