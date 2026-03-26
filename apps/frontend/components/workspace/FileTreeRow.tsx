@@ -17,10 +17,6 @@ interface FileTreeRowProps {
   onStartCreateFolder: (parentPath: string) => void;
   onDragStart: (e: React.DragEvent, node: FileTreeNode) => void;
   onDragEnd: () => void;
-  onDragEnter: (e: React.DragEvent, targetPath: string) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragLeave: (e: React.DragEvent, targetPath: string) => void;
-  onDrop: (e: React.DragEvent, targetPath: string) => void;
   onContextMenu: (e: React.MouseEvent, node: FileTreeNode) => void;
   flatOrder: string[];
   dragOverDir: string | null;
@@ -40,10 +36,6 @@ export const FileTreeRow = memo(function FileTreeRow({
   onStartCreateFolder,
   onDragStart,
   onDragEnd,
-  onDragEnter,
-  onDragOver,
-  onDragLeave,
-  onDrop,
   onContextMenu,
   flatOrder,
   dragOverDir,
@@ -71,6 +63,11 @@ export const FileTreeRow = memo(function FileTreeRow({
   const isCut = clipboard?.operation === 'cut' && clipboard.paths.includes(path);
   const isRenaming = renamingPath === path;
   const indentPx = depth * 20 + 6;
+
+  const isDragHighlighted = dragOverDir !== null && (
+    dragOverDir === path ||
+    (dragOverDir !== '__root__' && path.startsWith(dragOverDir + '/'))
+  );
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -102,18 +99,15 @@ export const FileTreeRow = memo(function FileTreeRow({
           : (isActive && selectedPaths.size === 0 && focusedPath !== null) ? "bg-nav-bg-selected text-nav-item-active"
           : "text-nav-item",
         isCut && "opacity-50",
-        isFolder && dragOverDir === path && "bg-nav-bg-hover ring-1 ring-foreground/20"
+        isDragHighlighted && (isFolder && dragOverDir === path
+          ? "bg-[var(--accent-primary-12)] ring-1 ring-accent/40"
+          : "bg-[var(--accent-primary-12)]"
+        )
       )}
       style={{ paddingLeft: `${indentPx}px` }}
       draggable={!isRenaming}
       onDragStart={(e) => onDragStart(e, node)}
       onDragEnd={onDragEnd}
-      {...(isFolder ? {
-        onDragEnter: (e: React.DragEvent) => onDragEnter(e, path),
-        onDragOver: onDragOver,
-        onDragLeave: (e: React.DragEvent) => onDragLeave(e, path),
-        onDrop: (e: React.DragEvent) => onDrop(e, path),
-      } : {})}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onContextMenu={(e) => onContextMenu(e, node)}
