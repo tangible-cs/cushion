@@ -96,8 +96,10 @@ export function FileTree({
   const [newFileName, setNewFileName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [dragOverDir, setDragOverDir] = useState<string | null>(null);
-  const dragEnterCount = useRef(0);
+  const dragActiveRef = useRef(false);
   const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoExpandTarget = useRef<string | null>(null);
+  const treeContainerRef = useRef<HTMLDivElement>(null);
 
   const selectedPaths = useExplorerStore((s) => s.selectedPaths);
   const clipboard = useExplorerStore((s) => s.clipboard);
@@ -291,9 +293,10 @@ export function FileTree({
   }, [selectedPaths]);
 
   const handleDragEnd = useCallback(() => {
-    dragEnterCount.current = 0;
+    dragActiveRef.current = false;
     setDragOverDir(null);
     if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+    lastAutoExpandTarget.current = null;
   }, []);
 
   const canDropOnFolder = useCallback((sourcePath: string, targetPath: string) => {
@@ -304,23 +307,19 @@ export function FileTree({
     return true;
   }, []);
 
-  const handleDragEnter = useCallback((e: React.DragEvent, targetPath: string) => {
-    const hasInternal = e.dataTransfer.types.includes('application/x-cushion-path') || e.dataTransfer.types.includes('application/x-cushion-paths');
-    const hasExternal = e.dataTransfer.types.includes('Files');
-    if (!hasInternal && !hasExternal) return;
-    e.preventDefault();
-    dragEnterCount.current++;
-    if (dragOverDir !== targetPath) {
-      dragEnterCount.current = 1;
-      setDragOverDir(targetPath);
-      if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
-      if (targetPath !== '__root__' && !useExplorerStore.getState().expandedDirs.has(targetPath)) {
-        autoExpandTimer.current = setTimeout(() => {
-          toggleDirectory(targetPath);
-        }, 500);
-      }
-    }
-  }, [dragOverDir, toggleDirectory]);
+  const getDragTarget = useCallback((e: React.DragEvent): string => {
+    const el = treeContainerRef.current;
+    if (!el) return '__root__';
+    const rect = el.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const rowIndex = Math.floor(y / 30);
+    if (rowIndex < 0 || rowIndex >= flatRows.length) return '__root__';
+    const row = flatRows[rowIndex];
+    if (row.kind !== 'item') return '__root__';
+    if (row.type === 'directory') return row.path;
+    const slashIdx = row.path.lastIndexOf('/');
+    return slashIdx > 0 ? row.path.slice(0, slashIdx) : '__root__';
+  }, [flatRows]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     const hasInternal = e.dataTransfer.types.includes('application/x-cushion-path') || e.dataTransfer.types.includes('application/x-cushion-paths');
@@ -328,23 +327,48 @@ export function FileTree({
     if (!hasInternal && !hasExternal) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = hasInternal ? 'move' : 'copy';
+
+    const target = getDragTarget(e);
+    setDragOverDir(target);
+
+    if (target !== '__root__' && target !== lastAutoExpandTarget.current
+      && !useExplorerStore.getState().expandedDirs.has(target)) {
+      if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+      lastAutoExpandTarget.current = target;
+      autoExpandTimer.current = setTimeout(() => {
+        toggleDirectory(target);
+      }, 500);
+    } else if (target !== lastAutoExpandTarget.current) {
+      if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+      lastAutoExpandTarget.current = target;
+    }
+  }, [getDragTarget, toggleDirectory]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    const hasInternal = e.dataTransfer.types.includes('application/x-cushion-path') || e.dataTransfer.types.includes('application/x-cushion-paths');
+    const hasExternal = e.dataTransfer.types.includes('Files');
+    if (!hasInternal && !hasExternal) return;
+    e.preventDefault();
+    dragActiveRef.current = true;
   }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent, targetPath: string) => {
-    dragEnterCount.current--;
-    if (dragEnterCount.current <= 0) {
-      dragEnterCount.current = 0;
-      if (dragOverDir === targetPath) setDragOverDir(null);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+      dragActiveRef.current = false;
+      setDragOverDir(null);
       if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+      lastAutoExpandTarget.current = null;
     }
-  }, [dragOverDir]);
+  }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetPath: string) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    dragEnterCount.current = 0;
+    const targetPath = getDragTarget(e);
     setDragOverDir(null);
+    dragActiveRef.current = false;
     if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
+    lastAutoExpandTarget.current = null;
 
     const multiPaths = e.dataTransfer.getData('application/x-cushion-paths');
     if (multiPaths) {
@@ -373,14 +397,13 @@ export function FileTree({
       const destDir = targetPath === '__root__' ? '.' : targetPath;
       onExternalDrop(e.dataTransfer.files, destDir);
     }
-  }, [onRename, onExternalDrop, canDropOnFolder]);
+  }, [onRename, onExternalDrop, canDropOnFolder, getDragTarget]);
 
   const prevRenamingRef = useRef<string | null>(null);
   useEffect(() => {
     if (renamingPath === prevRenamingRef.current) return;
     prevRenamingRef.current = renamingPath;
     if (!renamingPath) return;
-    // Find node in flatRows
     const row = flatRows.find((r) => r.kind === 'item' && r.path === renamingPath);
     if (row && row.kind === 'item') {
       const name = row.node.name;
@@ -459,7 +482,9 @@ export function FileTree({
 
   return (
     <div
-      className="text-sm select-none outline-none"
+      className={cn("text-sm select-none outline-none rounded transition-colors duration-150 min-h-full",
+        dragOverDir === '__root__' && "ring-1 ring-inset ring-accent/40 bg-[var(--accent-primary-12)]"
+      )}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onClick={(e) => {
@@ -476,13 +501,13 @@ export function FileTree({
           setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
         }
       }}
-      onDragEnter={(e) => handleDragEnter(e, '__root__')}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
-      onDragLeave={(e) => handleDragLeave(e, '__root__')}
-      onDrop={(e) => handleDrop(e, '__root__')}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      {/* Virtualized container */}
       <div
+        ref={treeContainerRef}
         style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}
       >
         {virtualItems.map((vi) => {
@@ -562,10 +587,6 @@ export function FileTree({
                 onStartCreateFolder={handleStartCreateFolder}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
                 onContextMenu={handleContextMenu}
                 flatOrder={flatOrder}
                 dragOverDir={dragOverDir}

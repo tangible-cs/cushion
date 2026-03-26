@@ -106,13 +106,11 @@ export function buildMenuItems(node: FileTreeNode, callbacks: MenuItemCallbacks)
 
 interface FileTreeItemActionsProps {
   node: FileTreeNode;
-  isVisible: boolean;
   onAddFile?: () => void;
 }
 
 export function FileTreeItemActions({
   node,
-  isVisible,
   onAddFile,
 }: FileTreeItemActionsProps) {
   const handleAddClick = (e: React.MouseEvent) => {
@@ -136,7 +134,7 @@ export function FileTreeItemActions({
         className={cn(
           "flex items-center gap-0.5 ml-auto",
           "transition-opacity duration-150",
-          isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          "opacity-0 pointer-events-none group-hover/item:opacity-100 group-hover/item:pointer-events-auto"
         )}
       >
         {node.type === 'directory' && (
