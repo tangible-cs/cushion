@@ -5,9 +5,7 @@
  * Used by both backlinks panel and graph view.
  */
 
-import type { FileTreeNode } from '@cushion/types';
 import { findAllWikiLinks } from './wiki-link';
-import { flattenFileTree } from './wiki-link-resolver';
 import { getBaseName } from './path-utils';
 
 export interface LinkInfo {
@@ -42,11 +40,11 @@ export interface LinkIndex {
  * Resolve a wiki-link href to a file path.
  * Returns the matching file path or the href with .md extension if not found.
  */
-function resolveHref(href: string, allFiles: string[]): { path: string; exists: boolean } {
+function resolveHref(href: string, allPaths: string[]): { path: string; exists: boolean } {
   const hrefLower = href.toLowerCase();
   
   // Try exact match first
-  for (const file of allFiles) {
+  for (const file of allPaths) {
     const fileLower = file.toLowerCase();
     const fileBase = fileLower.replace(/\.md$/, '');
     
@@ -56,7 +54,7 @@ function resolveHref(href: string, allFiles: string[]): { path: string; exists: 
   }
   
   // Try filename-only match
-  for (const file of allFiles) {
+  for (const file of allPaths) {
     const fileBaseName = getBaseName(file).toLowerCase();
     const hrefBaseName = getBaseName(href).toLowerCase();
     
@@ -96,14 +94,13 @@ function getContext(content: string, start: number, end: number): { line: number
  * Build a link index from file contents.
  * 
  * @param files - Map of file path to content (only markdown files with content)
- * @param fileTree - Full file tree for resolution
+ * @param allPaths - Flat list of all file paths in the workspace
  * @returns Complete link index
  */
 export function buildLinkIndex(
   files: Map<string, string>,
-  fileTree: FileTreeNode[]
+  allPaths: string[]
 ): LinkIndex {
-  const allFiles = flattenFileTree(fileTree);
   const outgoing = new Map<string, LinkInfo[]>();
   const incoming = new Map<string, LinkInfo[]>();
   const nodeSet = new Set<string>();
@@ -118,7 +115,7 @@ export function buildLinkIndex(
     nodeSet.add(filePath);
     
     for (const link of links) {
-      const { path: targetPath, exists } = resolveHref(link.href, allFiles);
+      const { path: targetPath, exists } = resolveHref(link.href, allPaths);
       const { line, context } = getContext(content, link.start, link.end);
       
       const linkInfo: LinkInfo = {
@@ -154,7 +151,7 @@ export function buildLinkIndex(
   const nodes: GraphNode[] = Array.from(nodeSet).map(id => ({
     id,
     label: getBaseName(id),
-    exists: allFiles.includes(id),
+    exists: allPaths.includes(id),
     outgoingCount: outgoing.get(id)?.length || 0,
     incomingCount: incoming.get(id)?.length || 0,
   }));

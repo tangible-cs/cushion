@@ -1,16 +1,13 @@
 import { createContext, useContext, type RefObject } from 'react';
-import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { EditorView } from '@codemirror/view';
-import type { FileTreeNode } from '@cushion/types';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 
 export interface EditorPanelContextValue {
-  client: CoordinatorClient;
-  handleChange: (content: string) => void;
-  handleSave: () => void;
+  handleChange: (filePath: string, content: string) => void;
+  handleSave: (filePath: string) => void;
   handlePasteImages: (params: { files: File[]; view: EditorView; filePath: string }) => void;
   handleWikiLinkNavigate: WikiLinkNavigateCallback;
-  fileTree?: FileTreeNode[];
+  filePaths?: string[];
   focusModeEnabled: boolean;
   searchPanelContainerRef: RefObject<HTMLDivElement | null>;
   onAddSelectionToChat?: (data: { path: string; selection: { startLine: number; startChar: number; endLine: number; endChar: number }; preview: string }) => void;

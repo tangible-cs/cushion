@@ -48,7 +48,6 @@ export function EditorTabRow({
         paddingRight: rightPanelOpen ? undefined : 140,
       } as React.CSSProperties : undefined}
     >
-      {/* Left section — matches sidebar width when open */}
       <div
         className={cn(
           'flex items-center self-center flex-shrink-0',
@@ -91,20 +90,20 @@ export function EditorTabRow({
         )}
       </div>
 
-      {/* Center — tabs area + right toggle */}
       <div
         className="min-w-0 flex-1 flex items-end"
-        style={noDragStyle}
       >
         <div className="min-w-0 flex-1">
           {tabs.length > 0 ? (
-            <EditorTabs
-              tabs={tabs}
-              currentFile={currentFile}
-              onSelectTab={onSelectTab}
-              onCloseTab={onCloseTab}
-              onAddTab={onAddTab}
-            />
+            <div className="w-fit max-w-full" style={noDragStyle}>
+              <EditorTabs
+                tabs={tabs}
+                currentFile={currentFile}
+                onSelectTab={onSelectTab}
+                onCloseTab={onCloseTab}
+                onAddTab={onAddTab}
+              />
+            </div>
           ) : (
             <div className="h-10" />
           )}
@@ -131,7 +130,6 @@ export function EditorTabRow({
         )}
       </div>
 
-      {/* Right divider section — matches right panel width when open */}
       {rightPanelOpen && (
         <div
           className="flex-shrink-0 self-stretch border-l border-border"

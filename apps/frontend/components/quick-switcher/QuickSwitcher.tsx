@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, X } from 'lucide-react';
-import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
-import type { FileTreeNode } from '@cushion/types';
+import { searchFiles } from '@/lib/wiki-link-resolver';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getBaseName, getDirectory } from '@/lib/path-utils';
 import { cn } from '@/lib/utils';
@@ -12,7 +11,7 @@ import { FolderIcon, FileIcon } from '@/components/shared/FileIcons';
 interface QuickSwitcherProps {
   isOpen: boolean;
   onClose: () => void;
-  fileTree: FileTreeNode[];
+  filePaths: string[];
   onSelectFile: (filePath: string) => void;
   onCreateFile?: (fileName: string) => void;
 }
@@ -80,7 +79,7 @@ function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: 
 export function QuickSwitcher({
   isOpen,
   onClose,
-  fileTree,
+  filePaths,
   onSelectFile,
   onCreateFile,
 }: QuickSwitcherProps) {
@@ -102,7 +101,7 @@ export function QuickSwitcher({
     const items: SearchResult[] = [];
 
     if (query.trim()) {
-      const matches = searchFiles(query, fileTree, 15);
+      const matches = searchFiles(query, filePaths, 15);
 
       for (const path of matches) {
         const displayName = getBaseName(path);
@@ -132,8 +131,7 @@ export function QuickSwitcher({
         });
       }
     } else {
-      const allFiles = flattenFileTree(fileTree);
-      const sorted = allFiles
+      const sorted = filePaths
         .sort((a, b) => {
           const aIsMd = a.endsWith('.md') ? 1 : 0;
           const bIsMd = b.endsWith('.md') ? 1 : 0;
@@ -152,7 +150,7 @@ export function QuickSwitcher({
     }
 
     return items;
-  }, [query, fileTree, onCreateFile]);
+  }, [query, filePaths, onCreateFile]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -241,7 +239,6 @@ export function QuickSwitcher({
         className="flex h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-modal-border bg-modal-bg shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
           <h2 className="text-[15px] font-medium text-foreground">Quick switcher</h2>
           <button
@@ -254,7 +251,6 @@ export function QuickSwitcher({
           </button>
         </div>
 
-        {/* Search bar */}
         <div className="px-4 pb-3">
           <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
             <Search size={16} className="shrink-0 text-muted-foreground" />
@@ -284,7 +280,6 @@ export function QuickSwitcher({
           </div>
         </div>
 
-        {/* Results */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
           {results.length === 0 ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -338,7 +333,6 @@ export function QuickSwitcher({
           )}
         </div>
 
-        {/* Footer shortcuts */}
         <div className="px-4 py-2.5 flex gap-4 text-xs text-muted-foreground">
           {(prevLabel || nextLabel) && (
             <span>

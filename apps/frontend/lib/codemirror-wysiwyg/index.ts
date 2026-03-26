@@ -6,7 +6,7 @@ import { hiddenRangesField, hiddenAtomicRanges } from './atomic-ranges';
 import { focusState, focusListener, mouseSelectingField, mouseSelectionTracker } from './reveal-on-cursor';
 import {
   wikiLinkExtension,
-  updateWikiLinkFileTree,
+  updateWikiLinkFilePaths,
   setWikiLinkNavigateCallback,
   type WikiLinkNavigateCallback,
 } from './wiki-link-plugin';
@@ -36,7 +36,7 @@ export {
 } from './reveal-on-cursor';
 
 export {
-  updateWikiLinkFileTree,
+  updateWikiLinkFilePaths,
   setWikiLinkNavigateCallback,
   type WikiLinkNavigateCallback,
 } from './wiki-link-plugin';

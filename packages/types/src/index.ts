@@ -83,7 +83,7 @@ export interface WorkspaceState {
   openFiles: Map<string, FileState>;
   tabs: TabState[];
   currentFile: string | null;
-  fileTree: FileTreeNode[];
+  flatFileList: string[];
   fileWatcher: FileWatcherState;
   recentProjects: WorkspaceMetadata[];
   recentFiles: string[];
@@ -176,6 +176,7 @@ export interface ResolvedWikiLink {
 export interface FileChange {
   type: 'created' | 'modified' | 'deleted';
   path: string;
+  isDirectory?: boolean;
 }
 
 export interface FilesChangedNotification {

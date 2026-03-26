@@ -98,16 +98,19 @@ export default function Home() {
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
 
-  const { fileTree, connectionState, fetchFileTree } = useFileTree({
+  const { filePaths, connectionState, fetchFileTree } = useFileTree({
     client,
     metadata,
-    onFilesChanged: () => fileBrowserRef.current?.refreshFileList(),
+    onFilesChanged: (affectedDirs) => {
+      fileBrowserRef.current?.refreshFileList();
+      fileBrowserRef.current?.refreshDirectories(affectedDirs);
+    },
   });
 
   const linkIndex = useLinkIndex({
     client,
     metadata,
-    fileTree,
+    filePaths,
     openFiles,
   });
 
@@ -242,7 +245,7 @@ export default function Home() {
     try {
       let name = 'Untitled.md';
       let counter = 1;
-      const existing = new Set(fileTree?.map((n) => n.name) ?? []);
+      const existing = new Set(filePaths.filter(p => !p.includes('/')));
       while (existing.has(name)) {
         name = `Untitled ${counter}.md`;
         counter++;
@@ -254,7 +257,7 @@ export default function Home() {
     } catch (err) {
       console.error('[Page] Failed to create new note:', err);
     }
-  }, [client, openFile, fetchFileTree, fileTree]);
+  }, [client, openFile, fetchFileTree, filePaths]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -411,6 +414,11 @@ export default function Home() {
         openFile(filePath, '');
         return;
       }
+      // Skip server fetch if the file is already open
+      if (useWorkspaceStore.getState().openFiles.has(filePath)) {
+        openFile(filePath, '');
+        return;
+      }
       const { content } = await client.readFile(filePath);
       openFile(filePath, content);
     } catch (err) {
@@ -486,7 +494,6 @@ export default function Home() {
           ref={fileBrowserRef}
           client={client}
           onFileOpen={handleFileOpen}
-          onOpenWorkspace={handleOpenWorkspace}
           onSidebarToggle={handleSidebarToggle}
           isCollapsed={isSidebarHidden}
           onSearch={() => setShowQuickSwitcher(true)}
@@ -502,7 +509,7 @@ export default function Home() {
               <EditorPanel
                 client={client}
                 onFileRenamed={handleFileRenamed}
-                fileTree={fileTree}
+                filePaths={filePaths}
                 focusModeEnabled={focusModeEnabled}
                 onToggleFocusMode={toggleFocusMode}
                 onNewNote={handleNewNote}
@@ -606,7 +613,7 @@ export default function Home() {
       <QuickSwitcher
         isOpen={showQuickSwitcher && !focusModeEnabled}
         onClose={() => setShowQuickSwitcher(false)}
-        fileTree={fileTree}
+        filePaths={filePaths}
         onSelectFile={handleNavigateToFile}
         onCreateFile={handleCreateFile}
       />

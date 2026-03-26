@@ -117,10 +117,9 @@ export function MoveToDialog({
       onClick={onClose}
     >
       <div
-        className="bg-modal-bg rounded-lg w-[480px] max-h-[600px] flex flex-col shadow-lg border border-modal-border"
+        className="bg-modal-bg rounded-lg w-[560px] max-h-[70vh] flex flex-col shadow-lg border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-modal-border">
           <div className="text-base font-semibold text-foreground">Move to folder</div>
           <button
@@ -132,9 +131,7 @@ export function MoveToDialog({
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto p-3 min-h-[300px]">
-          {/* Root folder */}
           <div
             className={cn(
               "flex items-center py-1.5 px-2 rounded cursor-pointer transition-colors select-none hover:bg-[var(--overlay-10)]",
@@ -160,11 +157,9 @@ export function MoveToDialog({
             </div>
           </div>
 
-          {/* Tree */}
           {expandedDirs.has('.') && renderTree(rootFiles)}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-modal-border gap-3">
           <div className="flex-1 text-[13px] text-foreground-muted overflow-hidden text-ellipsis whitespace-nowrap" title={selectedPath}>
             Moving to: {selectedPath === '.' ? 'Project Root' : selectedPath}

@@ -70,6 +70,12 @@ export class WorkspaceWatcher {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private onFilesChanged: ((changes: FileChange[]) => void) | null = null;
   private onFileChangedOnDisk: ((filePath: string, mtime: number) => void) | null = null;
+  private isFileAllowed: (absPath: string) => boolean = () => true;
+  private projectPath: string | null = null;
+
+  setFileFilter(predicate: (absPath: string) => boolean) {
+    this.isFileAllowed = predicate;
+  }
 
   setOnFilesChanged(cb: (changes: FileChange[]) => void) {
     this.onFilesChanged = cb;
@@ -80,6 +86,7 @@ export class WorkspaceWatcher {
   }
 
   start(projectPath: string) {
+    this.projectPath = projectPath;
     const ignored = createIgnoredPathMatcher(projectPath);
 
     this.watcher = watch(projectPath, {
@@ -88,19 +95,19 @@ export class WorkspaceWatcher {
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
 
-    const enqueue = (type: FileChange['type'], absPath: string) => {
+    const enqueue = (type: FileChange['type'], absPath: string, isDirectory?: boolean) => {
       if (!this.watcher) return;
       const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
-      this.pendingChanges.push({ type, path: relative });
+      this.pendingChanges.push({ type, path: relative, ...(isDirectory && { isDirectory }) });
       this.scheduleFlush();
     };
 
     this.watcher
-      .on('add', (p) => enqueue('created', p))
-      .on('addDir', (p) => enqueue('created', p))
-      .on('change', (p) => this.handleExternalChange(projectPath, p))
-      .on('unlink', (p) => enqueue('deleted', p))
-      .on('unlinkDir', (p) => enqueue('deleted', p))
+      .on('add', (p) => { if (this.isFileAllowed(p)) enqueue('created', p); })
+      .on('addDir', (p) => enqueue('created', p, true))
+      .on('change', (p) => { if (this.isFileAllowed(p)) this.handleExternalChange(projectPath, p); })
+      .on('unlink', (p) => { if (this.isFileAllowed(p)) enqueue('deleted', p); })
+      .on('unlinkDir', (p) => enqueue('deleted', p, true))
       .on('ready', () => this.logWatcherLoad(projectPath))
       .on('error', (err) => console.error('[Watcher] Error:', err));
   }

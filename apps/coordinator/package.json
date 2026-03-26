@@ -15,6 +15,7 @@
   "dependencies": {
     "@cushion/types": "workspace:*",
     "chokidar": "^5.0.0",
+    "ignore": "^7.0.5",
     "write-file-atomic": "^7.0.0",
     "ws": "^8.18.0"
   },
