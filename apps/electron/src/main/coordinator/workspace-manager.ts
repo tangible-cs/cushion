@@ -55,7 +55,6 @@ export class WorkspaceManager {
 
     this.gitignoreStack = [];
 
-    // Root .gitignore (always includes hardcoded safety patterns)
     const rootIg = ignore();
     rootIg.add(IGNORED_PATTERNS);
     try {
@@ -67,13 +66,11 @@ export class WorkspaceManager {
     } catch {}
     this.gitignoreStack.push({ basePath: '', ig: rootIg });
 
-    // Discover nested .gitignore files
     await this.collectNestedGitignores(this.currentWorkspace.projectPath, '');
 
     this.syncWatcherFilter();
   }
 
-  /** Walk directories to find nested .gitignore files and add them to the stack. */
   private async collectNestedGitignores(dirPath: string, relBase: string): Promise<void> {
     let entries: import('fs').Dirent[];
     try {
@@ -88,12 +85,10 @@ export class WorkspaceManager {
 
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
 
-      // Skip directories already ignored by a parent gitignore
       if (this.isIgnoredByGitignore(relPath, true)) continue;
 
       const fullPath = path.join(dirPath, entry.name);
 
-      // Check for a .gitignore in this subdirectory
       try {
         const content = await fs.readFile(path.join(fullPath, '.gitignore'), 'utf-8');
         const ig = ignore();
@@ -105,7 +100,6 @@ export class WorkspaceManager {
     }
   }
 
-  /** Check if a path is ignored by any gitignore in the stack. */
   private isIgnoredByGitignore(relativePath: string, isDirectory: boolean): boolean {
     for (const { basePath, ig } of this.gitignoreStack) {
       let testPath: string;
@@ -138,7 +132,6 @@ export class WorkspaceManager {
     if (isDirectory) return true;
     if (this.allowedExtensions.size === 0) return true;
 
-    // Always show certain config files regardless of extension
     const fileName = path.basename(relativePath);
     if (ALWAYS_VISIBLE_FILENAMES.includes(fileName)) return true;
 
@@ -662,11 +655,6 @@ export class WorkspaceManager {
     return name.endsWith('.md') ? name.slice(0, -3) : name;
   }
 
-  /**
-   * Resolve a relative path to an absolute path and validate it stays
-   * inside the workspace boundary.  Every file-system operation MUST go
-   * through this method so traversal checks cannot be accidentally skipped.
-   */
   private resolvePath(relativePath: string): string {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
@@ -716,9 +704,7 @@ export class WorkspaceManager {
         if (stats.isDirectory()) {
           return currentPath;
         }
-      } catch {
-        // .git not found, continue
-      }
+      } catch {}
 
       const parentPath = path.dirname(currentPath);
 

@@ -1,8 +1,6 @@
 import type {
   FileTreeNode,
   FileChange,
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
 } from './index.js';
 
 export interface RPCMethodMap {
@@ -102,11 +100,6 @@ export interface RPCMethodMap {
   };
 }
 
-export interface RPCNotificationMap {
-  'textDocument/didOpen': DidOpenTextDocumentParams;
-  'textDocument/didChange': DidChangeTextDocumentParams;
-}
-
 export interface RPCServerNotificationMap {
   'workspace/filesChanged': { changes: FileChange[] };
   'workspace/fileChangedOnDisk': { filePath: string; mtime: number };
@@ -116,9 +109,6 @@ export interface RPCServerNotificationMap {
 export type RPCMethodName = keyof RPCMethodMap;
 export type RPCParams<M extends RPCMethodName> = RPCMethodMap[M]['params'];
 export type RPCResult<M extends RPCMethodName> = RPCMethodMap[M]['result'];
-
-export type RPCNotificationName = keyof RPCNotificationMap;
-export type RPCNotificationParams<M extends RPCNotificationName> = RPCNotificationMap[M];
 
 export type RPCServerNotificationName = keyof RPCServerNotificationMap;
 export type RPCServerNotificationParams<M extends RPCServerNotificationName> =

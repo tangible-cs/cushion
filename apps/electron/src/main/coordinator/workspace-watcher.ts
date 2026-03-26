@@ -112,11 +112,6 @@ export class WorkspaceWatcher {
       .on('error', (err) => console.error('[Watcher] Error:', err));
   }
 
-  /**
-   * Handle an external file modification.
-   * Enqueues a 'modified' change for the tree AND fires onFileChangedOnDisk
-   * so the server can notify the client about open-file conflicts.
-   */
   private async handleExternalChange(projectPath: string, absPath: string) {
     if (!this.watcher) return;
     const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
@@ -128,9 +123,7 @@ export class WorkspaceWatcher {
       try {
         const stat = await fs.stat(absPath);
         this.onFileChangedOnDisk(relative, stat.mtimeMs);
-      } catch {
-        // File may have been deleted between change and stat
-      }
+      } catch {}
     }
   }
 

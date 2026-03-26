@@ -1,11 +1,7 @@
 import { ipcMain, dialog, type BrowserWindow } from 'electron';
 import type {
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
   FileChange,
-  DocumentState,
   RPCParams,
-  RPCNotificationParams,
 } from '@cushion/types';
 
 import { WorkspaceManager } from './workspace-manager';
@@ -36,8 +32,6 @@ import {
 
 import { handleSkillInstallZip } from './handlers/skill';
 import { handleShellExec, handleLoginStart, handleLoginFinish } from './handlers/shell';
-
-const documentStates = new Map<string, DocumentState>();
 
 let workspaceManager: WorkspaceManager;
 let configManager: ConfigManager;
@@ -72,7 +66,6 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
 
   await ensurePermissionDefaults();
 
-  // Wire up watcher callbacks to broadcast via IPC
   workspaceManager.setOnFilesChanged((changes: FileChange[]) => {
     mainWindow.webContents.send('coordinator:workspace/filesChanged', { changes });
   });
@@ -87,8 +80,6 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     }
     mainWindow.webContents.send('coordinator:config/changed', { file });
   });
-
-  // --- IPC handlers (request/response) ---
 
   ipcMain.handle('coordinator:workspace/open', async (_event, params: RPCParams<'workspace/open'>) => {
     const result = await handleOpenWorkspace(workspaceManager, params);
@@ -175,27 +166,6 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleLoginFinish();
   });
 
-  // --- Notifications (client → server, no response) ---
-
-  ipcMain.on('coordinator:textDocument/didOpen', (_event, params: RPCNotificationParams<'textDocument/didOpen'>) => {
-    const p = params as DidOpenTextDocumentParams;
-    documentStates.set(p.textDocument.uri, {
-      uri: p.textDocument.uri,
-      version: p.textDocument.version,
-      text: p.textDocument.text,
-    });
-  });
-
-  ipcMain.on('coordinator:textDocument/didChange', (_event, params: RPCNotificationParams<'textDocument/didChange'>) => {
-    const p = params as DidChangeTextDocumentParams;
-    const doc = documentStates.get(p.textDocument.uri);
-    if (!doc) return;
-
-    for (const change of p.contentChanges) {
-      doc.text = change.text;
-    }
-    doc.version = p.textDocument.version;
-  });
 }
 
 export function stopCoordinator() {

@@ -62,7 +62,6 @@ function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: stri
   html.className = resolvedTheme;
 
   if (accentColor) {
-    // accentColor is stored as "h s% l%" (e.g. "210 90% 50%")
     const parts = accentColor.match(/(\d+)\s+(\d+)%?\s+(\d+)%?/);
     if (parts) {
       html.style.setProperty('--accent-h', parts[1]);
@@ -179,7 +178,6 @@ export default function Home() {
     };
   }, [metadata?.projectPath, connectChat, disconnectChat]);
 
-  // Apply theme class and accent color CSS variables to <html>
   useEffect(() => {
     const { resolvedTheme, accentColor } = useAppearanceStore.getState();
     applyAppearanceToDOM(resolvedTheme, accentColor);
@@ -192,7 +190,6 @@ export default function Home() {
     return unsub;
   }, []);
 
-  // Listen for OS theme changes when theme === 'system'
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
@@ -205,7 +202,6 @@ export default function Home() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Sync active file → chat store so @current-file badge updates
   useEffect(() => {
     syncCurrentFile(currentFile);
   }, [currentFile, syncCurrentFile]);
@@ -415,7 +411,6 @@ export default function Home() {
         openFile(filePath, '');
         return;
       }
-      // Skip server fetch if the file is already open
       if (useWorkspaceStore.getState().openFiles.has(filePath)) {
         openFile(filePath, '');
         return;
@@ -444,7 +439,6 @@ export default function Home() {
   const backlinksShortcutLabel = formatShortcutList(appShortcuts['app.backlinks.toggle']);
   const graphShortcutLabel = formatShortcutList(appShortcuts['app.graph.toggle']);
 
-  // Listen for workspace-open events from Electron
   useEffect(() => {
     if (!window.electronAPI?.onOpenWorkspace) return;
     window.electronAPI.onOpenWorkspace((path) => {
@@ -465,7 +459,6 @@ export default function Home() {
   return (
     <ToastProvider>
       <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
-      {/* Top bar — full width, serves as title bar in Electron */}
       {!focusModeEnabled && (
         <EditorTabRow
           sidebarOpen={!isSidebarHidden && !!metadata}
@@ -488,7 +481,6 @@ export default function Home() {
         />
       )}
       <div className="flex-1 flex overflow-hidden min-h-0">
-      {/* LEFT: File browser sidebar - uses negative margin to collapse */}
         <FileBrowser
           ref={fileBrowserRef}
           client={client}
@@ -501,10 +493,8 @@ export default function Home() {
           }}
         />
 
-      {/* CENTER: Editor panel - flex grows to fill remaining space */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
           <div className="flex-1 overflow-hidden">
-            {client ? (
               <EditorPanel
                 client={client}
                 onFileRenamed={handleFileRenamed}
@@ -515,12 +505,8 @@ export default function Home() {
                 onGoToFile={() => setShowQuickSwitcher(true)}
                 onAddSelectionToChat={handleAddSelectionToChat}
               />
-            ) : (
-              <EditorPlaceholder />
-            )}
           </div>
 
-          {/* BOTTOM: Status bar */}
             {!focusModeEnabled && (
               <div className="flex items-center border-t" style={{ backgroundColor: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}>
                <div className="flex-1" />
@@ -546,7 +532,6 @@ export default function Home() {
           )}
         </main>
 
-       {/* RIGHT: Chat panel - also uses negative margin for smooth transition */}
         <aside
           className="relative h-full flex-shrink-0 border-l border-border bg-sidebar-bg transition-[margin] duration-300 ease-in-out"
           style={{
@@ -571,7 +556,6 @@ export default function Home() {
           )}
         </aside>
 
-      {/* Backlinks modal */}
       {!focusModeEnabled && showBacklinks && (
         <ModalOverlay onBackdropClick={() => setShowBacklinks(false)}>
           <BacklinksPanel
@@ -583,7 +567,6 @@ export default function Home() {
         </ModalOverlay>
       )}
 
-      {/* Graph view modal */}
       {!focusModeEnabled && showGraph && (
         <ModalOverlay onBackdropClick={() => setShowGraph(false)}>
           <GraphView
@@ -595,20 +578,17 @@ export default function Home() {
         </ModalOverlay>
       )}
 
-      {/* Settings modal */}
       {!focusModeEnabled && showSettings && (
         <ModalOverlay maxWidth="5xl" onBackdropClick={() => setShowSettings(false)}>
           <SettingsPanel onClose={() => setShowSettings(false)} />
         </ModalOverlay>
       )}
 
-      {/* Workspace modal */}
       <WorkspaceModal
         isOpen={showWorkspaceModal && !focusModeEnabled}
         onClose={() => setShowWorkspaceModal(false)}
       />
 
-      {/* Quick Switcher */}
       <QuickSwitcher
         isOpen={showQuickSwitcher && !focusModeEnabled}
         onClose={() => setShowQuickSwitcher(false)}
@@ -619,16 +599,5 @@ export default function Home() {
     </div>
     </div>
     </ToastProvider>
-  );
-}
-
-function EditorPlaceholder() {
-  return (
-    <div className="h-full w-full flex items-center justify-center bg-background">
-      <div className="text-center text-muted-foreground">
-        <div className="text-lg font-medium mb-2">Editor</div>
-        <div className="text-sm">Open a file from the sidebar to start editing</div>
-      </div>
-    </div>
   );
 }

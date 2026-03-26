@@ -39,14 +39,13 @@ export interface FileBrowserHandle {
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings }, ref) {
+  function FileBrowser({ client, onFileOpen, onSidebarToggle, isCollapsed = false, onSearch, onSettings }, ref) {
   const { metadata, currentFile, preferences, sidebarWidth: rawSidebarWidth, setSidebarWidth } = useWorkspaceStore();
   const { showToast } = useToast();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rootExpanded, setRootExpanded] = useState(true);
-  const isCollapsed = isCollapsedProp;
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveSourcePath, setMoveSourcePath] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -116,7 +115,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     [setSidebarWidth]
   );
 
-  // Mobile auto-collapse - only run when isMobile changes
   useEffect(() => {
     if (isMobile) {
       collapseSidebar();
@@ -126,19 +124,16 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]); // Only depend on isMobile, not the functions
 
-  // Reset explorer state when workspace changes
   useEffect(() => {
     useExplorerStore.getState().resetExplorerState();
   }, [metadata?.projectPath]);
 
-  // Load root directory when workspace opens
   useEffect(() => {
     if (metadata && client) {
       loadDirectory('.');
     }
   }, [metadata?.projectPath, client, loadDirectory]);
 
-  // Expose refresh method via ref
   useImperativeHandle(ref, () => ({
     refreshFileList: async () => {
       await loadDirectory('.');
@@ -147,7 +142,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       if (affectedDirs.has('.')) {
         loadDirectory('.');
       }
-      // Re-fetch affected expanded dirs into the centralized store
       const { expandedDirs, setDirContents } = useExplorerStore.getState();
       for (const dir of affectedDirs) {
         if (dir !== '.' && expandedDirs.has(dir)) {
@@ -273,10 +267,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
   useEffect(() => {
     if (!metadata && onSidebarToggle) {
-      // No workspace = sidebar collapsed
       onSidebarToggle(true);
     } else if (metadata && onSidebarToggle && !isCollapsed) {
-      // Workspace loaded and sidebar not manually collapsed = sidebar expanded
       onSidebarToggle(false);
     }
   }, [metadata, onSidebarToggle, isCollapsed]);
@@ -315,9 +307,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             onCollapse={collapseSidebar}
           />
         )}
-        {/* Navigation items */}
         <div className="flex-shrink-0 px-2 pt-2 pb-1 space-y-0.5">
-          {/* Search */}
           <button
             onClick={onSearch}
             className={cn(
@@ -331,7 +321,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             <span>Search</span>
           </button>
 
-          {/* Settings */}
           <button
             onClick={onSettings}
             className={cn(
@@ -345,7 +334,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             <span>Settings</span>
           </button>
 
-          {/* New file */}
           <button
             onClick={() => setCreatingFileAtRoot(c => c + 1)}
             className={cn(
@@ -360,7 +348,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             <span>New file</span>
           </button>
 
-          {/* New folder */}
           <button
             onClick={() => setCreatingFolderAtRoot(c => c + 1)}
             className={cn(
@@ -376,10 +363,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           </button>
         </div>
 
-        {/* Spacing before file tree */}
         <div className="flex-shrink-0 h-2" />
 
-        {/* Root folder toggle */}
         <div className="flex-shrink-0 px-2">
           <button
             onClick={() => setRootExpanded(!rootExpanded)}
@@ -401,7 +386,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           </button>
         </div>
 
-        {/* File tree (scrollable) */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto overflow-x-hidden px-2 thin-scrollbar"
@@ -421,7 +405,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             }
           }}
         >
-          {/* File tree (collapsible) */}
           {rootExpanded && (
             isLoading && rootFiles.length === 0 ? (
             <div className="flex items-center justify-center p-6">
@@ -500,7 +483,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                   const resolved = await resolveConflict(client, newPath);
                   await client.renameFile(oldPath, resolved);
 
-                  // Update open tab if this file was open in the editor
                   const store = useWorkspaceStore.getState();
                   const fileState = store.openFiles.get(oldPath);
                   if (fileState) {
@@ -512,10 +494,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                     }
                   }
 
-                  // Reload the parent directory to show updated files
                   const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);
-                  // Also reload destination parent if different
                   const destParent = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
                   if (destParent !== parentPath) {
                     await loadDirectory(destParent);
@@ -557,7 +537,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
       </aside>
 
-    {/* Move To Dialog */}
     <MoveToDialog
       isOpen={moveDialogOpen}
       onClose={() => setMoveDialogOpen(false)}
@@ -568,14 +547,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         if (!client) return;
 
         try {
-          // Get file/folder name
           const fileName = moveSourcePath.split('/').pop() || moveSourcePath;
-          // Build new path
           const rawPath = targetPath === '.' ? fileName : `${targetPath}/${fileName}`;
           const newPath = await resolveConflict(client, rawPath);
 
           await client.renameFile(moveSourcePath, newPath);
-          // Reload both the source and target directories
           const sourceParentPath = moveSourcePath.substring(0, moveSourcePath.lastIndexOf('/')) || '.';
           await loadDirectory(sourceParentPath);
           if (targetPath !== sourceParentPath) {
@@ -588,7 +564,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       }}
     />
 
-    {/* Delete Confirmation Dialog */}
     <ConfirmDialog
       isOpen={deleteDialogOpen}
       onClose={() => setDeleteDialogOpen(false)}

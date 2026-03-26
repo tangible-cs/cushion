@@ -1,13 +1,4 @@
-/**
- * Coordinator client using Electron IPC transport.
- *
- * Replaces the previous WebSocket/JSON-RPC implementation.
- * IPC is always connected — no reconnect logic needed.
- */
-
 import type {
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
   FileChange,
   RPCMethodName,
   RPCParams,
@@ -20,13 +11,6 @@ export class CoordinatorClient {
   private configChangedCallbacks: Array<(file: string) => void> = [];
   private _cleanups: Array<() => void> = [];
 
-  isConnected(): boolean {
-    return true;
-  }
-
-  /**
-   * Subscribe to IPC broadcast notifications from the main process.
-   */
   connect(): Promise<void> {
     const api = window.electronAPI!;
 
@@ -62,32 +46,12 @@ export class CoordinatorClient {
     this._cleanups = [];
   }
 
-  // ---------------------------------------------------------------------------
-  // Generic typed RPC call
-  // ---------------------------------------------------------------------------
-
   call<M extends RPCMethodName>(
     method: M,
     ...args: RPCParams<M> extends void ? [] : [RPCParams<M>]
   ): Promise<RPCResult<M>> {
     return window.electronAPI!.coordinatorInvoke(method, args[0] ?? {});
   }
-
-  // ---------------------------------------------------------------------------
-  // LSP notifications
-  // ---------------------------------------------------------------------------
-
-  didOpen(params: DidOpenTextDocumentParams) {
-    window.electronAPI!.coordinatorSend('textDocument/didOpen', params);
-  }
-
-  didChange(params: DidChangeTextDocumentParams) {
-    window.electronAPI!.coordinatorSend('textDocument/didChange', params);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Convenience wrappers (thin delegates to `call`)
-  // ---------------------------------------------------------------------------
 
   openWorkspace(projectPath: string) {
     return this.call('workspace/open', { projectPath });
@@ -148,10 +112,6 @@ export class CoordinatorClient {
   writeConfig(file: string, content: string) {
     return this.call('config/write', { file, content });
   }
-
-  // ---------------------------------------------------------------------------
-  // Notification subscriptions
-  // ---------------------------------------------------------------------------
 
   onFilesChanged(callback: (changes: import('@cushion/types').FileChange[]) => void): () => void {
     this.filesChangedCallbacks.push(callback);

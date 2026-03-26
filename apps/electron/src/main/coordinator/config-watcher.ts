@@ -5,12 +5,6 @@ const CONFIG_DIR_NAME = '.cushion';
 const DEBOUNCE_MS = 500;
 const SELF_WRITE_SUPPRESS_MS = 2_000;
 
-/**
- * Watches `.cushion/*.json` for external changes and emits notifications.
- *
- * Self-write suppression: call `suppressNext(filename)` before writing a config
- * file to prevent the watcher from firing for your own write.
- */
 export class ConfigWatcher {
   private watcher: FSWatcher | null = null;
   private onConfigChanged: ((file: string) => void) | null = null;
@@ -22,9 +16,6 @@ export class ConfigWatcher {
     this.onConfigChanged = cb;
   }
 
-  /**
-   * Suppress the next change event for a file (self-write detection).
-   */
   suppressNext(filename: string) {
     this.suppressions.set(filename, Date.now());
   }
@@ -64,7 +55,6 @@ export class ConfigWatcher {
   private enqueue(configDir: string, absPath: string) {
     const filename = path.basename(absPath);
 
-    // Check self-write suppression
     const suppressedAt = this.suppressions.get(filename);
     if (suppressedAt && Date.now() - suppressedAt < SELF_WRITE_SUPPRESS_MS) {
       this.suppressions.delete(filename);

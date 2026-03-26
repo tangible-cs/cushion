@@ -186,7 +186,6 @@ export function EditorPanel({
     forceUpdate(n => n + 1);
   }, [setCurrentFile]);
 
-  const openedUrisRef = useRef<Set<string>>(new Set());
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   useEffect(() => {
@@ -195,7 +194,6 @@ export function EditorPanel({
       index: -1,
       navigating: false,
     };
-    openedUrisRef.current.clear();
     forceUpdate((n) => n + 1);
   }, [workspacePath]);
 
@@ -218,40 +216,12 @@ export function EditorPanel({
   }, []);
 
 
-  if (fileState && currentFile && !openedUrisRef.current.has(currentFile)) {
-    openedUrisRef.current.add(currentFile);
-    try {
-      client.didOpen({
-        textDocument: {
-          uri: `file://${fileState.absolutePath}`,
-          languageId: fileState.language || 'plaintext',
-          version: fileState.version,
-          text: fileState.content,
-        },
-      });
-    } catch {
-      // Client may not be connected yet
-    }
-  }
-
   const handleChange = useCallback(
     (filePath: string, content: string) => {
       const file = useWorkspaceStore.getState().openFiles.get(filePath);
       if (!file) return;
 
       updateFileContent(filePath, content);
-
-      try {
-        client.didChange({
-          textDocument: {
-            uri: `file://${file.absolutePath}`,
-            version: file.version + 1,
-          },
-          contentChanges: [{ text: content }],
-        });
-      } catch {
-        // Client may not be connected
-      }
 
       if (
         preferences.autoSave &&
@@ -400,8 +370,6 @@ export function EditorPanel({
           store.closeFile(currentFile);
           store.openFile(newPath, fileState.content);
           store.setCurrentFile(newPath);
-          
-          openedUrisRef.current.delete(currentFile);
         }
         
         onFileRenamed?.();

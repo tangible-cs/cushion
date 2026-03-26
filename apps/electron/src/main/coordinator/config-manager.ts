@@ -14,33 +14,20 @@ export class ConfigManager {
   private configWatcher: ConfigWatcher | null = null;
   private gitignoreCreated = false;
 
-  /**
-   * Link a ConfigWatcher for self-write suppression.
-   */
   setConfigWatcher(watcher: ConfigWatcher) {
     this.configWatcher = watcher;
   }
 
-  /**
-   * Update the workspace path. Called when a workspace is opened.
-   */
   setWorkspacePath(workspacePath: string) {
     this.workspacePath = workspacePath;
     this.gitignoreCreated = false;
   }
 
-  /**
-   * Clear workspace path. Called when workspace is closed.
-   */
   clearWorkspacePath() {
     this.workspacePath = null;
     this.gitignoreCreated = false;
   }
 
-  /**
-   * Read a config file from `.cushion/`. Returns null content for missing files.
-   * Permission errors are logged and treated as missing files to avoid crashes.
-   */
   async readConfig(filename: string): Promise<{ content: string | null; exists: boolean }> {
     this.ensureWorkspace();
     this.validateConfigFilename(filename);
@@ -62,10 +49,6 @@ export class ConfigManager {
     }
   }
 
-  /**
-   * Write a config file to `.cushion/`. Auto-creates the directory.
-   * Permission errors are logged but don't crash (read-only filesystem).
-   */
   async writeConfig(filename: string, content: string): Promise<void> {
     this.ensureWorkspace();
     this.validateConfigFilename(filename);
@@ -84,8 +67,6 @@ export class ConfigManager {
     const filePath = path.join(this.configDir, filename);
     await writeFileAtomicWithRetry(filePath, content, 'utf-8');
   }
-
-  // -- Internals --
 
   private get configDir(): string {
     return path.join(this.workspacePath!, CONFIG_DIR_NAME);
@@ -109,15 +90,11 @@ export class ConfigManager {
     const gitignorePath = path.join(this.configDir, '.gitignore');
     try {
       await fs.access(gitignorePath);
-      // Already exists — don't overwrite
     } catch {
       await fs.writeFile(gitignorePath, GITIGNORE_CONTENT, 'utf-8');
     }
   }
 
-  /**
-   * Validate config filename: must be a plain `.json` filename with no path separators.
-   */
   private validateConfigFilename(name: string): void {
     if (!name || typeof name !== 'string') {
       throw new Error('Invalid config filename');

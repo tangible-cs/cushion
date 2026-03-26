@@ -50,5 +50,4 @@ apps/frontend/public/excalidraw-assets/
 # TypeScript
 *.tsbuildinfo
 
-# md files
 *.md

@@ -109,7 +109,6 @@ export function EditorTabRow({
           )}
         </div>
 
-        {/* Right panel toggle — sits on the tabs side, left of the divider */}
         {onToggleRightPanel && (
           <button
             onClick={onToggleRightPanel}
