@@ -95,7 +95,7 @@ export function EditorTabRow({
       >
         <div className="min-w-0 flex-1">
           {tabs.length > 0 ? (
-            <div className="w-fit max-w-full" style={noDragStyle}>
+            <div className="max-w-full" style={noDragStyle}>
               <EditorTabs
                 tabs={tabs}
                 currentFile={currentFile}
@@ -109,7 +109,6 @@ export function EditorTabRow({
           )}
         </div>
 
-        {/* Right panel toggle — sits on the tabs side, left of the divider */}
         {onToggleRightPanel && (
           <button
             onClick={onToggleRightPanel}

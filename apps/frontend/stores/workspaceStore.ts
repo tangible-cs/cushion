@@ -184,7 +184,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
 
             get().addRecentProject();
 
-            // Feature 3: notify Electron so the OS shows recent workspaces
             window.electronAPI?.notifyWorkspaceOpened?.(projectPath);
           } catch (error) {
             const errorMessage =
@@ -199,11 +198,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         },
 
         selectWorkspaceFolder: async () => {
-          // In Electron, use the native dialog directly
-          if (window.electronAPI?.selectFolder) {
-            return window.electronAPI.selectFolder();
-          }
-
           if (!coordinatorClient) {
             throw new Error('Coordinator client not initialized');
           }
@@ -223,12 +217,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             return;
           }
 
-          // If file already has a tab, just switch to it
           const existingTab = tabs.find((t) => t.filePath === filePath);
           if (existingTab) {
             get().setActiveTab(existingTab.id);
 
-            // Still need to load the file if not in openFiles
             if (!openFiles.get(filePath)) {
               const frontmatter = extractFrontmatter(filePath, content);
               const fileState: FileState = {
@@ -251,7 +243,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             return;
           }
 
-          // Parse frontmatter for markdown files
           const frontmatter = extractFrontmatter(filePath, content);
 
           const fileState: FileState = {
@@ -271,7 +262,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           const newOpenFiles = new Map(openFiles);
           newOpenFiles.set(filePath, fileState);
 
-          // Replace __new_tab__ placeholder if one is active
           const newTabPlaceholder = tabs.find((t) => t.filePath === '__new_tab__');
           if (newTabPlaceholder) {
             const newTabs = tabs.map((t) =>
@@ -318,7 +308,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             return;
           }
 
-          // Re-parse frontmatter if the file supports it
           const frontmatter = extractFrontmatter(filePath, content);
 
           const updatedFile: FileState = {
@@ -360,11 +349,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ openFiles: newOpenFiles });
         },
 
-        /**
-         * Replace content of an already-open file (e.g. after external disk change).
-         * Atomically updates both content and savedContent so the editor refreshes
-         * without a transient dirty state.
-         */
         replaceOpenFileContent: (filePath: string, content: string) => {
           const { openFiles } = get();
           const file = openFiles.get(filePath);
@@ -394,7 +378,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         addTab: (filePath: string, isPreview: boolean = false) => {
           const { tabs } = get();
 
-          // Preview mode: reuse existing preview tab if there is one
           if (isPreview) {
             const previewTabIndex = tabs.findIndex((t) => t.isPreview);
             if (previewTabIndex !== -1) {

@@ -3,7 +3,6 @@ import { spawn, type ChildProcess } from 'node:child_process';
 const ALLOWED_COMMANDS = new Set(['pip', 'pip3', 'python', 'python3', 'py', 'playwright', 'notebooklm']);
 const SHELL_META = /[;|&$`\\<>(){}!"'\n\r]/;
 
-// 10 MB max buffer per stream
 const MAX_BUFFER = 10 * 1024 * 1024;
 
 let loginProcess: ChildProcess | null = null;

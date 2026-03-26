@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import './pdf-export';
 import { join } from 'path';
 import windowStateKeeper from 'electron-window-state';
-import { startCoordinator, stopCoordinator, getCoordinatorPort } from './coordinator';
+import { initCoordinator, stopCoordinator } from './coordinator/ipc-router';
 
 const iconExt = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
 const iconPath = app.isPackaged
@@ -77,43 +77,24 @@ function createWindow() {
   }
 }
 
-/* IPC: dialog */
-ipcMain.handle('dialog:selectFolder', async () => {
-  if (!mainWindow) return null;
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory', 'createDirectory'],
-  });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
-});
-
-ipcMain.handle('get-coordinator-port', () => {
-  return getCoordinatorPort();
-});
-
-/* IPC: titlebar theme sync */
 ipcMain.handle('titlebar:update-theme', (_event, colors: { color: string; symbolColor: string }) => {
   mainWindow?.setTitleBarOverlay(colors);
 });
 
-/* IPC: recent workspaces */
 ipcMain.handle('workspace:opened', (_event, projectPath: string) => {
   app.addRecentDocument(projectPath);
 });
 
-/* Open workspace: macOS open-file */
 app.on('open-file', (event, path) => {
   event.preventDefault();
   focusAndOpenWorkspace(path);
 });
 
-/* Open workspace: second-instance (Windows/Linux) */
 app.on('second-instance', (_event, commandLine) => {
   const openPath = extractPathArg(commandLine.slice(1));
   if (openPath) focusAndOpenWorkspace(openPath);
 });
 
-/* IPC: OAuth window for MCP authentication */
 const OAUTH_CALLBACK_ORIGIN = 'http://127.0.0.1:19876';
 const OAUTH_CALLBACK_PATH = '/mcp/oauth/callback';
 
@@ -138,7 +119,6 @@ ipcMain.handle('oauth:openWindow', (_event, authUrl: string): Promise<string | n
     const isCallbackUrl = (url: string) =>
       url.startsWith(`${OAUTH_CALLBACK_ORIGIN}${OAUTH_CALLBACK_PATH}`);
 
-    // Intercept server-side redirects (HTTP 302) to the callback URL
     oauthWin.webContents.on('will-redirect', (e, url) => {
       if (isCallbackUrl(url)) {
         e.preventDefault();
@@ -146,7 +126,6 @@ ipcMain.handle('oauth:openWindow', (_event, authUrl: string): Promise<string | n
       }
     });
 
-    // Intercept client-side navigations (window.location) to the callback URL
     oauthWin.webContents.on('will-navigate', (e, url) => {
       if (isCallbackUrl(url)) {
         e.preventDefault();
@@ -176,8 +155,8 @@ app.whenReady().then(async () => {
     pendingOpenPath = cliPath;
   }
 
-  await startCoordinator();
   createWindow();
+  await initCoordinator(mainWindow!);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

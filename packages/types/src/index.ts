@@ -37,9 +37,7 @@ export interface WorkspaceMetadata {
 }
 
 export interface Frontmatter {
-  /** Character position where frontmatter starts (always 0) */
   start: number;
-  /** Character position where frontmatter ends (after closing ---) */
   end: number;
   raw: string;
   data: Record<string, unknown>;
@@ -48,9 +46,7 @@ export interface Frontmatter {
 export interface FileState {
   filePath: string;
   absolutePath: string;
-  /** Full content including frontmatter */
   content: string;
-  /** Content saved on disk */
   savedContent: string;
   isDirty: boolean;
   version: number;
@@ -94,72 +90,10 @@ export interface WorkspaceState {
   error: string | null;
 }
 
-export interface DidOpenTextDocumentParams {
-  textDocument: {
-    uri: string;
-    languageId: string;
-    version: number;
-    text: string;
-  };
-}
-
-export interface DidChangeTextDocumentParams {
-  textDocument: {
-    uri: string;
-    version: number;
-  };
-  contentChanges: { text: string }[];
-}
-
-export interface CodeActionParams {
-  textDocument: {
-    uri: string;
-  };
-  range: Range;
-  context: {
-    instruction: string;
-  };
-}
-
-export interface JSONRPCRequest {
-  jsonrpc: '2.0';
-  id: string | number;
-  method: string;
-  params: unknown;
-}
-
-export interface JSONRPCResponse {
-  jsonrpc: '2.0';
-  id: string | number;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
-
-/** No id — no response expected */
-export interface JSONRPCNotification {
-  jsonrpc: '2.0';
-  method: string;
-  params: unknown;
-}
-
-export interface DocumentState {
-  uri: string;
-  version: number;
-  text: string;
-}
-
 export interface WikiLinkInfo {
-  /** Full match text including brackets */
   raw: string;
-  /** Target file path/name (without extension) */
   href: string;
-  /** Optional header/block anchor (e.g., "#section") */
   contentId?: string;
-  /** Optional display text (e.g., "|custom text") */
   displayText?: string;
   start: number;
   end: number;
@@ -169,7 +103,6 @@ export type WikiLinkState = 'resolved' | 'empty' | 'ambiguous';
 
 export interface ResolvedWikiLink {
   state: WikiLinkState;
-  /** Empty if state is 'empty', multiple if 'ambiguous' */
   targets: string[];
 }
 
@@ -187,8 +120,6 @@ export interface FileChangedOnDiskNotification {
   filePath: string;
   mtime: number;
 }
-
-export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting';
 
 export * from './rpc.js';
 export * from './config.js';

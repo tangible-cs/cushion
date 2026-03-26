@@ -1,14 +1,7 @@
 import type {
   FileTreeNode,
   FileChange,
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
 } from './index.js';
-
-export interface FsEntry {
-  name: string;
-  path: string;
-}
 
 export interface RPCMethodMap {
   // Workspace
@@ -19,14 +12,6 @@ export interface RPCMethodMap {
   'workspace/select-folder': {
     params: void;
     result: { path: string | null };
-  };
-  'fs/roots': {
-    params: void;
-    result: { roots: FsEntry[] };
-  };
-  'fs/list-dirs': {
-    params: { path: string };
-    result: { path: string; parent: string | null; dirs: FsEntry[] };
   };
   'workspace/files': {
     params: { relativePath?: string };
@@ -115,11 +100,6 @@ export interface RPCMethodMap {
   };
 }
 
-export interface RPCNotificationMap {
-  'textDocument/didOpen': DidOpenTextDocumentParams;
-  'textDocument/didChange': DidChangeTextDocumentParams;
-}
-
 export interface RPCServerNotificationMap {
   'workspace/filesChanged': { changes: FileChange[] };
   'workspace/fileChangedOnDisk': { filePath: string; mtime: number };
@@ -129,9 +109,6 @@ export interface RPCServerNotificationMap {
 export type RPCMethodName = keyof RPCMethodMap;
 export type RPCParams<M extends RPCMethodName> = RPCMethodMap[M]['params'];
 export type RPCResult<M extends RPCMethodName> = RPCMethodMap[M]['result'];
-
-export type RPCNotificationName = keyof RPCNotificationMap;
-export type RPCNotificationParams<M extends RPCNotificationName> = RPCNotificationMap[M];
 
 export type RPCServerNotificationName = keyof RPCServerNotificationMap;
 export type RPCServerNotificationParams<M extends RPCServerNotificationName> =

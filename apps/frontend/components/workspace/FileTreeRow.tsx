@@ -126,7 +126,13 @@ export const FileTreeRow = memo(function FileTreeRow({
               )}
             />
             {isLoading && (
-              <span className="absolute animate-spin text-xs">&#x23F3;</span>
+              <svg className="absolute animate-spin" width="14" height="14" viewBox="0 0 400 400" style={{ animationDuration: '2s' }}>
+                <g transform="rotate(-20, 200, 200)">
+                  <path d="M 200,60 Q 305,95 340,200 Q 305,305 200,340 Q 95,305 60,200 Q 95,95 200,60 Z" fill="#534AB7"/>
+                  <path d="M 200,102 Q 283,130 308,200 Q 283,270 200,298 Q 117,270 92,200 Q 117,130 200,102 Z" fill="#7F77DD"/>
+                  <path d="M 200,148 Q 255,165 272,200 Q 255,235 200,252 Q 145,235 128,200 Q 145,165 200,148 Z" fill="#AFA9EC"/>
+                </g>
+              </svg>
             )}
           </>
         ) : (

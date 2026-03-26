@@ -1,391 +1,57 @@
-/**
- * WebSocket client for communicating with the coordinator
- *
- * Implements LSP-style JSON-RPC protocol with auto-reconnect.
- */
-
 import type {
-  DidOpenTextDocumentParams,
-  DidChangeTextDocumentParams,
   FileChange,
-  ConnectionState,
-  JSONRPCRequest,
-  JSONRPCResponse,
-  JSONRPCNotification,
-  RPCServerNotificationParams,
   RPCMethodName,
   RPCParams,
   RPCResult,
 } from '@cushion/types';
 
-const INITIAL_RECONNECT_DELAY = 1_000;
-const MAX_RECONNECT_DELAY = 30_000;
-
 export class CoordinatorClient {
-  private ws: WebSocket | null = null;
-  private pendingRequests = new Map<string | number, {
-    resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
-  }>();
-  private requestId = 0;
   private filesChangedCallbacks: Array<(changes: FileChange[]) => void> = [];
   private fileChangedOnDiskCallbacks: Array<(filePath: string, mtime: number) => void> = [];
   private configChangedCallbacks: Array<(file: string) => void> = [];
+  private _cleanups: Array<() => void> = [];
 
-  // Reconnect state
-  private _intentionalDisconnect = false;
-  private _reconnectAttempts = 0;
-  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private _state: ConnectionState = 'disconnected';
-  private _connectionStateCallbacks: Array<(state: ConnectionState) => void> = [];
-  private _reconnectedCallbacks: Array<() => void> = [];
+  connect(): Promise<void> {
+    const api = window.electronAPI!;
 
-  constructor(private url: string = 'ws://localhost:3001') {}
-
-  /**
-   * Build the WebSocket URL, checking Electron IPC for a dynamic port first.
-   */
-  static async resolveUrl(): Promise<string> {
-    if (window.electronAPI) {
-      try {
-        const port = await window.electronAPI.getCoordinatorPort();
-        return `ws://localhost:${port}`;
-      } catch {}
-    }
-    return 'ws://localhost:3001';
-  }
-
-  /**
-   * Current connection state
-   */
-  get connectionState(): ConnectionState {
-    return this._state;
-  }
-
-  /**
-   * Connect to coordinator (initial connection)
-   */
-  async connect(): Promise<void> {
-    this._intentionalDisconnect = false;
-    this._reconnectAttempts = 0;
-    this._cancelReconnect();
-    await this._connectWebSocket();
-    this._setState('connected');
-  }
-
-  /**
-   * Disconnect from coordinator (intentional — no auto-reconnect)
-   */
-  disconnect() {
-    this._intentionalDisconnect = true;
-    this._cancelReconnect();
-    this._rejectAllPending();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this._setState('disconnected');
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Connection state events
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Subscribe to connection state changes.
-   * Returns an unsubscribe function.
-   */
-  onConnectionStateChanged(callback: (state: ConnectionState) => void): () => void {
-    this._connectionStateCallbacks.push(callback);
-    return () => {
-      this._connectionStateCallbacks = this._connectionStateCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-
-  /**
-   * Subscribe to successful reconnection events.
-   * Fired after the WebSocket reconnects (not on initial connect).
-   * Returns an unsubscribe function.
-   */
-  onReconnected(callback: () => void): () => void {
-    this._reconnectedCallbacks.push(callback);
-    return () => {
-      this._reconnectedCallbacks = this._reconnectedCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internal: WebSocket lifecycle
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Create a new WebSocket and wire up handlers.
-   * Resolves when the socket opens, rejects on error before open.
-   */
-  private _connectWebSocket(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(this.url);
-      let opened = false;
-
-      ws.onopen = () => {
-        opened = true;
-        this.ws = ws;
-        resolve();
-      };
-
-      ws.onerror = () => {
-        if (!opened) {
-          reject(new Error('WebSocket connection failed'));
+    this._cleanups.push(
+      api.onCoordinatorNotification('workspace/filesChanged', (data: { changes: FileChange[] }) => {
+        for (const cb of this.filesChangedCallbacks) {
+          try { cb(data.changes); } catch (err) { console.error('[CoordinatorClient] filesChanged callback error:', err); }
         }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          // Route server→client notifications
-          if (data.method && !('id' in data)) {
-            this.handleNotification(data);
-            return;
-          }
-
-          // Handle regular JSON-RPC responses
-          this.handleResponse(data as JSONRPCResponse);
-        } catch (error) {
-          console.error('[CoordinatorClient] Error parsing response:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        // If the socket that closed isn't our current one, ignore
-        // (can happen during rapid reconnect cycles)
-        if (this.ws !== ws) return;
-
-        this.ws = null;
-        this._rejectAllPending();
-        this._setState('disconnected');
-
-        if (!this._intentionalDisconnect) {
-          this._startReconnect();
-        }
-      };
-    });
-  }
-
-  /**
-   * Start reconnection loop with exponential backoff.
-   */
-  private _startReconnect() {
-    this._cancelReconnect();
-    this._setState('reconnecting');
-
-    const delay = Math.min(
-      INITIAL_RECONNECT_DELAY * Math.pow(2, this._reconnectAttempts),
-      MAX_RECONNECT_DELAY,
+      }),
     );
 
-    this._reconnectTimer = setTimeout(async () => {
-      this._reconnectTimer = null;
-      this._reconnectAttempts++;
-
-      try {
-        await this._connectWebSocket();
-        // Success
-        this._reconnectAttempts = 0;
-        this._setState('connected');
-        this._emitReconnected();
-      } catch {
-        // Failed — try again (onclose won't fire for a connection that never opened)
-        if (!this._intentionalDisconnect) {
-          this._startReconnect();
+    this._cleanups.push(
+      api.onCoordinatorNotification('workspace/fileChangedOnDisk', (data: { filePath: string; mtime: number }) => {
+        for (const cb of this.fileChangedOnDiskCallbacks) {
+          try { cb(data.filePath, data.mtime); } catch (err) { console.error('[CoordinatorClient] fileChangedOnDisk callback error:', err); }
         }
-      }
-    }, delay);
-  }
+      }),
+    );
 
-  /**
-   * Cancel any pending reconnect timer.
-   */
-  private _cancelReconnect() {
-    if (this._reconnectTimer) {
-      clearTimeout(this._reconnectTimer);
-      this._reconnectTimer = null;
-    }
-  }
-
-  /**
-   * Reject all pending requests with a "Connection lost" error.
-   */
-  private _rejectAllPending() {
-    const pending = Array.from(this.pendingRequests.values());
-    this.pendingRequests.clear();
-    for (const { reject } of pending) {
-      try { reject(new Error('Connection lost')); } catch { /* caller may not have .catch */ }
-    }
-  }
-
-  /**
-   * Update connection state and notify subscribers.
-   */
-  private _setState(state: ConnectionState) {
-    if (this._state === state) return;
-    this._state = state;
-    for (const cb of [...this._connectionStateCallbacks]) {
-      try { cb(state); } catch (err) { console.error('[CoordinatorClient] State callback error:', err); }
-    }
-  }
-
-  /**
-   * Notify reconnected subscribers.
-   */
-  private _emitReconnected() {
-    for (const cb of [...this._reconnectedCallbacks]) {
-      try { cb(); } catch (err) { console.error('[CoordinatorClient] Reconnected callback error:', err); }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // JSON-RPC transport
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Send notification (no response expected)
-   */
-  private sendNotification(method: string, params: unknown) {
-    if (!this.isConnected()) {
-      throw new Error('Not connected to coordinator');
-    }
-
-    const notification: JSONRPCNotification = {
-      jsonrpc: '2.0',
-      method,
-      params,
-    };
-
-    this.ws!.send(JSON.stringify(notification));
-  }
-
-  /**
-   * Send request and wait for response
-   */
-  private sendRequest<T>(method: string, params: unknown): Promise<T> {
-    if (!this.isConnected()) {
-      throw new Error('Not connected to coordinator');
-    }
-
-    return new Promise((resolve, reject) => {
-      const id = ++this.requestId;
-
-      this.pendingRequests.set(id, {
-        resolve: resolve as (value: unknown) => void,
-        reject,
-      });
-
-      const request: JSONRPCRequest = {
-        jsonrpc: '2.0',
-        id,
-        method,
-        params,
-      };
-
-      this.ws!.send(JSON.stringify(request));
-
-      // Timeout after 120 seconds
-      setTimeout(() => {
-        if (this.pendingRequests.has(id)) {
-          this.pendingRequests.delete(id);
-          reject(new Error('Request timeout'));
+    this._cleanups.push(
+      api.onCoordinatorNotification('config/changed', (data: { file: string }) => {
+        for (const cb of this.configChangedCallbacks) {
+          try { cb(data.file); } catch (err) { console.error('[CoordinatorClient] configChanged callback error:', err); }
         }
-      }, 120000);
-    });
+      }),
+    );
+
+    return Promise.resolve();
   }
 
-  /**
-   * Handle response from coordinator
-   */
-  private handleResponse(response: JSONRPCResponse) {
-    const pending = this.pendingRequests.get(response.id);
-
-    if (!pending) {
-      return;
-    }
-
-    this.pendingRequests.delete(response.id);
-
-    if (response.error) {
-      pending.reject(new Error(response.error.message || response.error.data?.toString() || 'Unknown error'));
-    } else {
-      pending.resolve(response.result);
-    }
+  disconnect() {
+    for (const cleanup of this._cleanups) cleanup();
+    this._cleanups = [];
   }
 
-  /**
-   * Route incoming server→client notifications
-   */
-  private handleNotification(data: JSONRPCNotification) {
-    const safeForEach = <T extends unknown[]>(callbacks: Array<(...args: T) => void>, ...args: T) => {
-      for (const cb of callbacks) {
-        try { cb(...args); } catch (err) { console.error('[CoordinatorClient] Notification callback error:', err); }
-      }
-    };
-
-    switch (data.method) {
-      case 'workspace/filesChanged': {
-        const { changes } = data.params as RPCServerNotificationParams<'workspace/filesChanged'>;
-        safeForEach(this.filesChangedCallbacks, changes);
-        break;
-      }
-      case 'workspace/fileChangedOnDisk': {
-        const { filePath, mtime } = data.params as RPCServerNotificationParams<'workspace/fileChangedOnDisk'>;
-        safeForEach(this.fileChangedOnDiskCallbacks, filePath, mtime);
-        break;
-      }
-      case 'config/changed': {
-        const { file } = data.params as RPCServerNotificationParams<'config/changed'>;
-        safeForEach(this.configChangedCallbacks, file);
-        break;
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Generic typed RPC call
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Type-safe RPC call. Params and result types are inferred from RPCMethodMap.
-   *
-   * For methods with `params: void`, pass `{}` or omit the second argument.
-   */
   call<M extends RPCMethodName>(
     method: M,
     ...args: RPCParams<M> extends void ? [] : [RPCParams<M>]
   ): Promise<RPCResult<M>> {
-    return this.sendRequest(method, args[0] ?? {});
+    return window.electronAPI!.coordinatorInvoke(method, args[0] ?? {});
   }
-
-  // ---------------------------------------------------------------------------
-  // LSP notifications
-  // ---------------------------------------------------------------------------
-
-  didOpen(params: DidOpenTextDocumentParams) {
-    this.sendNotification('textDocument/didOpen', params);
-  }
-
-  didChange(params: DidChangeTextDocumentParams) {
-    this.sendNotification('textDocument/didChange', params);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Convenience wrappers (thin delegates to `call`)
-  // ---------------------------------------------------------------------------
 
   openWorkspace(projectPath: string) {
     return this.call('workspace/open', { projectPath });
@@ -393,14 +59,6 @@ export class CoordinatorClient {
 
   selectWorkspaceFolder() {
     return this.call('workspace/select-folder');
-  }
-
-  listFsRoots() {
-    return this.call('fs/roots');
-  }
-
-  listFsDirs(absPath: string) {
-    return this.call('fs/list-dirs', { path: absPath });
   }
 
   listFiles(relativePath?: string) {
@@ -455,10 +113,6 @@ export class CoordinatorClient {
     return this.call('config/write', { file, content });
   }
 
-  // ---------------------------------------------------------------------------
-  // Notification subscriptions
-  // ---------------------------------------------------------------------------
-
   onFilesChanged(callback: (changes: import('@cushion/types').FileChange[]) => void): () => void {
     this.filesChangedCallbacks.push(callback);
     return () => {
@@ -479,5 +133,4 @@ export class CoordinatorClient {
       this.configChangedCallbacks = this.configChangedCallbacks.filter((cb) => cb !== callback);
     };
   }
-
 }

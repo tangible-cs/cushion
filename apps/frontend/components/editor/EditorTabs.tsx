@@ -30,7 +30,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
   }, [convertPreviewTab]);
 
   return (
-    <div className="flex h-10 items-end px-2 overflow-x-auto overflow-y-hidden thin-scrollbar">
+    <div className="flex h-10 items-end px-2 overflow-hidden">
       {tabs.map((tab, index) => {
         const isActive = tab.filePath === currentFile;
         const previousTab = index > 0 ? tabs[index - 1] : null;
@@ -43,7 +43,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onAddTa
           <div
             key={tab.id}
             className={cn(
-              "group relative flex shrink-0 items-center gap-1.5 h-8 px-3 border text-sm cursor-pointer select-none min-w-[150px] max-w-[480px]",
+              "group relative flex items-center gap-1.5 h-8 px-3 border text-sm cursor-pointer select-none basis-[150px] min-w-[60px] max-w-[480px]",
               "transition-colors duration-150",
               isActive
                 ? "z-10 rounded-t-md rounded-b-none bg-tab-active text-tab-text-active border-border border-b-background"

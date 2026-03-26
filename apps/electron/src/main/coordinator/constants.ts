@@ -1,4 +1,3 @@
-/** Patterns ignored by both file listing and the file watcher */
 export const IGNORED_PATTERNS = [
   'node_modules',
   '.git',
@@ -10,7 +9,8 @@ export const IGNORED_PATTERNS = [
   '.cushion-trash',
 ];
 
-/** Default file extensions shown in the explorer in vault mode (allowlist). */
+export const ALWAYS_VISIBLE_FILENAMES = ['.gitignore'];
+
 export const DEFAULT_ALLOWED_EXTENSIONS = [
   '.md',
   '.txt',

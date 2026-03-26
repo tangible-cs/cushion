@@ -5,12 +5,11 @@
   "description": "Cushion monorepo",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently -k --names coordinator,frontend --prefix-colors blue,green \"bun run --filter coordinator dev\" \"bun run --filter frontend dev\"",
+    "dev": "bun run --filter frontend dev",
     "dev:frontend": "bun run --filter frontend dev",
-    "dev:coordinator": "bun run --filter coordinator dev",
-    "dev:electron": "bun run --filter @cushion/types build && bun run --filter coordinator build && bun run --filter electron-app dev",
-    "build": "bun run --filter @cushion/types build && bun run --filter frontend build && bun run --filter coordinator build",
-    "build:electron": "bun run --filter @cushion/types build && bun run --filter coordinator build && bun run --filter electron-app build",
+    "dev:electron": "bun run --filter @cushion/types build && bun run --filter electron-app dev",
+    "build": "bun run --filter @cushion/types build && bun run --filter frontend build",
+    "build:electron": "bun run --filter @cushion/types build && bun run --filter electron-app build",
     "package:electron": "bun run build:electron && bun run --filter electron-app package",
     "type-check": "bun run --filter '*' type-check",
     "lint": "bun run --filter '*' lint && bun run lint:colors && bun run verify:pdfjs-assets",
@@ -26,7 +25,6 @@
     "knip": "^6.0.3",
     "typescript": "^5.6.0"
   },
-  "dependencies": {},
   "overrides": {
     "@codemirror/view": "^6.40.0",
     "@codemirror/state": "^6.6.0"

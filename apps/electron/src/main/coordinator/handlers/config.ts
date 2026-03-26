@@ -1,4 +1,4 @@
-import type { ConfigManager } from '../workspace/config-manager.js';
+import type { ConfigManager } from '../config-manager';
 
 export async function handleConfigRead(
   configManager: ConfigManager,

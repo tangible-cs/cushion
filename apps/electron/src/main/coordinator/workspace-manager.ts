@@ -2,9 +2,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import ignore, { type Ignore } from 'ignore';
 import type { FileTreeNode, FileChange } from '@cushion/types';
-import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS } from './constants.js';
-import { WorkspaceWatcher } from './watcher.js';
-import { writeFileAtomicWithRetry, throwSaveFileError } from './atomic-write.js';
+import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS, ALWAYS_VISIBLE_FILENAMES } from './constants';
+import { WorkspaceWatcher } from './workspace-watcher';
+import { writeFileAtomicWithRetry, throwSaveFileError } from './atomic-write';
 
 interface WorkspaceContext {
   projectPath: string;
@@ -42,7 +42,7 @@ export class WorkspaceManager {
   private allowedExtensions: Set<string> = new Set(
     DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
   );
-  private gitignore: Ignore | null = null;
+  private gitignoreStack: Array<{ basePath: string; ig: Ignore }> = [];
 
   setFileFilter(respectGitignore: boolean, extensions: string[]) {
     this.respectGitignore = respectGitignore;
@@ -52,17 +52,68 @@ export class WorkspaceManager {
 
   async loadGitignore(): Promise<void> {
     if (!this.currentWorkspace) return;
-    const ig = ignore();
-    ig.add(IGNORED_PATTERNS);
+
+    this.gitignoreStack = [];
+
+    const rootIg = ignore();
+    rootIg.add(IGNORED_PATTERNS);
     try {
       const content = await fs.readFile(
         path.join(this.currentWorkspace.projectPath, '.gitignore'),
         'utf-8',
       );
-      ig.add(content);
+      rootIg.add(content);
     } catch {}
-    this.gitignore = ig;
+    this.gitignoreStack.push({ basePath: '', ig: rootIg });
+
+    await this.collectNestedGitignores(this.currentWorkspace.projectPath, '');
+
     this.syncWatcherFilter();
+  }
+
+  private async collectNestedGitignores(dirPath: string, relBase: string): Promise<void> {
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (IGNORED_PATTERNS.includes(entry.name)) continue;
+
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+
+      if (this.isIgnoredByGitignore(relPath, true)) continue;
+
+      const fullPath = path.join(dirPath, entry.name);
+
+      try {
+        const content = await fs.readFile(path.join(fullPath, '.gitignore'), 'utf-8');
+        const ig = ignore();
+        ig.add(content);
+        this.gitignoreStack.push({ basePath: relPath, ig });
+      } catch {}
+
+      await this.collectNestedGitignores(fullPath, relPath);
+    }
+  }
+
+  private isIgnoredByGitignore(relativePath: string, isDirectory: boolean): boolean {
+    for (const { basePath, ig } of this.gitignoreStack) {
+      let testPath: string;
+      if (basePath === '') {
+        testPath = relativePath;
+      } else if (relativePath.startsWith(basePath + '/')) {
+        testPath = relativePath.slice(basePath.length + 1);
+      } else {
+        continue;
+      }
+      if (isDirectory) testPath += '/';
+      if (ig.ignores(testPath)) return true;
+    }
+    return false;
   }
 
   private syncWatcherFilter() {
@@ -75,12 +126,15 @@ export class WorkspaceManager {
   }
 
   private isFileVisible(relativePath: string, isDirectory: boolean): boolean {
-    if (this.respectGitignore && this.gitignore) {
-      const testPath = isDirectory ? `${relativePath}/` : relativePath;
-      if (this.gitignore.ignores(testPath)) return false;
+    if (this.respectGitignore && this.gitignoreStack.length > 0) {
+      if (this.isIgnoredByGitignore(relativePath, isDirectory)) return false;
     }
     if (isDirectory) return true;
     if (this.allowedExtensions.size === 0) return true;
+
+    const fileName = path.basename(relativePath);
+    if (ALWAYS_VISIBLE_FILENAMES.includes(fileName)) return true;
+
     const ext = path.extname(relativePath).toLowerCase();
     return this.allowedExtensions.has(ext);
   }
@@ -601,11 +655,6 @@ export class WorkspaceManager {
     return name.endsWith('.md') ? name.slice(0, -3) : name;
   }
 
-  /**
-   * Resolve a relative path to an absolute path and validate it stays
-   * inside the workspace boundary.  Every file-system operation MUST go
-   * through this method so traversal checks cannot be accidentally skipped.
-   */
   private resolvePath(relativePath: string): string {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
@@ -655,9 +704,7 @@ export class WorkspaceManager {
         if (stats.isDirectory()) {
           return currentPath;
         }
-      } catch {
-        // .git not found, continue
-      }
+      } catch {}
 
       const parentPath = path.dirname(currentPath);
 

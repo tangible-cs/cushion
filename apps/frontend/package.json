@@ -10,7 +10,8 @@
     "type-check": "tsc -b",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node -e \"const fs=require('fs');const s='node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs';const d='public/pdfjs/pdf.worker.min.mjs';if(fs.existsSync(s)){fs.mkdirSync('public/pdfjs',{recursive:true});fs.copyFileSync(s,d)}\""
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.9",
@@ -54,7 +55,7 @@
     "monaco-editor": "^0.55.1",
     "morphdom": "^2.7.8",
     "motion": "^12.38.0",
-    "pdfjs-dist": "^5.4.530",
+    "pdfjs-dist": "5.5.207",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.3.1",
