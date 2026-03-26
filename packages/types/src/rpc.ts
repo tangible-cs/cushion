@@ -6,7 +6,7 @@ import type {
 export interface TrashItem {
   id: string;
   originalPath: string;
-  deletedAt: string; // ISO 8601
+  deletedAt: string;
   isDirectory: boolean;
 }
 

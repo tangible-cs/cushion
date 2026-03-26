@@ -80,7 +80,6 @@ export function TrashViewerPanel({ client, onClose, onFileRestored }: TrashViewe
 
   return (
     <div className="h-full flex flex-col bg-surface-elevated">
-      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <Trash2 size={16} className="text-accent" />
         <span className="font-medium text-sm">Trash</span>
@@ -108,7 +107,6 @@ export function TrashViewerPanel({ client, onClose, onFileRestored }: TrashViewe
         </button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto thin-scrollbar">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-foreground-muted text-sm p-4">
@@ -151,7 +149,6 @@ export function TrashViewerPanel({ client, onClose, onFileRestored }: TrashViewe
         )}
       </div>
 
-      {/* Context menu */}
       {contextMenu && (
         <div
           className="fixed z-50 bg-modal-bg border border-modal-border rounded-lg shadow-lg py-1 min-w-[160px]"

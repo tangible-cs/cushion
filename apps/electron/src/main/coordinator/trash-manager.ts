@@ -55,17 +55,12 @@ export class TrashManager {
       let targetPath = path.join(this.workspacePath, item.originalPath);
       let finalRelativePath = item.originalPath;
 
-      // Handle name collision
       try {
         await fs.access(targetPath);
-        // Target exists — generate a unique name
         finalRelativePath = this.resolveCollision(item.originalPath);
         targetPath = path.join(this.workspacePath, finalRelativePath);
-      } catch {
-        // Target doesn't exist — good
-      }
+      } catch {}
 
-      // Ensure parent directory exists
       await fs.mkdir(path.dirname(targetPath), { recursive: true });
       await fs.rename(trashPath, targetPath);
 
@@ -118,15 +113,12 @@ export class TrashManager {
       this.manifest = { items: [] };
     }
 
-    // Orphan cleanup: verify files exist on disk
     const validItems: TrashItem[] = [];
     for (const item of this.manifest.items) {
       try {
         await fs.access(path.join(this.trashDir, item.id));
         validItems.push(item);
-      } catch {
-        // File missing from disk — remove from manifest
-      }
+      } catch {}
     }
 
     if (validItems.length !== this.manifest.items.length) {
@@ -143,7 +135,6 @@ export class TrashManager {
     let suffix = ' (restored)';
     let candidate = path.join(dir, `${base}${suffix}${ext}`).replace(/\\/g, '/');
 
-    // Unlikely but handle multiple collisions
     let counter = 2;
     while (this.manifest.items.some((item) => item.originalPath === candidate)) {
       suffix = ` (restored ${counter})`;
