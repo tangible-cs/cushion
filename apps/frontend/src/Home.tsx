@@ -17,6 +17,7 @@ import { ToastProvider } from '@/components/chat/Toast';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { TrashViewerPanel } from '@/components/workspace/TrashViewerPanel';
 import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
@@ -94,6 +95,7 @@ export default function Home() {
   const lastRightPanelModeRef = useRef<'chat'>('chat');
   const [showBacklinks, setShowBacklinks] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
@@ -136,10 +138,11 @@ export default function Home() {
       { isOpen: showWorkspaceModal && !!metadata, close: () => setShowWorkspaceModal(false) },
       { isOpen: showQuickSwitcher, close: () => setShowQuickSwitcher(false) },
       { isOpen: showSettings, close: () => setShowSettings(false) },
+      { isOpen: showTrash, close: () => setShowTrash(false) },
       { isOpen: showGraph, close: () => setShowGraph(false) },
       { isOpen: showBacklinks, close: () => setShowBacklinks(false) },
     ]);
-  }, [metadata, showBacklinks, showGraph, showQuickSwitcher, showSettings, showWorkspaceModal]);
+  }, [metadata, showBacklinks, showGraph, showQuickSwitcher, showSettings, showTrash, showWorkspaceModal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,6 +389,7 @@ export default function Home() {
     setShowQuickSwitcher(false);
     setShowWorkspaceModal(false);
     setShowSettings(false);
+    setShowTrash(false);
   }, [focusModeEnabled]);
 
   const rightPanelMin = 280;
@@ -491,6 +495,7 @@ export default function Home() {
           onSettings={() => {
             setShowSettings(true);
           }}
+          onTrash={() => setShowTrash(true)}
         />
 
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -574,6 +579,19 @@ export default function Home() {
             currentFile={currentFile}
             onNodeClick={handleNavigateToFile}
             onClose={() => setShowGraph(false)}
+          />
+        </ModalOverlay>
+      )}
+
+      {!focusModeEnabled && showTrash && (
+        <ModalOverlay onBackdropClick={() => setShowTrash(false)}>
+          <TrashViewerPanel
+            client={client}
+            onClose={() => setShowTrash(false)}
+            onFileRestored={() => {
+              fileBrowserRef.current?.refreshFileList();
+              fetchFileTree();
+            }}
           />
         </ModalOverlay>
       )}

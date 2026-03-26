@@ -3,6 +3,13 @@ import type {
   FileChange,
 } from './index.js';
 
+export interface TrashItem {
+  id: string;
+  originalPath: string;
+  deletedAt: string; // ISO 8601
+  isDirectory: boolean;
+}
+
 export interface RPCMethodMap {
   // Workspace
   'workspace/open': {
@@ -40,7 +47,7 @@ export interface RPCMethodMap {
   };
   'workspace/delete': {
     params: { path: string };
-    result: { success: boolean };
+    result: { success: boolean; trashItem?: TrashItem };
   };
   'workspace/duplicate': {
     params: { path: string; newPath: string };
@@ -66,6 +73,24 @@ export interface RPCMethodMap {
   };
   'workspace/save-file-base64': {
     params: { filePath: string; base64: string };
+    result: { success: boolean };
+  };
+
+  // Trash
+  'trash/restore': {
+    params: { ids: string[] };
+    result: { success: boolean; restoredPaths: string[] };
+  };
+  'trash/list': {
+    params: void;
+    result: { items: TrashItem[] };
+  };
+  'trash/permanent-delete': {
+    params: { ids: string[] };
+    result: { success: boolean };
+  };
+  'trash/empty': {
+    params: void;
     result: { success: boolean };
   };
 

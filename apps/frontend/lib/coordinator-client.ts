@@ -85,6 +85,22 @@ export class CoordinatorClient {
     return this.call('workspace/delete', { path });
   }
 
+  restoreFromTrash(ids: string[]) {
+    return this.call('trash/restore', { ids });
+  }
+
+  listTrash() {
+    return this.call('trash/list');
+  }
+
+  permanentlyDeleteFromTrash(ids: string[]) {
+    return this.call('trash/permanent-delete', { ids });
+  }
+
+  emptyTrash() {
+    return this.call('trash/empty');
+  }
+
   duplicateFile(path: string, newPath: string) {
     return this.call('workspace/duplicate', { path, newPath });
   }
