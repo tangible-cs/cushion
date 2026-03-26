@@ -331,7 +331,6 @@ export function FileTree({
     const target = getDragTarget(e);
     setDragOverDir(target);
 
-    // Auto-expand collapsed folders after 500ms hover
     if (target !== '__root__' && target !== lastAutoExpandTarget.current
       && !useExplorerStore.getState().expandedDirs.has(target)) {
       if (autoExpandTimer.current) clearTimeout(autoExpandTimer.current);
@@ -354,7 +353,6 @@ export function FileTree({
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear when leaving the tree container entirely
     if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
       dragActiveRef.current = false;
       setDragOverDir(null);
@@ -406,7 +404,6 @@ export function FileTree({
     if (renamingPath === prevRenamingRef.current) return;
     prevRenamingRef.current = renamingPath;
     if (!renamingPath) return;
-    // Find node in flatRows
     const row = flatRows.find((r) => r.kind === 'item' && r.path === renamingPath);
     if (row && row.kind === 'item') {
       const name = row.node.name;
@@ -509,7 +506,6 @@ export function FileTree({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Virtualized container */}
       <div
         ref={treeContainerRef}
         style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}
