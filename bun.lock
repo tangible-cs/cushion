@@ -33,9 +33,13 @@
       "version": "0.1.0",
       "dependencies": {
         "@cushion/types": "workspace:*",
+        "chokidar": "^5.0.0",
+        "ignore": "^7.0.5",
         "pdf-lib": "^1.17.1",
+        "write-file-atomic": "^7.0.0",
       },
       "devDependencies": {
+        "@types/write-file-atomic": "^4.0.3",
         "@vitejs/plugin-react": "^4.3.4",
         "autoprefixer": "^10.4.20",
         "electron": "^35.1.2",

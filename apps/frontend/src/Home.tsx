@@ -25,6 +25,7 @@ import { useConfigSync } from '@/hooks/useConfigSync';
 import { useDiffReviewBridge } from '@/hooks/useDiffReviewBridge';
 import { EditorTabRow } from '@/components/editor/EditorTabRow';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
+import { LogoSpinner } from '@/components/ui/LogoSpinner';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
 
 const APP_SHORTCUT_IDS = [
@@ -98,7 +99,7 @@ export default function Home() {
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
   const autoOpenAttempted = useRef(false);
 
-  const { filePaths, connectionState, fetchFileTree } = useFileTree({
+  const { filePaths, fetchFileTree } = useFileTree({
     client,
     metadata,
     onFilesChanged: (affectedDirs) => {
@@ -453,6 +454,14 @@ export default function Home() {
     });
   }, [openWorkspace]);
 
+  if (!client) {
+    return (
+      <div className="h-screen w-screen bg-background">
+        <LogoSpinner />
+      </div>
+    );
+  }
+
   return (
     <ToastProvider>
       <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
@@ -479,16 +488,6 @@ export default function Home() {
         />
       )}
       <div className="flex-1 flex overflow-hidden min-h-0">
-      {/* Connection status banner */}
-      {connectionState === 'reconnecting' && (
-        <div
-          className="fixed top-0 left-0 right-0 z-[200] flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium"
-          style={{ backgroundColor: 'var(--accent-primary-12)', color: 'var(--accent-primary)' }}
-        >
-          <span className="inline-block w-2 h-2 rounded-full bg-current animate-pulse" />
-          Reconnecting to coordinator...
-        </div>
-      )}
       {/* LEFT: File browser sidebar - uses negative margin to collapse */}
         <FileBrowser
           ref={fileBrowserRef}

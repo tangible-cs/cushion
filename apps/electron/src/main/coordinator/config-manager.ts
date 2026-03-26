@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { writeFileAtomicWithRetry } from './atomic-write.js';
-import type { ConfigWatcher } from './config-watcher.js';
+import { writeFileAtomicWithRetry } from './atomic-write';
+import type { ConfigWatcher } from './config-watcher';
 
 const CONFIG_DIR_NAME = '.cushion';
 

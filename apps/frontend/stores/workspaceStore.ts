@@ -199,11 +199,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         },
 
         selectWorkspaceFolder: async () => {
-          // In Electron, use the native dialog directly
-          if (window.electronAPI?.selectFolder) {
-            return window.electronAPI.selectFolder();
-          }
-
           if (!coordinatorClient) {
             throw new Error('Coordinator client not initialized');
           }

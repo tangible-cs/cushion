@@ -19,10 +19,8 @@ if "%RUN_OPENCODE%"=="1" (
   )
 )
 
-echo Building types and coordinator for Electron...
+echo Building types for Electron...
 call bun run --filter @cushion/types build
-if errorlevel 1 exit /b %errorlevel%
-call bun run --filter coordinator build
 if errorlevel 1 exit /b %errorlevel%
 
 if "%RUN_OPENCODE%"=="1" (

@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { watch, type FSWatcher } from 'chokidar';
 import type { FileChange } from '@cushion/types';
-import { IGNORED_PATTERNS } from './constants.js';
+import { IGNORED_PATTERNS } from './constants';
 
 const WATCHER_ONLY_IGNORED = ['.cushion'];
 const WATCHER_WARN_DIR_THRESHOLD = 2500;

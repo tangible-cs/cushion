@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import './pdf-export';
 import { join } from 'path';
 import windowStateKeeper from 'electron-window-state';
-import { startCoordinator, stopCoordinator, getCoordinatorPort } from './coordinator';
+import { initCoordinator, stopCoordinator } from './coordinator/ipc-router';
 
 const iconExt = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
 const iconPath = app.isPackaged
@@ -76,20 +76,6 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
-
-/* IPC: dialog */
-ipcMain.handle('dialog:selectFolder', async () => {
-  if (!mainWindow) return null;
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory', 'createDirectory'],
-  });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
-});
-
-ipcMain.handle('get-coordinator-port', () => {
-  return getCoordinatorPort();
-});
 
 /* IPC: titlebar theme sync */
 ipcMain.handle('titlebar:update-theme', (_event, colors: { color: string; symbolColor: string }) => {
@@ -176,8 +162,8 @@ app.whenReady().then(async () => {
     pendingOpenPath = cliPath;
   }
 
-  await startCoordinator();
   createWindow();
+  await initCoordinator(mainWindow!);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

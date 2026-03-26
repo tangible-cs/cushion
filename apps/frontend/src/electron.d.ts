@@ -1,6 +1,8 @@
 export interface ElectronAPI {
-  selectFolder: () => Promise<string | null>;
-  getCoordinatorPort: () => Promise<number>;
+  // Coordinator IPC bridge
+  coordinatorInvoke: (method: string, params: unknown) => Promise<any>;
+  coordinatorSend: (method: string, params: unknown) => void;
+  onCoordinatorNotification: (channel: string, callback: (...args: any[]) => void) => () => void;
 
   // Title bar overlay theme sync
   updateTitleBarTheme: (colors: { color: string; symbolColor: string }) => Promise<void>;

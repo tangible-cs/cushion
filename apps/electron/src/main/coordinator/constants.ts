@@ -10,6 +10,12 @@ export const IGNORED_PATTERNS = [
   '.cushion-trash',
 ];
 
+/**
+ * Filenames that bypass the extension allowlist (e.g. dotfiles with no
+ * extension like `.gitignore`).
+ */
+export const ALWAYS_VISIBLE_FILENAMES = ['.gitignore'];
+
 /** Default file extensions shown in the explorer in vault mode (allowlist). */
 export const DEFAULT_ALLOWED_EXTENSIONS = [
   '.md',

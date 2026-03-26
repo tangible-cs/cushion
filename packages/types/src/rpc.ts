@@ -5,11 +5,6 @@ import type {
   DidChangeTextDocumentParams,
 } from './index.js';
 
-export interface FsEntry {
-  name: string;
-  path: string;
-}
-
 export interface RPCMethodMap {
   // Workspace
   'workspace/open': {
@@ -19,14 +14,6 @@ export interface RPCMethodMap {
   'workspace/select-folder': {
     params: void;
     result: { path: string | null };
-  };
-  'fs/roots': {
-    params: void;
-    result: { roots: FsEntry[] };
-  };
-  'fs/list-dirs': {
-    params: { path: string };
-    result: { path: string; parent: string | null; dirs: FsEntry[] };
   };
   'workspace/files': {
     params: { relativePath?: string };

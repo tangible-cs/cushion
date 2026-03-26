@@ -1,11 +1,10 @@
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useExplorerStore } from '@/stores/explorerStore';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
-import type { ConnectionState, WorkspaceMetadata } from '@cushion/types';
+import type { WorkspaceMetadata } from '@cushion/types';
 
 interface UseFileTreeOptions {
   client: CoordinatorClient | null;
@@ -15,7 +14,6 @@ interface UseFileTreeOptions {
 
 interface UseFileTreeReturn {
   filePaths: string[];
-  connectionState: ConnectionState;
   fetchFileTree: () => Promise<void>;
 }
 
@@ -26,7 +24,6 @@ export function useFileTree({
   metadata,
   onFilesChanged,
 }: UseFileTreeOptions): UseFileTreeReturn {
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const workspacePath = metadata?.projectPath ?? null;
   const setStoreFlatFileList = useWorkspaceStore((state) => state.setFlatFileList);
   const onFilesChangedRef = useRef(onFilesChanged);
@@ -66,36 +63,6 @@ export function useFileTree({
   useEffect(() => {
     fetchFileTree();
   }, [fetchFileTree]);
-
-  // Track connection state and handle reconnect
-  useEffect(() => {
-    if (!client) return;
-
-    const unsubState = client.onConnectionStateChanged((state) => {
-      setConnectionState(state);
-    });
-
-    setConnectionState(client.connectionState);
-
-    const unsubReconnect = client.onReconnected(async () => {
-      const meta = useWorkspaceStore.getState().metadata;
-      if (!meta) return;
-
-      try {
-        await client.openWorkspace(meta.projectPath);
-        const { expandedDirs } = useExplorerStore.getState();
-        onFilesChangedRef.current?.(new Set(['.', ...expandedDirs]));
-        fetchFileTree();
-      } catch (err) {
-        console.error('[useFileTree] Failed to restore workspace after reconnect:', err);
-      }
-    });
-
-    return () => {
-      unsubState();
-      unsubReconnect();
-    };
-  }, [client, fetchFileTree]);
 
   // Re-fetch when file filter preferences change
   const allowedExtensions = useWorkspaceStore((s) => s.preferences.allowedExtensions);
@@ -188,5 +155,5 @@ export function useFileTree({
 
   const filePaths = useWorkspaceStore((s) => s.flatFileList);
 
-  return { filePaths, connectionState, fetchFileTree };
+  return { filePaths, fetchFileTree };
 }

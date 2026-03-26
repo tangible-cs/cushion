@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getOpenCodeConfigDir } from '../providers/opencode-config.js';
+import { getOpenCodeConfigDir } from '../opencode-config';
 
 export async function handleSkillInstallZip(
   params: { skillName: string; files: Array<{ path: string; content: string }> },

@@ -8,6 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { FilePlus, FolderPlus, Search, Settings, ChevronDown } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { LogoSpinner } from '@/components/ui/LogoSpinner';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import { resolveConflict } from '@/lib/conflict-resolution';
 import { useToast } from '@/components/chat/Toast';
@@ -378,27 +379,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         {/* Spacing before file tree */}
         <div className="flex-shrink-0 h-2" />
 
-        {/* Root folder toggle + file tree */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 thin-scrollbar"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              useExplorerStore.getState().clearSelection();
-              useExplorerStore.getState().clearFocused();
-            }
-          }}
-          onContextMenu={(e) => {
-            if (e.target === e.currentTarget) {
-              e.preventDefault();
-              const store = useExplorerStore.getState();
-              store.clearSelection();
-              store.clearFocused();
-              store.setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
-            }
-          }}
-        >
-          {/* Root folder row */}
+        {/* Root folder toggle */}
+        <div className="flex-shrink-0 px-2">
           <button
             onClick={() => setRootExpanded(!rootExpanded)}
             className={cn(
@@ -417,12 +399,33 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             />
             <span className="truncate">{metadata.projectName}</span>
           </button>
+        </div>
 
+        {/* File tree (scrollable) */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden px-2 thin-scrollbar"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              useExplorerStore.getState().clearSelection();
+              useExplorerStore.getState().clearFocused();
+            }
+          }}
+          onContextMenu={(e) => {
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
+              const store = useExplorerStore.getState();
+              store.clearSelection();
+              store.clearFocused();
+              store.setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
+            }
+          }}
+        >
           {/* File tree (collapsible) */}
           {rootExpanded && (
             isLoading && rootFiles.length === 0 ? (
-            <div className="flex items-center justify-center p-6 text-sm text-muted-foreground">
-              Loading files...
+            <div className="flex items-center justify-center p-6">
+              <LogoSpinner size={40} />
             </div>
           ) : error ? (
             <div
