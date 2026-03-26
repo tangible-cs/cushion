@@ -1,8 +1,7 @@
 
-import { useState } from 'react';
-import { MoreVertical, Plus, FolderInput, FolderPlus, FilePlus, Pencil, Trash2, Files, Scissors, Copy, ClipboardPaste } from 'lucide-react';
+import { Plus, FolderInput, FolderPlus, FilePlus, Pencil, Trash2, Files, Scissors, Copy, ClipboardPaste } from 'lucide-react';
 import type { FileTreeNode } from '@cushion/types';
-import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import type { ContextMenuItem } from './ContextMenu';
 import { cn } from '@/lib/utils';
 import { useExplorerStore } from '@/stores/explorerStore';
 
@@ -109,44 +108,19 @@ interface FileTreeItemActionsProps {
   node: FileTreeNode;
   isVisible: boolean;
   onAddFile?: () => void;
-  onAddFolder?: () => void;
-  onRename?: () => void;
-  onDelete?: (path: string) => void;
-  onDuplicate?: (path: string) => void;
-  onMoveTo?: (path: string) => void;
 }
 
 export function FileTreeItemActions({
   node,
   isVisible,
   onAddFile,
-  onAddFolder,
-  onRename,
-  onDelete,
-  onDuplicate,
-  onMoveTo,
 }: FileTreeItemActionsProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-
   const handleAddClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onAddFile) {
       onAddFile();
     }
   };
-
-  const handleMenuClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMenuPosition({
-      x: rect.right + 4,
-      y: rect.top,
-    });
-    setMenuOpen(true);
-  };
-
-  const menuItems = buildMenuItems(node, { onAddFile, onAddFolder, onRename, onDelete, onDuplicate, onMoveTo });
 
   const buttonClasses = cn(
     "flex items-center justify-center w-5 h-5 rounded",
@@ -158,13 +132,6 @@ export function FileTreeItemActions({
 
   return (
     <>
-      <ContextMenu
-        items={menuItems}
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        position={menuPosition}
-      />
-
       <div
         className={cn(
           "flex items-center gap-0.5 ml-auto",

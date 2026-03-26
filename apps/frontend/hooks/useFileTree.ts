@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useExplorerStore } from '@/stores/explorerStore';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
@@ -82,7 +83,8 @@ export function useFileTree({
 
       try {
         await client.openWorkspace(meta.projectPath);
-        onFilesChangedRef.current?.();
+        const { expandedDirs } = useExplorerStore.getState();
+        onFilesChangedRef.current?.(new Set(['.', ...expandedDirs]));
         fetchFileTree();
       } catch (err) {
         console.error('[useFileTree] Failed to restore workspace after reconnect:', err);

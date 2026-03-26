@@ -28,9 +28,6 @@ interface FileTreeRowProps {
   onRenameValueChange: (v: string) => void;
   onRenameSubmit: (node: FileTreeNode) => void;
   onRenameCancel: () => void;
-  onDelete?: (path: string) => void;
-  onDuplicate?: (path: string) => void;
-  onMoveTo?: (path: string) => void;
 }
 
 export const FileTreeRow = memo(function FileTreeRow({
@@ -54,9 +51,6 @@ export const FileTreeRow = memo(function FileTreeRow({
   onRenameValueChange,
   onRenameSubmit,
   onRenameCancel,
-  onDelete,
-  onDuplicate,
-  onMoveTo,
 }: FileTreeRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const { node, depth, path } = item;
@@ -126,7 +120,6 @@ export const FileTreeRow = memo(function FileTreeRow({
       onClick={handleClick}
       title={path}
     >
-      {/* Icon */}
       <div className="relative w-5 h-5 flex items-center justify-center flex-shrink-0 mr-2 text-muted-foreground">
         {isFolder ? (
           <>
@@ -154,7 +147,6 @@ export const FileTreeRow = memo(function FileTreeRow({
         )}
       </div>
 
-      {/* Name */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
         {isRenaming ? (
           <>
@@ -182,16 +174,10 @@ export const FileTreeRow = memo(function FileTreeRow({
         )}
       </div>
 
-      {/* Actions */}
       <FileTreeItemActions
         node={node}
         isVisible={isHovered && !isRenaming}
         onAddFile={() => onStartCreateFile(path)}
-        onAddFolder={() => onStartCreateFolder(path)}
-        onRename={() => onStartRename(node)}
-        onDelete={onDelete}
-        onDuplicate={onDuplicate}
-        onMoveTo={onMoveTo}
       />
     </div>
   );

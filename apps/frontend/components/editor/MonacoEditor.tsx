@@ -5,7 +5,6 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useEditorPanelContext } from './EditorPanelContext';
 
-// Map store language IDs to Monaco language IDs
 function toMonacoLanguage(lang: string | undefined): string {
   if (!lang) return 'plaintext';
   const map: Record<string, string> = {
@@ -27,7 +26,6 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
-  // Sync external content changes (e.g. file changed on disk)
   useEffect(() => {
     const ed = editorRef.current;
     if (!ed) return;

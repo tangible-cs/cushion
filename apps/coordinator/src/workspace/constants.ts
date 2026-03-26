@@ -12,11 +12,9 @@ export const IGNORED_PATTERNS = [
 
 /** Default file extensions shown in the explorer in vault mode (allowlist). */
 export const DEFAULT_ALLOWED_EXTENSIONS = [
-  // Documents
   '.md',
   '.txt',
   '.csv',
-  // Images
   '.png',
   '.jpg',
   '.jpeg',
@@ -24,18 +22,14 @@ export const DEFAULT_ALLOWED_EXTENSIONS = [
   '.svg',
   '.webp',
   '.bmp',
-  // Embeds
   '.pdf',
-  // Canvas / drawing
   '.excalidraw',
   '.canvas',
-  // Audio
   '.mp3',
   '.wav',
   '.ogg',
   '.flac',
   '.m4a',
-  // Video
   '.mp4',
   '.webm',
   '.mov',

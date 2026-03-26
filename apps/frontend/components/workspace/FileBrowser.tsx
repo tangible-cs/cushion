@@ -26,8 +26,6 @@ function isTextFile(name: string): boolean {
 interface FileBrowserProps {
   client: CoordinatorClient | null;
   onFileOpen: (path: string, content: string, forceNewTab?: boolean) => void;
-  onNewDocument?: () => void;
-  onOpenWorkspace?: () => void;
   onSidebarToggle?: (collapsed: boolean) => void;
   isCollapsed?: boolean;
   onSearch?: () => void;
@@ -40,16 +38,14 @@ export interface FileBrowserHandle {
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings }, ref) {
+  function FileBrowser({ client, onFileOpen, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings }, ref) {
   const { metadata, currentFile, preferences, sidebarWidth: rawSidebarWidth, setSidebarWidth } = useWorkspaceStore();
   const { showToast } = useToast();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rootExpanded, setRootExpanded] = useState(true);
-  // Use prop if provided, otherwise use internal state
-  const [isCollapsedInternal, setIsCollapsedInternal] = useState(false);
-  const isCollapsed = isCollapsedProp !== undefined ? isCollapsedProp : isCollapsedInternal;
+  const isCollapsed = isCollapsedProp;
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveSourcePath, setMoveSourcePath] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -75,7 +71,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       return [];
     }
 
-    // Only show global loading/error state for root directory loads
     const isRoot = relativePath === '.';
 
     try {
@@ -105,19 +100,12 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [client]);
 
-  // Animation functions
   const collapseSidebar = useCallback(() => {
-    setIsCollapsedInternal(true);
-    if (onSidebarToggle) {
-      onSidebarToggle(true);
-    }
+    onSidebarToggle?.(true);
   }, [onSidebarToggle]);
 
   const resetWidth = useCallback(() => {
-    setIsCollapsedInternal(false);
-    if (onSidebarToggle) {
-      onSidebarToggle(false);
-    }
+    onSidebarToggle?.(false);
   }, [onSidebarToggle]);
 
   const handleSidebarResize = useCallback(
@@ -177,13 +165,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       return;
     }
 
-    // Binary files (images, PDFs) are loaded via readFileBase64 in EditorPanel
     if (BINARY_FILE_EXTENSIONS.test(filePath)) {
       onFileOpen(filePath, '', forceNewTab);
       return;
     }
 
-    // Skip server fetch if the file is already open — content is in the store
     if (useWorkspaceStore.getState().openFiles.has(filePath)) {
       onFileOpen(filePath, '', forceNewTab);
       return;
@@ -199,7 +185,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   };
 
-  // Paste handler
   const handlePaste = useCallback(async (destinationDir: string) => {
     if (!client) return;
     const { clipboard, clearClipboard } = useExplorerStore.getState();
@@ -216,7 +201,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
 
         if (clipboard.operation === 'cut') {
           await client.renameFile(srcPath, dest);
-          // Update open tab if this file was open
           const store = useWorkspaceStore.getState();
           const fileState = store.openFiles.get(srcPath);
           if (fileState) {
@@ -232,7 +216,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         }
       }
 
-      // Clear clipboard after cut, keep after copy
       if (clipboard.operation === 'cut') {
         clearClipboard();
       }
@@ -246,7 +229,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [client, loadDirectory]);
 
-  // External file drop handler (OS import)
   const handleExternalDrop = useCallback(async (files: FileList, targetDir: string) => {
     if (!client) return;
     if (!window.electronAPI) return; // Electron-only
@@ -288,7 +270,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [client, preferences.allowedExtensions, loadDirectory, showToast]);
 
-  // Notify parent when workspace state changes
   useEffect(() => {
     if (!metadata && onSidebarToggle) {
       // No workspace = sidebar collapsed

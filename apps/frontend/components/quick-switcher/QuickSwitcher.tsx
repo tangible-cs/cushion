@@ -131,8 +131,7 @@ export function QuickSwitcher({
         });
       }
     } else {
-      const allFiles = filePaths;
-      const sorted = allFiles
+      const sorted = filePaths
         .sort((a, b) => {
           const aIsMd = a.endsWith('.md') ? 1 : 0;
           const bIsMd = b.endsWith('.md') ? 1 : 0;
@@ -240,7 +239,6 @@ export function QuickSwitcher({
         className="flex h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-modal-border bg-modal-bg shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
           <h2 className="text-[15px] font-medium text-foreground">Quick switcher</h2>
           <button
@@ -253,7 +251,6 @@ export function QuickSwitcher({
           </button>
         </div>
 
-        {/* Search bar */}
         <div className="px-4 pb-3">
           <div className="flex h-8 items-center gap-2 rounded-md bg-surface px-2">
             <Search size={16} className="shrink-0 text-muted-foreground" />
@@ -283,7 +280,6 @@ export function QuickSwitcher({
           </div>
         </div>
 
-        {/* Results */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2">
           {results.length === 0 ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -337,7 +333,6 @@ export function QuickSwitcher({
           )}
         </div>
 
-        {/* Footer shortcuts */}
         <div className="px-4 py-2.5 flex gap-4 text-xs text-muted-foreground">
           {(prevLabel || nextLabel) && (
             <span>

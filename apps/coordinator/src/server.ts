@@ -390,9 +390,7 @@ export class CoordinatorServer {
           extensions = parsed.allowedExtensions;
         }
       }
-    } catch {
-      // Fall through to defaults
-    }
+    } catch {}
     if (respectGitignore) {
       await this.workspaceManager.loadGitignore();
     }

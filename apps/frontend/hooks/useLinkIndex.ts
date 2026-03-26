@@ -64,8 +64,7 @@ export function useLinkIndex({
     const buildId = ++indexBuildIdRef.current;
 
     try {
-      const allFiles = filePaths;
-      const mdFiles = allFiles.filter(isMarkdownFile);
+      const mdFiles = filePaths.filter(isMarkdownFile);
       const fileContents = new Map<string, string>();
 
       await Promise.all(

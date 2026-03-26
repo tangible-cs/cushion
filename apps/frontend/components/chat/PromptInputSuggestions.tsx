@@ -67,7 +67,6 @@ export function usePromptSuggestions() {
       return commandSuggestions.filter((item) => item.label.toLowerCase().includes(query));
     }
 
-    // No query — show agents + recent files
     if (!query) {
       const recentSuggestions: SuggestionItem[] = recentFiles.map((path) => ({
         id: path,
@@ -81,7 +80,6 @@ export function usePromptSuggestions() {
       return [...agentSuggestions, ...recentSuggestions];
     }
 
-    // With query — fuzzy-match agents, search files synchronously
     const agentResults = fuzzysort.go(query, agentSuggestions, {
       key: 'label',
       limit: 20,

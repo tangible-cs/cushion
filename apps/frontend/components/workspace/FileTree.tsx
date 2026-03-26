@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { FileTreeNode } from '@cushion/types';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { FileTreeItemActions, buildMenuItems } from './FileTreeItemActions';
+import { buildMenuItems } from './FileTreeItemActions';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { FilePlus, FolderPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -107,7 +107,6 @@ export function FileTree({
   const contextMenu = useExplorerStore((s) => s.contextMenu);
   const { selectOnly, toggleSelect, selectRange, clearSelection, cut, copy, clearClipboard, setFocused, clearFocused, setRenamingPath, setContextMenu } = useExplorerStore();
 
-  // Flatten tree
   const flatRows = useMemo(
     () => flattenVisibleTree(nodes, expandedDirs, dirContents, showCushionFiles, creatingFileInDir, creatingFolderInDir),
     [nodes, expandedDirs, dirContents, showCushionFiles, creatingFileInDir, creatingFolderInDir]
@@ -115,7 +114,6 @@ export function FileTree({
 
   const flatOrder = useMemo(() => flatPathsFromRows(flatRows), [flatRows]);
 
-  // Virtualizer
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
@@ -127,7 +125,6 @@ export function FileTree({
     overscan: 10,
   });
 
-  // When nodes change, re-fetch expanded directories
   const prevNodesRef = useRef<FileTreeNode[] | null>(null);
   useEffect(() => {
     if (prevNodesRef.current === nodes) return;
@@ -145,7 +142,6 @@ export function FileTree({
     }
   }, [nodes]);
 
-  // Handle externally-triggered root-level creation
   useEffect(() => {
     if (creatingFileAtRoot && creatingFileAtRoot > 0) {
       setCreatingFolderInDir(null);
@@ -220,7 +216,6 @@ export function FileTree({
     setRenameValue('');
   }, [setRenamingPath]);
 
-  // --- Creation helpers ---
   const isRootPath = (p: string) => p === '.' || p === '__root__';
 
   const prepareCreate = useCallback((parentPath: string) => {
@@ -284,7 +279,6 @@ export function FileTree({
     finishCreate();
   }, [creatingFolderInDir, newFolderName, onAddFolder, refreshDir, selectOnly, setFocused, setCreatingFolderInDir, finishCreate]);
 
-  // --- Drag & drop ---
   const handleDragStart = useCallback((e: React.DragEvent, node: FileTreeNode) => {
     if (selectedPaths.has(node.path) && selectedPaths.size > 1) {
       e.dataTransfer.setData('application/x-cushion-paths', JSON.stringify([...selectedPaths]));
@@ -381,7 +375,6 @@ export function FileTree({
     }
   }, [onRename, onExternalDrop, canDropOnFolder]);
 
-  // Init rename value when renamingPath changes
   const prevRenamingRef = useRef<string | null>(null);
   useEffect(() => {
     if (renamingPath === prevRenamingRef.current) return;
@@ -580,9 +573,6 @@ export function FileTree({
                 onRenameValueChange={setRenameValue}
                 onRenameSubmit={handleRenameSubmit}
                 onRenameCancel={handleRenameCancel}
-                onDelete={onDelete}
-                onDuplicate={onDuplicate}
-                onMoveTo={onMoveTo}
               />
             </div>
           );

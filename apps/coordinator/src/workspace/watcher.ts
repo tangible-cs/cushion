@@ -1,9 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { watch, type FSWatcher } from 'chokidar';
-import type { Ignore } from 'ignore';
 import type { FileChange } from '@cushion/types';
-import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS } from './constants.js';
+import { IGNORED_PATTERNS } from './constants.js';
 
 const WATCHER_ONLY_IGNORED = ['.cushion'];
 const WATCHER_WARN_DIR_THRESHOLD = 2500;
@@ -71,27 +70,11 @@ export class WorkspaceWatcher {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private onFilesChanged: ((changes: FileChange[]) => void) | null = null;
   private onFileChangedOnDisk: ((filePath: string, mtime: number) => void) | null = null;
-  private respectGitignore = true;
-  private allowedExtensions: Set<string> = new Set(
-    DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
-  );
-  private gitignore: Ignore | null = null;
+  private isFileAllowed: (absPath: string) => boolean = () => true;
   private projectPath: string | null = null;
 
-  setFileFilter(respectGitignore: boolean, extensions: string[], gitignore: Ignore | null) {
-    this.respectGitignore = respectGitignore;
-    this.allowedExtensions = new Set(extensions.map((e) => e.toLowerCase()));
-    this.gitignore = gitignore;
-  }
-
-  private isFileAllowed(absPath: string): boolean {
-    if (this.respectGitignore && this.gitignore && this.projectPath) {
-      const relative = path.relative(this.projectPath, absPath).replace(/\\/g, '/');
-      if (this.gitignore.ignores(relative)) return false;
-    }
-    if (this.allowedExtensions.size === 0) return true;
-    const ext = path.extname(absPath).toLowerCase();
-    return this.allowedExtensions.has(ext);
+  setFileFilter(predicate: (absPath: string) => boolean) {
+    this.isFileAllowed = predicate;
   }
 
   setOnFilesChanged(cb: (changes: FileChange[]) => void) {

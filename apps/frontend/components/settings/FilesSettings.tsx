@@ -28,7 +28,6 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         Files
       </h2>
 
-      {/* Show .cushion toggle */}
       <ToggleRow
         label="Show .cushion folders"
         description="Display internal .cushion directories in the file browser"
@@ -36,7 +35,6 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         onChange={() => updatePreferences({ showCushionFiles: !showCushionFiles })}
       />
 
-      {/* Respect .gitignore toggle */}
       <ToggleRow
         label="Respect .gitignore"
         description="Hide files and folders matched by .gitignore patterns"
@@ -45,7 +43,6 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         className="mt-2"
       />
 
-      {/* Permitted file types */}
       <div className="mt-6">
         <div className="flex items-center justify-between">
           <div>
@@ -124,7 +121,6 @@ function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -164,7 +160,6 @@ function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
         className="bg-modal-bg rounded-lg w-[460px] max-w-[90%] flex flex-col shadow-lg animate-slide-in border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h3 className="text-base font-semibold text-foreground">Permitted file types</h3>
           <button
@@ -179,7 +174,6 @@ function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
           Only files with these extensions will appear in the file browser.
         </p>
 
-        {/* Add input */}
         <form
           className="flex gap-2 px-5 mb-4"
           onSubmit={(e) => {
@@ -204,7 +198,6 @@ function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
           </button>
         </form>
 
-        {/* Extension chips */}
         <div className="flex flex-wrap gap-2 px-5 pb-5 max-h-[40vh] overflow-y-auto">
           {allowedExtensions.map((ext) => (
             <span
@@ -226,7 +219,6 @@ function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end px-5 pb-5">
           <button
             type="button"

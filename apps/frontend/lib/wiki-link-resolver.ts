@@ -147,14 +147,7 @@ export function resolveWikiLink(href: string, allPaths: string[]): ResolvedWikiL
   return { state: 'ambiguous', targets: matches };
 }
 
-/**
- * Build the path for creating a new file from a wiki-link.
- * 
- * @param href - Wiki-link href
- * @param currentFilePath - Path of the file containing the link (for relative resolution)
- * @returns Path for the new file to create
- */
-export function buildNewFilePath(href: string, currentFilePath?: string): string {
+export function buildNewFilePath(href: string): string {
   // If href already has an extension, use it
   if (href.includes('.')) {
     return href;

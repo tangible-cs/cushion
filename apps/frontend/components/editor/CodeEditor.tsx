@@ -105,7 +105,6 @@ const EDITOR_LIST_SHORTCUT_IDS = [
 async function getLanguageExtension(filePath: string, language?: string): Promise<Extension | null> {
   const ext = language || filePath.split('.').pop()?.toLowerCase() || '';
 
-  // Markdown is special — needs WYSIWYG extensions
   if (ext === 'md' || ext === 'markdown') {
     return markdown({
       codeLanguages: languages,
@@ -113,7 +112,6 @@ async function getLanguageExtension(filePath: string, language?: string): Promis
     });
   }
 
-  // For all other files, look up language support from the bundle (~30 languages)
   const filename = filePath.split('/').pop() || filePath.split('\\').pop() || '';
   const langDesc = languages.find((lang) =>
     lang.extensions.includes(ext) || lang.filename?.test(filename)
@@ -534,7 +532,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
           onChangeRef.current?.(filePath, update.state.doc.toString());
         }
       }),
-      // Sync chunk count during diff review
       EditorView.updateListener.of((update) => {
         if (!isReviewingRef.current) return;
         const count = getChunkCount(update.state);
@@ -596,14 +593,12 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       ),
       EditorView.theme({
         '&': { width: '100%', maxWidth: '100%', overflow: 'visible' },
-        /* Let the editor grow with content, parent handles scrolling */
         '.cm-scroller': {
           overflow: 'visible',
           paddingLeft: 'var(--md-content-padding-x, 1.25em)',
           paddingRight: 'var(--md-content-padding-x, 1.25em)',
           minWidth: '0',
         },
-        /* Content area — match markdown layout padding for all file types */
         '.cm-content': {
           minWidth: '0',
           ...(isMarkdownFile ? { width: '100%' } : {}),

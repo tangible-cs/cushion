@@ -277,27 +277,13 @@ export const wikiLinkClickHandler = EditorView.domEventHandlers({
 // Combined Extension
 // =============================================================================
 
-/**
- * Returns the wiki-link extension bundle.
- * 
- * @param options.filePaths - Initial file paths for resolution
- * @param options.onNavigate - Callback when a wiki-link is clicked
- */
-export function wikiLinkExtension(options?: {
-  filePaths?: string[];
-  onNavigate?: WikiLinkNavigateCallback;
-}) {
-  const extensions = [
+export function wikiLinkExtension() {
+  return [
     filePathsField,
     navigateCallbackField,
     wikiLinkDecorationsField,
     wikiLinkClickHandler,
   ];
-  
-  // Add initial effects if options provided
-  // Note: These need to be applied via transactions after editor creation
-  
-  return extensions;
 }
 
 /**

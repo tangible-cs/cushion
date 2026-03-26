@@ -494,7 +494,6 @@ export default function Home() {
           ref={fileBrowserRef}
           client={client}
           onFileOpen={handleFileOpen}
-          onOpenWorkspace={handleOpenWorkspace}
           onSidebarToggle={handleSidebarToggle}
           isCollapsed={isSidebarHidden}
           onSearch={() => setShowQuickSwitcher(true)}

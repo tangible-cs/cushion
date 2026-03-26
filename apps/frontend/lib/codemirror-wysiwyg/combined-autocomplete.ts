@@ -229,7 +229,7 @@ function codeLangCompletion(ctx: CompletionContext): CompletionResult | null {
       label: lang,
       type: 'keyword' as const,
       boost: lang === 'javascript' || lang === 'python' || lang === 'typescript' ? 1 : 0,
-      apply: (view: EditorView, _completion: Completion, fromPos: number, toPos: number) => {
+      apply: (view: EditorView, _: Completion, fromPos: number, toPos: number) => {
         const line = view.state.doc.lineAt(fromPos);
         // Check if closing fence already exists (auto-inserted by codeFenceTrigger)
         const hasClosingFence = hasAutoClosingFence(view.state, line.number);

@@ -108,7 +108,6 @@ export function EditorPanel({
   const autosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const scrollPositionsRef = useRef<Map<string, number>>(new Map());
 
-  // Continuously track scroll position per file (captures before React re-renders)
   useEffect(() => {
     const container = editorContainerRef.current;
     if (!container) return;
@@ -472,7 +471,6 @@ export function EditorPanel({
   );
 
   const contextValue = useMemo(() => ({
-    client,
     handleChange,
     handleSave,
     handlePasteImages,
@@ -485,7 +483,7 @@ export function EditorPanel({
     diffRejectAllRef,
     diffExitReviewRef,
     diffSaveRef,
-  }), [client, handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, filePaths, focusModeEnabled, onAddSelectionToChat]);
+  }), [handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, filePaths, focusModeEnabled, onAddSelectionToChat]);
 
   return (
     <EditorPanelProvider value={contextValue}>
@@ -520,13 +518,11 @@ export function EditorPanel({
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
-        {/* Persistent editors — one per open tab, hidden when inactive */}
         {Array.from(openFiles.entries()).map(([fp]) => {
           const isActive = fp === currentFile;
           const resolved = getViewForFile(fp);
           const isMarkdown = /\.(md|markdown)$/i.test(fp);
 
-          // Custom view (excalidraw, image, pdf)
           if (resolved) {
             return (
               <div key={fp} style={{ display: isActive ? undefined : 'none', height: isActive ? '100%' : undefined }} className={isActive ? 'contents' : undefined}>
@@ -535,7 +531,6 @@ export function EditorPanel({
             );
           }
 
-          // Markdown editor
           if (isMarkdown) {
             return (
               <div key={fp} style={{ display: isActive ? undefined : 'none' }} className="contents">
@@ -547,7 +542,6 @@ export function EditorPanel({
             );
           }
 
-          // Non-markdown code file (Monaco) — only render when active
           if (isActive) {
             return (
               <div key={fp} className="contents">
@@ -561,7 +555,6 @@ export function EditorPanel({
           return null;
         })}
 
-        {/* Empty state (no file selected) */}
         {(!currentFile || (currentFile && !fileState && !getViewForFile(currentFile))) && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
             <button

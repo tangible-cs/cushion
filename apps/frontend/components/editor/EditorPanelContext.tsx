@@ -1,10 +1,8 @@
 import { createContext, useContext, type RefObject } from 'react';
-import type { CoordinatorClient } from '@/lib/coordinator-client';
 import type { EditorView } from '@codemirror/view';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
 
 export interface EditorPanelContextValue {
-  client: CoordinatorClient;
   handleChange: (filePath: string, content: string) => void;
   handleSave: (filePath: string) => void;
   handlePasteImages: (params: { files: File[]; view: EditorView; filePath: string }) => void;
