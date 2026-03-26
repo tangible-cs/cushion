@@ -44,9 +44,6 @@ scripts/
 # Cache
 .cache/
 
-# Lock files (project uses bun.lock)
-pnpm-lock.yaml
-
 # Excalidraw fonts (copied from node_modules)
 apps/frontend/public/excalidraw-assets/
 
