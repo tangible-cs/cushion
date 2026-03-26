@@ -4,7 +4,6 @@ import type {
   WorkspaceState,
   WorkspaceMetadata,
   FileState,
-  FileTreeNode,
   TabState,
   WorkspacePreferences,
   Frontmatter,
@@ -52,7 +51,7 @@ interface WorkspaceActions {
   setLoading: (isLoading: boolean) => void;
 
   // File tree
-  setFileTree: (tree: FileTreeNode[]) => void;
+  setFlatFileList: (paths: string[]) => void;
 
   // Utilities
   reset: () => void;
@@ -63,7 +62,7 @@ const initialState: Omit<WorkspaceState, keyof WorkspaceActions> = {
   openFiles: new Map(),
   tabs: [],
   currentFile: null,
-  fileTree: [],
+  flatFileList: [],
   fileWatcher: {
     watchedPaths: [],
     ignoredPatterns: [],
@@ -174,7 +173,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
                     openFiles: new Map(),
                     tabs: [],
                     currentFile: null,
-                    fileTree: [],
+                    flatFileList: [],
                     fileWatcher: {
                       ...state.fileWatcher,
                       hasExternalChanges: new Map(),
@@ -227,10 +226,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           // If file already has a tab, just switch to it
           const existingTab = tabs.find((t) => t.filePath === filePath);
           if (existingTab) {
-            // Convert preview tab to permanent when navigating back to it
-            if (existingTab.isPreview) {
-              get().convertPreviewTab(filePath);
-            }
             get().setActiveTab(existingTab.id);
 
             // Still need to load the file if not in openFiles
@@ -281,7 +276,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           if (newTabPlaceholder) {
             const newTabs = tabs.map((t) =>
               t.id === newTabPlaceholder.id
-                ? { ...t, filePath, isActive: true, isPreview: !forceNewTab }
+                ? { ...t, filePath, isActive: true, isPreview: false }
                 : { ...t, isActive: false }
             );
             set({
@@ -292,8 +287,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             return;
           }
 
-          // Ctrl+click = new permanent tab; normal click = preview (reuses existing preview tab)
-          get().addTab(filePath, !forceNewTab);
+          get().addTab(filePath, false);
 
           set({
             openFiles: newOpenFiles,
@@ -533,8 +527,8 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
           set({ isLoading });
         },
 
-        setFileTree: (tree: FileTreeNode[]) => {
-          set({ fileTree: tree });
+        setFlatFileList: (paths: string[]) => {
+          set({ flatFileList: paths });
         },
 
         reset: () => {

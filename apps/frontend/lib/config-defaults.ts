@@ -19,6 +19,15 @@ export const DEFAULT_SETTINGS: Required<CushionSettings> = {
   showHiddenFiles: false,
   showCushionFiles: false,
   fileSortOrder: 'alphabetical',
+  respectGitignore: true,
+  allowedExtensions: [
+    '.md', '.txt', '.csv',
+    '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp',
+    '.pdf',
+    '.excalidraw', '.canvas',
+    '.mp3', '.wav', '.ogg', '.flac', '.m4a',
+    '.mp4', '.webm', '.mov',
+  ],
 };
 
 export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {

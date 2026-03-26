@@ -51,7 +51,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   wysiwygExtension,
   focusModeExtension,
-  updateWikiLinkFileTree,
+  updateWikiLinkFilePaths,
   setWikiLinkNavigateCallback,
   setFocusMode,
   diffTheme,
@@ -73,6 +73,7 @@ import { useEditorPanelContext } from './EditorPanelContext';
 
 interface CodeEditorProps {
   filePath: string;
+  hidden?: boolean;
 }
 
 
@@ -141,12 +142,12 @@ function getClipboardImageFiles(clipboard: DataTransfer): File[] {
   return Array.from(clipboard.files ?? []).filter((file) => file.type.startsWith('image/'));
 }
 
-export function CodeEditor({ filePath }: CodeEditorProps) {
+export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
   const {
     handleChange: onChange,
     handleSave: onSave,
-    fileTree,
     handleWikiLinkNavigate: onWikiLinkNavigate,
+    filePaths,
     focusModeEnabled,
     handlePasteImages: onPasteImages,
     searchPanelContainerRef,
@@ -164,6 +165,7 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
   const onSaveRef = useRef(onSave);
   const onWikiLinkNavigateRef = useRef(onWikiLinkNavigate);
   const focusModeEnabledRef = useRef(focusModeEnabled);
+  const isSyncingContentRef = useRef(false);
   const onPasteImagesRef = useRef(onPasteImages);
   const onAddSelectionToChatRef = useRef(onAddSelectionToChat);
   const typewriterRafRef = useRef<number | null>(null);
@@ -203,7 +205,7 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
     };
 
     addBindings(editorShortcuts['editor.save'], () => {
-      onSaveRef.current?.();
+      onSaveRef.current?.(filePath);
       return true;
     });
 
@@ -357,7 +359,7 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
 
     const { reviewAfter, reviewingFilePath } = useDiffReviewStore.getState();
 
-    onChangeRef.current?.(mixedContent);
+    onChangeRef.current?.(filePath, mixedContent);
 
     // Always save — file watcher was blocked during review so store needs sync
     if (reviewingFilePath) {
@@ -396,17 +398,7 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
     resolveReview();
   }, [resolveReview]);
 
-  // Expose diff review handlers to parent
-  useEffect(() => {
-    if (onDiffAcceptAll) onDiffAcceptAll.current = handleAcceptAll;
-    if (onDiffRejectAll) onDiffRejectAll.current = handleRejectAll;
-    if (onDiffExitReview) onDiffExitReview.current = handleExitReview;
-    return () => {
-      if (onDiffAcceptAll) onDiffAcceptAll.current = null;
-      if (onDiffRejectAll) onDiffRejectAll.current = null;
-      if (onDiffExitReview) onDiffExitReview.current = null;
-    };
-  }, [handleAcceptAll, handleRejectAll, handleExitReview, onDiffAcceptAll, onDiffRejectAll, onDiffExitReview]);
+  // Diff review refs are gated on `hidden` prop — see effect below the diff subscription
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -538,8 +530,8 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
       adaptiveTheme,
       syntaxHighlighting(adaptiveHighlight),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged && !isReviewingRef.current) {
-          onChangeRef.current?.(update.state.doc.toString());
+        if (update.docChanged && !isReviewingRef.current && !isSyncingContentRef.current) {
+          onChangeRef.current?.(filePath, update.state.doc.toString());
         }
       }),
       // Sync chunk count during diff review
@@ -661,8 +653,8 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
         scheduleTypewriterCentering(view);
       }
 
-      if (fileTree && fileTree.length > 0) {
-        updateWikiLinkFileTree(view, fileTree);
+      if (filePaths && filePaths.length > 0) {
+        updateWikiLinkFilePaths(view, filePaths);
       }
 
       setWikiLinkNavigateCallback(view, (href, resolvedPath, createIfMissing) => {
@@ -695,14 +687,18 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
   }, [filePath, language]);
 
   // Sync external content changes (e.g. file changed on disk) into CodeMirror
+  // Uses isSyncingContentRef to prevent the updateListener from treating this as a user edit,
+  // which would convert preview tabs to permanent and break tab reuse.
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     const currentDoc = view.state.doc.toString();
     if (content !== currentDoc) {
+      isSyncingContentRef.current = true;
       view.dispatch({
         changes: { from: 0, to: currentDoc.length, insert: content },
       });
+      isSyncingContentRef.current = false;
     }
   }, [content]);
 
@@ -773,12 +769,12 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
     preferences.readableLineLength,
   ]);
 
-  // Update file tree when it changes (for wiki-link resolution)
+  // Update file paths when they change (for wiki-link resolution)
   useEffect(() => {
-    if (viewRef.current && fileTree) {
-      updateWikiLinkFileTree(viewRef.current, fileTree);
+    if (viewRef.current && filePaths) {
+      updateWikiLinkFilePaths(viewRef.current, filePaths);
     }
-  }, [fileTree]);
+  }, [filePaths]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -821,11 +817,36 @@ export function CodeEditor({ filePath }: CodeEditorProps) {
     return unsub;
   }, [filePath, handleAcceptAll, handleRejectAll]);
 
+  // Recalculate CM6 layout when revealed after being hidden
+  useEffect(() => {
+    if (hidden) return;
+    const view = viewRef.current;
+    if (!view) return;
+    requestAnimationFrame(() => {
+      view.requestMeasure();
+    });
+  }, [hidden]);
+
+  // Gate diff review refs — only the active (non-hidden) editor should own them
+  useEffect(() => {
+    if (hidden) {
+      // Clear refs so inactive editor doesn't intercept actions
+      if (onDiffAcceptAll?.current === handleAcceptAll) onDiffAcceptAll.current = null;
+      if (onDiffRejectAll?.current === handleRejectAll) onDiffRejectAll.current = null;
+      if (onDiffExitReview?.current === handleExitReview) onDiffExitReview.current = null;
+    } else {
+      if (onDiffAcceptAll) onDiffAcceptAll.current = handleAcceptAll;
+      if (onDiffRejectAll) onDiffRejectAll.current = handleRejectAll;
+      if (onDiffExitReview) onDiffExitReview.current = handleExitReview;
+    }
+  }, [hidden, handleAcceptAll, handleRejectAll, handleExitReview, onDiffAcceptAll, onDiffRejectAll, onDiffExitReview]);
+
   return (
     <div
       ref={containerRef}
       style={{
         width: '100%',
+        display: hidden ? 'none' : undefined,
         ...(!isMarkdownFile ? {
           maxWidth: preferences.readableLineLength ? 'var(--md-content-max-width, 900px)' : 'none',
           margin: '0 auto',

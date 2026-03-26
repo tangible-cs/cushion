@@ -8,24 +8,8 @@
  *   - Extension inference (prefers .md files)
  */
 
-import type { FileTreeNode, ResolvedWikiLink, WikiLinkState } from '@cushion/types';
+import type { ResolvedWikiLink, WikiLinkState } from '@cushion/types';
 import { getBaseName } from './path-utils';
-
-export function flattenFileTree(nodes: FileTreeNode[], prefix: string = ''): string[] {
-  const paths: string[] = [];
-
-  for (const node of nodes) {
-    const fullPath = prefix ? `${prefix}/${node.name}` : node.name;
-
-    if (node.type === 'file') {
-      paths.push(fullPath);
-    } else if (node.type === 'directory' && node.children) {
-      paths.push(...flattenFileTree(node.children, fullPath));
-    }
-  }
-
-  return paths;
-}
 
 /**
  * Get the file extension (including the dot).
@@ -128,11 +112,10 @@ function scoreMatch(filePath: string, href: string): number {
  * Resolve a wiki-link href to file path(s).
  * 
  * @param href - Wiki-link href (e.g., "My Note" or "folder/note")
- * @param fileTree - Current file tree from the workspace
+ * @param allPaths - Flat list of all file paths in the workspace
  * @returns ResolvedWikiLink with state and target paths
  */
-export function resolveWikiLink(href: string, fileTree: FileTreeNode[]): ResolvedWikiLink {
-  const allPaths = flattenFileTree(fileTree);
+export function resolveWikiLink(href: string, allPaths: string[]): ResolvedWikiLink {
   
   // Find all matching files
   const matches = allPaths.filter(path => matchesHref(path, href));
@@ -185,12 +168,11 @@ export function buildNewFilePath(href: string, currentFilePath?: string): string
  * Search files for autocomplete suggestions.
  * 
  * @param query - Partial query text
- * @param fileTree - Current file tree
+ * @param allPaths - Flat list of all file paths in the workspace
  * @param maxResults - Maximum number of results
  * @returns Array of matching file paths, sorted by relevance
  */
-export function searchFiles(query: string, fileTree: FileTreeNode[], maxResults: number = 10): string[] {
-  const allPaths = flattenFileTree(fileTree);
+export function searchFiles(query: string, allPaths: string[], maxResults: number = 10): string[] {
   const queryLower = query.toLowerCase();
   
   // Filter to matching paths

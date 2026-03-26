@@ -117,7 +117,7 @@ export function MoveToDialog({
       onClick={onClose}
     >
       <div
-        className="bg-modal-bg rounded-lg w-[480px] max-h-[600px] flex flex-col shadow-lg border border-modal-border"
+        className="bg-modal-bg rounded-lg w-[560px] max-h-[70vh] flex flex-col shadow-lg border border-modal-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -15,7 +15,7 @@ import { NoteEmbedWidget } from './widgets/note-embed-widget';
 import { UnsupportedEmbedWidget } from './widgets/unsupported-embed-widget';
 import { classifyEmbed, embedSourceRevealEffect, type EmbedType } from './embed-utils';
 import { MathWidget } from './widgets/math-widget';
-import { fileTreeField } from './wiki-link-plugin';
+import { filePathsField } from './wiki-link-plugin';
 import { resolveWikiLink } from '../wiki-link-resolver';
 
 function getListNestingDepth(syntaxNode: { parent: any; type: { name: string } }): number {
@@ -640,8 +640,8 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
             heading = href.slice(hashIdx + 1);
             linkPath = href.slice(0, hashIdx);
           }
-          const fileTree = state.field(fileTreeField, false) || [];
-          const resolved = resolveWikiLink(linkPath, fileTree);
+          const filePaths = state.field(filePathsField, false) || [];
+          const resolved = resolveWikiLink(linkPath, filePaths);
           const filePath = resolved.targets[0] || linkPath;
           let wikiAlt = wikiMatch[2] || '';
           let wikiWidth: number | null = null;

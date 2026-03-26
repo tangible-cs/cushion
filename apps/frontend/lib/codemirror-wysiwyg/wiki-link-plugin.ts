@@ -17,24 +17,24 @@ import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { isSelectRange, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
-import { resolveWikiLink, flattenFileTree } from '../wiki-link-resolver';
-import type { FileTreeNode, WikiLinkInfo, WikiLinkState } from '@cushion/types';
+import { resolveWikiLink } from '../wiki-link-resolver';
+import type { WikiLinkInfo, WikiLinkState } from '@cushion/types';
 
 // =============================================================================
-// State Effects and Fields for File Tree
+// State Effects and Fields for File Paths
 // =============================================================================
 
-/** Effect to update the file tree used for wiki-link resolution */
-export const setFileTreeEffect = StateEffect.define<FileTreeNode[]>();
+/** Effect to update the file paths used for wiki-link resolution */
+export const setFilePathsEffect = StateEffect.define<string[]>();
 
-/** State field that holds the current file tree */
-export const fileTreeField = StateField.define<FileTreeNode[]>({
+/** State field that holds the current file paths */
+export const filePathsField = StateField.define<string[]>({
   create() {
     return [];
   },
   update(value, tr) {
     for (const effect of tr.effects) {
-      if (effect.is(setFileTreeEffect)) {
+      if (effect.is(setFilePathsEffect)) {
         return effect.value;
       }
     }
@@ -81,7 +81,7 @@ export const navigateCallbackField = StateField.define<WikiLinkNavigateCallback 
 function buildWikiLinkDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
   const text = state.doc.toString();
-  const fileTree = state.field(fileTreeField, false) || [];
+  const filePaths = state.field(filePathsField, false) || [];
   
   // Collect Table ranges from syntax tree to skip wiki-link decoration inside tables
   const tableRanges: { from: number; to: number }[] = [];
@@ -113,7 +113,7 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       : rawHref;
     
     // Resolve the link
-    const resolved = resolveWikiLink(href, fileTree);
+    const resolved = resolveWikiLink(href, filePaths);
     const linkState = resolved.state;
     const resolvedPath = resolved.targets[0] || null;
     
@@ -225,7 +225,7 @@ export const wikiLinkDecorationsField = StateField.define<DecorationSet>({
   },
   update(value, tr) {
     // Also rebuild on focus changes (purrmd pattern: reveal all when unfocused)
-    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFileTreeEffect) || e.is(mouseSelectEffect)) || isFocusEvent(tr)) {
+    if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(setFilePathsEffect) || e.is(mouseSelectEffect)) || isFocusEvent(tr)) {
       return buildWikiLinkDecorations(tr.state);
     }
     return value;
@@ -280,15 +280,15 @@ export const wikiLinkClickHandler = EditorView.domEventHandlers({
 /**
  * Returns the wiki-link extension bundle.
  * 
- * @param options.fileTree - Initial file tree for resolution
+ * @param options.filePaths - Initial file paths for resolution
  * @param options.onNavigate - Callback when a wiki-link is clicked
  */
 export function wikiLinkExtension(options?: {
-  fileTree?: FileTreeNode[];
+  filePaths?: string[];
   onNavigate?: WikiLinkNavigateCallback;
 }) {
   const extensions = [
-    fileTreeField,
+    filePathsField,
     navigateCallbackField,
     wikiLinkDecorationsField,
     wikiLinkClickHandler,
@@ -301,12 +301,12 @@ export function wikiLinkExtension(options?: {
 }
 
 /**
- * Update the file tree in an existing editor view.
- * Call this when the workspace file tree changes.
+ * Update the file paths in an existing editor view.
+ * Call this when the workspace file list changes.
  */
-export function updateWikiLinkFileTree(view: EditorView, fileTree: FileTreeNode[]) {
+export function updateWikiLinkFilePaths(view: EditorView, filePaths: string[]) {
   view.dispatch({
-    effects: setFileTreeEffect.of(fileTree),
+    effects: setFilePathsEffect.of(filePaths),
   });
 }
 

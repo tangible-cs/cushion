@@ -32,6 +32,10 @@ export interface RPCMethodMap {
     params: { relativePath?: string };
     result: { files: FileTreeNode[] };
   };
+  'workspace/allFiles': {
+    params: void;
+    result: { paths: string[] };
+  };
   'workspace/file': {
     params: { filePath: string };
     result: { content: string; encoding: string; lineEnding: string };

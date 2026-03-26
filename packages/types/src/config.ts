@@ -17,6 +17,8 @@ export interface CushionSettings {
   showHiddenFiles?: boolean;
   showCushionFiles?: boolean;
   fileSortOrder?: 'alphabetical' | 'modified' | 'created';
+  respectGitignore?: boolean;
+  allowedExtensions?: string[];
 }
 
 export interface CushionAppearance {

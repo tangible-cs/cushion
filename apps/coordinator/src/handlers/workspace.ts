@@ -175,6 +175,13 @@ export async function handleListFiles(
   return { files };
 }
 
+export async function handleListAllFiles(
+  workspaceManager: WorkspaceManager
+): Promise<{ paths: string[] }> {
+  const paths = await workspaceManager.listAllFilePaths();
+  return { paths };
+}
+
 export async function handleReadFile(
   workspaceManager: WorkspaceManager,
   params: { filePath: string }
@@ -203,6 +210,8 @@ export async function handleRenameFile(
   params: { oldPath: string; newPath: string }
 ): Promise<{ success: boolean }> {
   await workspaceManager.renameFile(params.oldPath, params.newPath);
+  // Update wiki-links in other files (best-effort, don't fail the rename)
+  workspaceManager.updateWikiLinksAfterRename(params.oldPath, params.newPath).catch(() => {});
   return { success: true };
 }
 

@@ -1,23 +1,22 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { buildLinkIndex, type LinkIndex } from '@/lib/link-index';
-import { flattenFileTree } from '@/lib/wiki-link-resolver';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
-import type { FileTreeNode, FileState, WorkspaceMetadata } from '@cushion/types';
+import type { FileState, WorkspaceMetadata } from '@cushion/types';
 
 const isMarkdownFile = (filePath: string) => filePath.toLowerCase().endsWith('.md');
 
 interface UseLinkIndexOptions {
   client: CoordinatorClient | null;
   metadata: WorkspaceMetadata | null;
-  fileTree: FileTreeNode[];
+  filePaths: string[];
   openFiles: Map<string, FileState>;
 }
 
 export function useLinkIndex({
   client,
   metadata,
-  fileTree,
+  filePaths,
   openFiles,
 }: UseLinkIndexOptions): LinkIndex | null {
   const [linkIndex, setLinkIndex] = useState<LinkIndex | null>(null);
@@ -27,13 +26,13 @@ export function useLinkIndex({
   const rebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rebuildIndexFromCache = useCallback(() => {
-    if (!metadata || fileTree.length === 0) {
+    if (!metadata || filePaths.length === 0) {
       setLinkIndex(null);
       return;
     }
     const snapshot = new Map(fileContentsRef.current);
-    setLinkIndex(buildLinkIndex(snapshot, fileTree));
-  }, [fileTree, metadata]);
+    setLinkIndex(buildLinkIndex(snapshot, filePaths));
+  }, [filePaths, metadata]);
 
   const scheduleRebuildIndex = useCallback((delay = 200) => {
     if (rebuildTimerRef.current) {
@@ -54,9 +53,9 @@ export function useLinkIndex({
     };
   }, []);
 
-  // Build initial index when client/metadata/fileTree change
+  // Build initial index when client/metadata/filePaths change
   const buildIndex = useCallback(async () => {
-    if (!client || !metadata || fileTree.length === 0) {
+    if (!client || !metadata || filePaths.length === 0) {
       fileContentsRef.current = new Map();
       setLinkIndex(null);
       return;
@@ -65,7 +64,7 @@ export function useLinkIndex({
     const buildId = ++indexBuildIdRef.current;
 
     try {
-      const allFiles = flattenFileTree(fileTree);
+      const allFiles = filePaths;
       const mdFiles = allFiles.filter(isMarkdownFile);
       const fileContents = new Map<string, string>();
 
@@ -90,11 +89,11 @@ export function useLinkIndex({
       });
 
       fileContentsRef.current = fileContents;
-      setLinkIndex(buildLinkIndex(fileContents, fileTree));
+      setLinkIndex(buildLinkIndex(fileContents, filePaths));
     } catch (err) {
       console.error('[useLinkIndex] Failed to build link index:', err);
     }
-  }, [client, metadata, fileTree, openFiles]);
+  }, [client, metadata, filePaths, openFiles]);
 
   useEffect(() => {
     buildIndex();
@@ -102,7 +101,7 @@ export function useLinkIndex({
 
   // Sync open files to cache and schedule debounced rebuild
   useEffect(() => {
-    if (!metadata || fileTree.length === 0) return;
+    if (!metadata || filePaths.length === 0) return;
 
     const prevOpenFiles = openFilesSnapshotRef.current;
     const nextOpenFiles = openFiles;
@@ -123,7 +122,7 @@ export function useLinkIndex({
 
     openFilesSnapshotRef.current = new Map(nextOpenFiles);
     scheduleRebuildIndex();
-  }, [openFiles, fileTree, metadata, scheduleRebuildIndex]);
+  }, [openFiles, filePaths, metadata, scheduleRebuildIndex]);
 
   return linkIndex;
 }

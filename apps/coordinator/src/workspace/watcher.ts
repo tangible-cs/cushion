@@ -1,8 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { watch, type FSWatcher } from 'chokidar';
+import type { Ignore } from 'ignore';
 import type { FileChange } from '@cushion/types';
-import { IGNORED_PATTERNS } from './constants.js';
+import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS } from './constants.js';
 
 const WATCHER_ONLY_IGNORED = ['.cushion'];
 const WATCHER_WARN_DIR_THRESHOLD = 2500;
@@ -70,6 +71,28 @@ export class WorkspaceWatcher {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private onFilesChanged: ((changes: FileChange[]) => void) | null = null;
   private onFileChangedOnDisk: ((filePath: string, mtime: number) => void) | null = null;
+  private respectGitignore = true;
+  private allowedExtensions: Set<string> = new Set(
+    DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
+  );
+  private gitignore: Ignore | null = null;
+  private projectPath: string | null = null;
+
+  setFileFilter(respectGitignore: boolean, extensions: string[], gitignore: Ignore | null) {
+    this.respectGitignore = respectGitignore;
+    this.allowedExtensions = new Set(extensions.map((e) => e.toLowerCase()));
+    this.gitignore = gitignore;
+  }
+
+  private isFileAllowed(absPath: string): boolean {
+    if (this.respectGitignore && this.gitignore && this.projectPath) {
+      const relative = path.relative(this.projectPath, absPath).replace(/\\/g, '/');
+      if (this.gitignore.ignores(relative)) return false;
+    }
+    if (this.allowedExtensions.size === 0) return true;
+    const ext = path.extname(absPath).toLowerCase();
+    return this.allowedExtensions.has(ext);
+  }
 
   setOnFilesChanged(cb: (changes: FileChange[]) => void) {
     this.onFilesChanged = cb;
@@ -80,6 +103,7 @@ export class WorkspaceWatcher {
   }
 
   start(projectPath: string) {
+    this.projectPath = projectPath;
     const ignored = createIgnoredPathMatcher(projectPath);
 
     this.watcher = watch(projectPath, {
@@ -88,19 +112,19 @@ export class WorkspaceWatcher {
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
 
-    const enqueue = (type: FileChange['type'], absPath: string) => {
+    const enqueue = (type: FileChange['type'], absPath: string, isDirectory?: boolean) => {
       if (!this.watcher) return;
       const relative = path.relative(projectPath, absPath).replace(/\\/g, '/');
-      this.pendingChanges.push({ type, path: relative });
+      this.pendingChanges.push({ type, path: relative, ...(isDirectory && { isDirectory }) });
       this.scheduleFlush();
     };
 
     this.watcher
-      .on('add', (p) => enqueue('created', p))
-      .on('addDir', (p) => enqueue('created', p))
-      .on('change', (p) => this.handleExternalChange(projectPath, p))
-      .on('unlink', (p) => enqueue('deleted', p))
-      .on('unlinkDir', (p) => enqueue('deleted', p))
+      .on('add', (p) => { if (this.isFileAllowed(p)) enqueue('created', p); })
+      .on('addDir', (p) => enqueue('created', p, true))
+      .on('change', (p) => { if (this.isFileAllowed(p)) this.handleExternalChange(projectPath, p); })
+      .on('unlink', (p) => { if (this.isFileAllowed(p)) enqueue('deleted', p); })
+      .on('unlinkDir', (p) => enqueue('deleted', p, true))
       .on('ready', () => this.logWatcherLoad(projectPath))
       .on('error', (err) => console.error('[Watcher] Error:', err));
   }

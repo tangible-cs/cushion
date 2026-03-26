@@ -8,7 +8,6 @@ import { FileHeader } from './FileHeader';
 import { buildNewFilePath } from '@/lib/wiki-link-resolver';
 import { uint8ArrayToBase64 } from '@/lib/pdf-bytes';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
-import type { FileTreeNode } from '@cushion/types';
 import type { EditorView } from '@codemirror/view';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { WikiLinkNavigateCallback } from '@/lib/codemirror-wysiwyg';
@@ -25,7 +24,7 @@ const MonacoEditor = lazy(() => import('./MonacoEditor'));
 interface EditorPanelProps {
   client: CoordinatorClient;
   onFileRenamed?: () => void;
-  fileTree?: FileTreeNode[];
+  filePaths?: string[];
   focusModeEnabled?: boolean;
   onToggleFocusMode?: () => void;
   onNewNote?: () => void;
@@ -83,7 +82,7 @@ function joinWorkspacePath(...parts: string[]): string {
 export function EditorPanel({
   client,
   onFileRenamed,
-  fileTree,
+  filePaths,
   focusModeEnabled,
   onToggleFocusMode,
   onNewNote,
@@ -107,6 +106,45 @@ export function EditorPanel({
   });
   const [, forceUpdate] = useState(0);
   const autosaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const scrollPositionsRef = useRef<Map<string, number>>(new Map());
+
+  // Continuously track scroll position per file (captures before React re-renders)
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const file = useWorkspaceStore.getState().currentFile;
+      if (file) {
+        scrollPositionsRef.current.set(file, container.scrollTop);
+      }
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Restore scroll position after CodeMirror measures the new editor
+  useEffect(() => {
+    if (!currentFile) return;
+    const container = editorContainerRef.current;
+    if (!container) return;
+    const target = scrollPositionsRef.current.get(currentFile) ?? 0;
+    // First attempt: immediate rAF (before paint)
+    const id1 = requestAnimationFrame(() => {
+      container.scrollTop = target;
+    });
+    // Second attempt: after CM6 measurement settles
+    let id3 = 0;
+    const id2 = requestAnimationFrame(() => {
+      id3 = requestAnimationFrame(() => {
+        container.scrollTop = target;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(id1);
+      cancelAnimationFrame(id2);
+      cancelAnimationFrame(id3);
+    };
+  }, [currentFile]);
 
   useEffect(() => {
     const h = historyRef.current;
@@ -198,12 +236,11 @@ export function EditorPanel({
   }
 
   const handleChange = useCallback(
-    (content: string) => {
-      if (!currentFile) return;
-      const file = useWorkspaceStore.getState().openFiles.get(currentFile);
+    (filePath: string, content: string) => {
+      const file = useWorkspaceStore.getState().openFiles.get(filePath);
       if (!file) return;
 
-      updateFileContent(currentFile, content);
+      updateFileContent(filePath, content);
 
       try {
         client.didChange({
@@ -220,52 +257,51 @@ export function EditorPanel({
       if (
         preferences.autoSave &&
         !useDiffReviewStore.getState().reviewingFilePath &&
-        /\.(md|markdown)$/i.test(currentFile) &&
+        /\.(md|markdown)$/i.test(filePath) &&
         content !== file.savedContent
       ) {
         const delay = Number.isFinite(preferences.autoSaveDelay)
           ? Math.max(0, preferences.autoSaveDelay)
           : 1000;
         const timers = autosaveTimersRef.current;
-        const existingTimer = timers.get(currentFile);
+        const existingTimer = timers.get(filePath);
         if (existingTimer) {
           clearTimeout(existingTimer);
         }
         const timeout = setTimeout(async () => {
-          timers.delete(currentFile);
+          timers.delete(filePath);
           try {
-            await client.saveFile(currentFile, content);
-            markFileSaved(currentFile, content);
+            await client.saveFile(filePath, content);
+            markFileSaved(filePath, content);
           } catch (err) {
             console.error('[EditorPanel] Autosave failed:', err);
           }
         }, delay);
-        timers.set(currentFile, timeout);
+        timers.set(filePath, timeout);
       }
     },
-    [currentFile, client, updateFileContent, markFileSaved, preferences.autoSave, preferences.autoSaveDelay]
+    [client, updateFileContent, markFileSaved, preferences.autoSave, preferences.autoSaveDelay]
   );
 
-  const handleSave = useCallback(async () => {
-    if (!currentFile) return;
-    const file = useWorkspaceStore.getState().openFiles.get(currentFile);
+  const handleSave = useCallback(async (filePath: string) => {
+    const file = useWorkspaceStore.getState().openFiles.get(filePath);
     if (!file) return;
 
     const timers = autosaveTimersRef.current;
-    const pendingTimer = timers.get(currentFile);
+    const pendingTimer = timers.get(filePath);
     if (pendingTimer) {
       clearTimeout(pendingTimer);
-      timers.delete(currentFile);
+      timers.delete(filePath);
     }
 
     try {
       const contentToSave = file.content;
-      await client.saveFile(currentFile, contentToSave);
-      markFileSaved(currentFile, contentToSave);
+      await client.saveFile(filePath, contentToSave);
+      markFileSaved(filePath, contentToSave);
     } catch (err) {
       console.error('[EditorPanel] Save failed:', err);
     }
-  }, [currentFile, client, markFileSaved]);
+  }, [client, markFileSaved]);
 
 
   const handlePasteImages = useCallback(
@@ -410,6 +446,11 @@ export function EditorPanel({
             openFile(resolvedPath, '');
             return;
           }
+          // Skip server fetch if the file is already open
+          if (useWorkspaceStore.getState().openFiles.has(resolvedPath)) {
+            openFile(resolvedPath, '');
+            return;
+          }
           const { content } = await client.readFile(resolvedPath);
           openFile(resolvedPath, content);
         } catch (err) {
@@ -436,7 +477,7 @@ export function EditorPanel({
     handleSave,
     handlePasteImages,
     handleWikiLinkNavigate,
-    fileTree,
+    filePaths,
     focusModeEnabled: focusModeEnabled ?? false,
     searchPanelContainerRef,
     onAddSelectionToChat,
@@ -444,7 +485,7 @@ export function EditorPanel({
     diffRejectAllRef,
     diffExitReviewRef,
     diffSaveRef,
-  }), [client, handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, fileTree, focusModeEnabled, onAddSelectionToChat]);
+  }), [client, handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, filePaths, focusModeEnabled, onAddSelectionToChat]);
 
   return (
     <EditorPanelProvider value={contextValue}>
@@ -479,74 +520,86 @@ export function EditorPanel({
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
-        {(() => {
-          const resolved = currentFile ? getViewForFile(currentFile) : null;
-          if (resolved && currentFile) {
-            const ResolvedComponent = resolved.component;
-            return <ResolvedComponent filePath={currentFile} />;
-          }
-          if (fileState && currentFile) {
-            const isMarkdown = /\.(md|markdown)$/i.test(currentFile);
+        {/* Persistent editors — one per open tab, hidden when inactive */}
+        {Array.from(openFiles.entries()).map(([fp]) => {
+          const isActive = fp === currentFile;
+          const resolved = getViewForFile(fp);
+          const isMarkdown = /\.(md|markdown)$/i.test(fp);
+
+          // Custom view (excalidraw, image, pdf)
+          if (resolved) {
             return (
-              <>
-                {isMarkdown && (
-                  <FileHeader
-                    filePath={currentFile}
-                    editable={true}
-                    onRename={handleRename}
-                    onExit={handleHeaderExit}
-                    showExtension={false}
-                  />
-                )}
-                {isMarkdown ? (
-                  <CodeEditor filePath={currentFile} />
-                ) : (
-                  <Suspense fallback={<div className="flex-1" />}>
-                    <MonacoEditor filePath={currentFile} />
-                  </Suspense>
-                )}
-              </>
+              <div key={fp} style={{ display: isActive ? undefined : 'none', height: isActive ? '100%' : undefined }} className={isActive ? 'contents' : undefined}>
+                <resolved.component filePath={fp} />
+              </div>
             );
           }
-          return (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
+
+          // Markdown editor
+          if (isMarkdown) {
+            return (
+              <div key={fp} style={{ display: isActive ? undefined : 'none' }} className="contents">
+                {isActive && (
+                  <FileHeader filePath={fp} editable onRename={handleRename} onExit={handleHeaderExit} showExtension={false} />
+                )}
+                <CodeEditor filePath={fp} hidden={!isActive} />
+              </div>
+            );
+          }
+
+          // Non-markdown code file (Monaco) — only render when active
+          if (isActive) {
+            return (
+              <div key={fp} className="contents">
+                <Suspense fallback={<div className="flex-1" />}>
+                  <MonacoEditor filePath={fp} />
+                </Suspense>
+              </div>
+            );
+          }
+
+          return null;
+        })}
+
+        {/* Empty state (no file selected) */}
+        {(!currentFile || (currentFile && !fileState && !getViewForFile(currentFile))) && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-sm">
+            <button
+              onClick={onNewNote}
+              className="text-accent hover:underline cursor-pointer"
+            >
+              Create new note (Ctrl + N)
+            </button>
+            <button
+              onClick={onGoToFile}
+              className="text-accent hover:underline cursor-pointer"
+            >
+              Go to file (Ctrl + O)
+            </button>
+            {currentFile === '__new_tab__' && (
               <button
-                onClick={onNewNote}
-                className="text-accent hover:underline cursor-pointer"
-              >
-                Create new note (Ctrl + N)
-              </button>
-              <button
-                onClick={onGoToFile}
-                className="text-accent hover:underline cursor-pointer"
-              >
-                Go to file (Ctrl + O)
-              </button>
-              {currentFile === '__new_tab__' && (
-                <button
-                  onClick={() => {
-                    const store = useWorkspaceStore.getState();
-                    const tab = store.tabs.find(
-                      (t) => t.filePath === '__new_tab__' && t.isActive
-                    );
-                    if (tab) {
-                      store.removeTab(tab.id);
-                      const remaining = useWorkspaceStore.getState().tabs;
-                      if (remaining.length > 0) {
-                        store.setActiveTab(remaining[remaining.length - 1].id);
-                      } else {
-                        store.setCurrentFile(null);
-                      }
+                onClick={() => {
+                  const store = useWorkspaceStore.getState();
+                  const tab = store.tabs.find(
+                    (t) => t.filePath === '__new_tab__' && t.isActive
+                  );
+                  if (tab) {
+                    store.removeTab(tab.id);
+                    const remaining = useWorkspaceStore.getState().tabs;
+                    if (remaining.length > 0) {
+                      store.setActiveTab(remaining[remaining.length - 1].id);
+                    } else {
+                      store.setCurrentFile(null);
                     }
-                  }}
-                  className="text-accent hover:underline cursor-pointer"
-                >
-                  Close
-                </button>
-              )}
-            </div>
-          );
-        })()}
+                  }
+                }}
+                className="text-accent hover:underline cursor-pointer"
+              >
+                Close
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <ExportOptionsDialog

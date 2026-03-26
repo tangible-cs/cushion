@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, X } from 'lucide-react';
-import { searchFiles, flattenFileTree } from '@/lib/wiki-link-resolver';
-import type { FileTreeNode } from '@cushion/types';
+import { searchFiles } from '@/lib/wiki-link-resolver';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getBaseName, getDirectory } from '@/lib/path-utils';
 import { cn } from '@/lib/utils';
@@ -12,7 +11,7 @@ import { FolderIcon, FileIcon } from '@/components/shared/FileIcons';
 interface QuickSwitcherProps {
   isOpen: boolean;
   onClose: () => void;
-  fileTree: FileTreeNode[];
+  filePaths: string[];
   onSelectFile: (filePath: string) => void;
   onCreateFile?: (fileName: string) => void;
 }
@@ -80,7 +79,7 @@ function HighlightedText({ text, matchIndices }: { text: string; matchIndices?: 
 export function QuickSwitcher({
   isOpen,
   onClose,
-  fileTree,
+  filePaths,
   onSelectFile,
   onCreateFile,
 }: QuickSwitcherProps) {
@@ -102,7 +101,7 @@ export function QuickSwitcher({
     const items: SearchResult[] = [];
 
     if (query.trim()) {
-      const matches = searchFiles(query, fileTree, 15);
+      const matches = searchFiles(query, filePaths, 15);
 
       for (const path of matches) {
         const displayName = getBaseName(path);
@@ -132,7 +131,7 @@ export function QuickSwitcher({
         });
       }
     } else {
-      const allFiles = flattenFileTree(fileTree);
+      const allFiles = filePaths;
       const sorted = allFiles
         .sort((a, b) => {
           const aIsMd = a.endsWith('.md') ? 1 : 0;
@@ -152,7 +151,7 @@ export function QuickSwitcher({
     }
 
     return items;
-  }, [query, fileTree, onCreateFile]);
+  }, [query, filePaths, onCreateFile]);
 
   useEffect(() => {
     setSelectedIndex(0);

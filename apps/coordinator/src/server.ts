@@ -19,6 +19,7 @@ import type {
 import { WorkspaceManager } from './workspace/manager.js';
 import { ConfigManager } from './workspace/config-manager.js';
 import { ConfigWatcher } from './workspace/config-watcher.js';
+import { DEFAULT_ALLOWED_EXTENSIONS } from './workspace/constants.js';
 import { ensurePermissionDefaults } from './providers/opencode-config.js';
 
 import {
@@ -27,6 +28,7 @@ import {
   handleFsRoots,
   handleFsListDirs,
   handleListFiles,
+  handleListAllFiles,
   handleReadFile,
   handleSaveFile,
   handleRenameFile,
@@ -194,6 +196,7 @@ export class CoordinatorServer {
           this.configManager.setWorkspacePath(openParams.projectPath);
           this.configWatcher.stop();
           this.configWatcher.start(openParams.projectPath);
+          await this.loadFileFilter();
           break;
         }
 
@@ -211,6 +214,10 @@ export class CoordinatorServer {
 
         case 'workspace/files':
           result = await handleListFiles(this.workspaceManager, request.params as RPCParams<'workspace/files'>);
+          break;
+
+        case 'workspace/allFiles':
+          result = await handleListAllFiles(this.workspaceManager);
           break;
 
         case 'workspace/file':
@@ -280,7 +287,13 @@ export class CoordinatorServer {
 
       this.sendResponse(ws, request.id, result);
     } catch (error) {
-      console.error(`[Coordinator] Error handling ${method}:`, error);
+      // ENOENT during readFile is expected (e.g. watcher races a rename) — log at warn level
+      const isEnoent = error instanceof Error && error.message.startsWith('File not found:');
+      if (isEnoent) {
+        console.warn(`[Coordinator] ${error.message}`);
+      } else {
+        console.error(`[Coordinator] Error handling ${method}:`, error);
+      }
       this.sendError(
         ws,
         request.id,
@@ -363,6 +376,29 @@ export class CoordinatorServer {
     }
   }
 
+  private async loadFileFilter() {
+    let respectGitignore = true;
+    let extensions = DEFAULT_ALLOWED_EXTENSIONS;
+    try {
+      const { content } = await this.configManager.readConfig('settings.json');
+      if (content) {
+        const parsed = JSON.parse(content);
+        if (typeof parsed.respectGitignore === 'boolean') {
+          respectGitignore = parsed.respectGitignore;
+        }
+        if (Array.isArray(parsed.allowedExtensions)) {
+          extensions = parsed.allowedExtensions;
+        }
+      }
+    } catch {
+      // Fall through to defaults
+    }
+    if (respectGitignore) {
+      await this.workspaceManager.loadGitignore();
+    }
+    this.workspaceManager.setFileFilter(respectGitignore, extensions);
+  }
+
   private setupWatcherCallbacks() {
     this.workspaceManager.setOnFilesChanged((changes: FileChange[]) => {
       this.broadcastNotification('workspace/filesChanged', { changes });
@@ -373,6 +409,9 @@ export class CoordinatorServer {
     });
 
     this.configWatcher.setOnConfigChanged((file: string) => {
+      if (file === 'settings.json') {
+        this.loadFileFilter();
+      }
       this.broadcastNotification('config/changed', { file });
     });
   }

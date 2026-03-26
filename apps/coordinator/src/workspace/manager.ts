@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
+import ignore, { type Ignore } from 'ignore';
 import type { FileTreeNode, FileChange } from '@cushion/types';
-import { IGNORED_PATTERNS } from './constants.js';
+import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS } from './constants.js';
 import { WorkspaceWatcher } from './watcher.js';
 import { writeFileAtomicWithRetry, throwSaveFileError } from './atomic-write.js';
 
@@ -37,6 +38,48 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
 export class WorkspaceManager {
   private currentWorkspace: WorkspaceContext | null = null;
   private watcher = new WorkspaceWatcher();
+  private respectGitignore = true;
+  private allowedExtensions: Set<string> = new Set(
+    DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
+  );
+  private gitignore: Ignore | null = null;
+
+  setFileFilter(respectGitignore: boolean, extensions: string[]) {
+    this.respectGitignore = respectGitignore;
+    this.allowedExtensions = new Set(extensions.map((e) => e.toLowerCase()));
+    this.watcher.setFileFilter(respectGitignore, extensions, this.gitignore);
+  }
+
+  async loadGitignore(): Promise<void> {
+    if (!this.currentWorkspace) return;
+    const ig = ignore();
+    // Always ignore these regardless
+    ig.add(IGNORED_PATTERNS);
+    try {
+      const content = await fs.readFile(
+        path.join(this.currentWorkspace.projectPath, '.gitignore'),
+        'utf-8',
+      );
+      ig.add(content);
+    } catch {
+      // No .gitignore — just use IGNORED_PATTERNS
+    }
+    this.gitignore = ig;
+    this.watcher.setFileFilter(this.respectGitignore, [...this.allowedExtensions], this.gitignore);
+  }
+
+  private isFileVisible(relativePath: string, isDirectory: boolean): boolean {
+    // Gitignore filtering (applies to both files and directories)
+    if (this.respectGitignore && this.gitignore) {
+      const testPath = isDirectory ? `${relativePath}/` : relativePath;
+      if (this.gitignore.ignores(testPath)) return false;
+    }
+    // Extension filtering (directories always pass, files filtered by extension)
+    if (isDirectory) return true;
+    if (this.allowedExtensions.size === 0) return true;
+    const ext = path.extname(relativePath).toLowerCase();
+    return this.allowedExtensions.has(ext);
+  }
 
   setOnFilesChanged(cb: (changes: FileChange[]) => void) {
     this.watcher.setOnFilesChanged(cb);
@@ -102,9 +145,15 @@ export class WorkspaceManager {
         }
 
         const entryPath = path.join(relativePath, entry.name).replace(/\\/g, '/');
+        const isDir = entry.isDirectory();
+
+        if (!this.isFileVisible(entryPath, isDir)) {
+          continue;
+        }
+
         const isHidden = entry.name.startsWith('.');
 
-        if (entry.isDirectory()) {
+        if (isDir) {
           nodes.push({
             name: entry.name,
             path: entryPath,
@@ -139,6 +188,43 @@ export class WorkspaceManager {
         `Failed to list files: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  async listAllFilePaths(): Promise<string[]> {
+    if (!this.currentWorkspace) {
+      throw new Error('No workspace open');
+    }
+
+    const results: string[] = [];
+
+    const walk = async (dirPath: string, relBase: string) => {
+      let entries: import('fs').Dirent[];
+      try {
+        entries = await fs.readdir(
+          path.join(this.currentWorkspace!.projectPath, dirPath),
+          { withFileTypes: true },
+        );
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        if (IGNORED_PATTERNS.includes(entry.name)) continue;
+        const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+        const isDir = entry.isDirectory();
+
+        if (!this.isFileVisible(relPath, isDir)) continue;
+
+        if (isDir) {
+          await walk(relPath, relPath);
+        } else if (entry.isFile()) {
+          results.push(relPath);
+        }
+      }
+    };
+
+    await walk('.', '');
+    return results;
   }
 
   async readFile(
@@ -426,6 +512,119 @@ export class WorkspaceManager {
 
   async stopWatcher(): Promise<void> {
     await this.watcher.stop();
+  }
+
+  async updateWikiLinksAfterRename(oldPath: string, newPath: string): Promise<void> {
+    if (!this.currentWorkspace) return;
+
+    // Build a map of old basename → new basename for all affected files
+    const renameMap = new Map<string, string>();
+    const fullOldPath = this.resolvePath(oldPath);
+    const fullNewPath = this.resolvePath(newPath);
+
+    const stat = await fs.stat(fullNewPath);
+
+    if (stat.isDirectory()) {
+      // Folder rename: map all children's old basenames to new basenames
+      const walkDir = async (dirPath: string, relBase: string): Promise<void> => {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullEntry = path.join(dirPath, entry.name);
+          const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) {
+            await walkDir(fullEntry, relPath);
+          } else if (entry.name.endsWith('.md')) {
+            // Derive old relative path by replacing newPath prefix with oldPath
+            const oldRelPath = `${oldPath}/${relPath}`;
+            const newRelPath = `${newPath}/${relPath}`;
+            const oldBaseName = this.wikiLinkName(oldRelPath);
+            const newBaseName = this.wikiLinkName(newRelPath);
+            if (oldBaseName !== newBaseName) {
+              renameMap.set(oldBaseName, newBaseName);
+            }
+            // Also map full path variants (folder/name)
+            const oldPathVariant = oldRelPath.replace(/\.md$/, '');
+            const newPathVariant = newRelPath.replace(/\.md$/, '');
+            if (oldPathVariant !== newPathVariant) {
+              renameMap.set(oldPathVariant, newPathVariant);
+            }
+          }
+        }
+      };
+      await walkDir(fullNewPath, '');
+
+      // Also map the folder name itself for path-based links
+      const oldFolderName = oldPath.split('/').pop()!;
+      const newFolderName = newPath.split('/').pop()!;
+      if (oldFolderName !== newFolderName) {
+        renameMap.set(oldFolderName, newFolderName);
+      }
+    } else {
+      // Single file rename
+      const oldBaseName = this.wikiLinkName(oldPath);
+      const newBaseName = this.wikiLinkName(newPath);
+      if (oldBaseName !== newBaseName) {
+        renameMap.set(oldBaseName, newBaseName);
+      }
+      // Also map path-based variants
+      const oldPathVariant = oldPath.replace(/\.md$/, '');
+      const newPathVariant = newPath.replace(/\.md$/, '');
+      if (oldPathVariant !== newPathVariant && oldPathVariant !== oldBaseName) {
+        renameMap.set(oldPathVariant, newPathVariant);
+      }
+    }
+
+    if (renameMap.size === 0) return;
+
+    // Walk all .md files in workspace and update wiki-links
+    const workspacePath = this.currentWorkspace.projectPath;
+    const allMdFiles = await this.collectMdFiles(workspacePath, '');
+
+    for (const mdRelPath of allMdFiles) {
+      const fullMdPath = this.resolvePath(mdRelPath);
+      const content = await fs.readFile(fullMdPath, 'utf-8');
+
+      let updated = content;
+      for (const [oldName, newName] of renameMap) {
+        // Match [[oldName]], [[oldName#anchor]], [[oldName|display]], [[oldName#anchor|display]]
+        const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(
+          `(\\[\\[)${escaped}((?:#[^\\]|]*)?(?:\\|[^\\]]*)?\\]\\])`,
+          'g'
+        );
+        updated = updated.replace(regex, `$1${newName}$2`);
+      }
+
+      if (updated !== content) {
+        await fs.writeFile(fullMdPath, updated, 'utf-8');
+      }
+    }
+  }
+
+  private wikiLinkName(relativePath: string): string {
+    const name = relativePath.split('/').pop() || relativePath;
+    return name.endsWith('.md') ? name.slice(0, -3) : name;
+  }
+
+  private async collectMdFiles(dirPath: string, relBase: string): Promise<string[]> {
+    const results: string[] = [];
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return results;
+    }
+    for (const entry of entries) {
+      if (IGNORED_PATTERNS.includes(entry.name)) continue;
+      const fullEntry = path.join(dirPath, entry.name);
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        results.push(...await this.collectMdFiles(fullEntry, relPath));
+      } else if (entry.name.endsWith('.md')) {
+        results.push(relPath);
+      }
+    }
+    return results;
   }
 
   /**

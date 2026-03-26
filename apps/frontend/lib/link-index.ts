@@ -5,9 +5,7 @@
  * Used by both backlinks panel and graph view.
  */
 
-import type { FileTreeNode } from '@cushion/types';
 import { findAllWikiLinks } from './wiki-link';
-import { flattenFileTree } from './wiki-link-resolver';
 import { getBaseName } from './path-utils';
 
 export interface LinkInfo {
@@ -96,14 +94,14 @@ function getContext(content: string, start: number, end: number): { line: number
  * Build a link index from file contents.
  * 
  * @param files - Map of file path to content (only markdown files with content)
- * @param fileTree - Full file tree for resolution
+ * @param allPaths - Flat list of all file paths in the workspace
  * @returns Complete link index
  */
 export function buildLinkIndex(
   files: Map<string, string>,
-  fileTree: FileTreeNode[]
+  allPaths: string[]
 ): LinkIndex {
-  const allFiles = flattenFileTree(fileTree);
+  const allFiles = allPaths;
   const outgoing = new Map<string, LinkInfo[]>();
   const incoming = new Map<string, LinkInfo[]>();
   const nodeSet = new Set<string>();

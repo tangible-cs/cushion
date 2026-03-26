@@ -1,6 +1,7 @@
 
-import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef, ElementRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef, type ElementRef } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useExplorerStore } from '@/stores/explorerStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -8,9 +9,19 @@ import { FilePlus, FolderPlus, Search, Settings, ChevronDown } from 'lucide-reac
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
+import { resolveConflict } from '@/lib/conflict-resolution';
+import { useToast } from '@/components/chat/Toast';
 import { cn } from '@/lib/utils';
 import type { FileTreeNode } from '@cushion/types';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
+
+const TEXT_EXTENSIONS = new Set(['.md', '.txt', '.csv', '.canvas', '.json', '.xml', '.html', '.css', '.js', '.ts', '.tsx', '.jsx', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.log', '.sh', '.bat', '.py', '.rb', '.go', '.rs', '.java', '.c', '.cpp', '.h', '.hpp', '.excalidraw']);
+
+function isTextFile(name: string): boolean {
+  const dotIdx = name.lastIndexOf('.');
+  if (dotIdx < 0) return true; // No extension → treat as text
+  return TEXT_EXTENSIONS.has(name.slice(dotIdx).toLowerCase());
+}
 
 interface FileBrowserProps {
   client: CoordinatorClient | null;
@@ -21,16 +32,17 @@ interface FileBrowserProps {
   isCollapsed?: boolean;
   onSearch?: () => void;
   onSettings?: () => void;
-  onAskAIFile?: (path: string) => void;
 }
 
 export interface FileBrowserHandle {
   refreshFileList: () => Promise<void>;
+  refreshDirectories: (affectedDirs: Set<string>) => void;
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings, onAskAIFile }, ref) {
+  function FileBrowser({ client, onFileOpen, onNewDocument, onOpenWorkspace, onSidebarToggle, isCollapsed: isCollapsedProp = false, onSearch, onSettings }, ref) {
   const { metadata, currentFile, preferences, sidebarWidth: rawSidebarWidth, setSidebarWidth } = useWorkspaceStore();
+  const { showToast } = useToast();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +53,12 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveSourcePath, setMoveSourcePath] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargetPath, setDeleteTargetPath] = useState<string>('');
+  const [deleteTargetPaths, setDeleteTargetPaths] = useState<string[]>([]);
   const [creatingFileAtRoot, setCreatingFileAtRoot] = useState(0);
   const [creatingFolderAtRoot, setCreatingFolderAtRoot] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const sidebarRef = useRef<ElementRef<"aside">>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const sidebarMin = 200;
   const sidebarMax = typeof window !== 'undefined'
     ? Math.max(sidebarMin, Math.floor(window.innerWidth * 0.45))
@@ -62,24 +75,33 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       return [];
     }
 
+    // Only show global loading/error state for root directory loads
+    const isRoot = relativePath === '.';
+
     try {
-      setIsLoading(true);
-      setError(null);
+      if (isRoot) {
+        setIsLoading(true);
+        setError(null);
+      }
 
       const { files } = await client.listFiles(relativePath);
 
-      if (relativePath === '.') {
+      if (isRoot) {
         setRootFiles(files);
       }
 
       return files;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load directory';
-      setError(errorMsg);
+      if (isRoot) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load directory';
+        setError(errorMsg);
+      }
       console.error('[FileBrowser] Error loading directory:', err);
       return [];
     } finally {
-      setIsLoading(false);
+      if (isRoot) {
+        setIsLoading(false);
+      }
     }
   }, [client]);
 
@@ -115,6 +137,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]); // Only depend on isMobile, not the functions
 
+  // Reset explorer state when workspace changes
+  useEffect(() => {
+    useExplorerStore.getState().resetExplorerState();
+  }, [metadata?.projectPath]);
+
   // Load root directory when workspace opens
   useEffect(() => {
     if (metadata && client) {
@@ -126,6 +153,22 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   useImperativeHandle(ref, () => ({
     refreshFileList: async () => {
       await loadDirectory('.');
+    },
+    refreshDirectories: (affectedDirs: Set<string>) => {
+      if (affectedDirs.has('.')) {
+        loadDirectory('.');
+      }
+      // Re-fetch affected expanded dirs into the centralized store
+      const { expandedDirs, setDirContents } = useExplorerStore.getState();
+      for (const dir of affectedDirs) {
+        if (dir !== '.' && expandedDirs.has(dir)) {
+          loadDirectory(dir).then((nodes) => {
+            if (nodes.length > 0 || expandedDirs.has(dir)) {
+              setDirContents(dir, nodes);
+            }
+          });
+        }
+      }
     },
   }), [loadDirectory]);
 
@@ -140,6 +183,12 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       return;
     }
 
+    // Skip server fetch if the file is already open — content is in the store
+    if (useWorkspaceStore.getState().openFiles.has(filePath)) {
+      onFileOpen(filePath, '', forceNewTab);
+      return;
+    }
+
     try {
       const { content } = await client.readFile(filePath);
       onFileOpen(filePath, content, forceNewTab);
@@ -149,6 +198,95 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       console.error('[FileBrowser] Error opening file:', err);
     }
   };
+
+  // Paste handler
+  const handlePaste = useCallback(async (destinationDir: string) => {
+    if (!client) return;
+    const { clipboard, clearClipboard } = useExplorerStore.getState();
+    if (!clipboard) return;
+
+    try {
+      const dirsToRefresh = new Set<string>();
+      dirsToRefresh.add(destinationDir === '.' ? '.' : destinationDir);
+
+      for (const srcPath of clipboard.paths) {
+        const name = srcPath.split('/').pop() || srcPath;
+        const rawDest = destinationDir === '.' ? name : `${destinationDir}/${name}`;
+        const dest = await resolveConflict(client, rawDest);
+
+        if (clipboard.operation === 'cut') {
+          await client.renameFile(srcPath, dest);
+          // Update open tab if this file was open
+          const store = useWorkspaceStore.getState();
+          const fileState = store.openFiles.get(srcPath);
+          if (fileState) {
+            const wasActive = store.currentFile === srcPath;
+            store.closeFile(srcPath);
+            store.openFile(dest, fileState.content);
+            if (wasActive) store.setCurrentFile(dest);
+          }
+          const srcParent = srcPath.substring(0, srcPath.lastIndexOf('/')) || '.';
+          dirsToRefresh.add(srcParent);
+        } else {
+          await client.duplicateFile(srcPath, dest);
+        }
+      }
+
+      // Clear clipboard after cut, keep after copy
+      if (clipboard.operation === 'cut') {
+        clearClipboard();
+      }
+
+      for (const dir of dirsToRefresh) {
+        await loadDirectory(dir);
+      }
+    } catch (error) {
+      console.error('[FileBrowser] Failed to paste:', error);
+      setError(`Failed to paste: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [client, loadDirectory]);
+
+  // External file drop handler (OS import)
+  const handleExternalDrop = useCallback(async (files: FileList, targetDir: string) => {
+    if (!client) return;
+    if (!window.electronAPI) return; // Electron-only
+
+    const allowedExts = new Set(preferences.allowedExtensions.map((e: string) => e.toLowerCase()));
+    const dirsToRefresh = new Set<string>();
+    dirsToRefresh.add(targetDir === '.' ? '.' : targetDir);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const dotIdx = file.name.lastIndexOf('.');
+      const ext = dotIdx > 0 ? file.name.slice(dotIdx).toLowerCase() : '';
+
+      if (ext && !allowedExts.has(ext)) {
+        showToast({ description: `Unsupported: ${file.name} — change in Settings > Files`, variant: 'error' });
+        continue;
+      }
+
+      const rawDest = targetDir === '.' ? file.name : `${targetDir}/${file.name}`;
+      const dest = await resolveConflict(client, rawDest);
+
+      if (isTextFile(file.name)) {
+        const text = await file.text();
+        await client.saveFile(dest, text);
+      } else {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let j = 0; j < bytes.length; j++) {
+          binary += String.fromCharCode(bytes[j]);
+        }
+        const base64 = btoa(binary);
+        await client.saveFileBase64(dest, base64);
+      }
+    }
+
+    for (const dir of dirsToRefresh) {
+      await loadDirectory(dir);
+    }
+  }, [client, preferences.allowedExtensions, loadDirectory, showToast]);
 
   // Notify parent when workspace state changes
   useEffect(() => {
@@ -164,6 +302,10 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   if (!metadata) {
     return null;
   }
+
+  const deleteMessage = deleteTargetPaths.length > 1
+    ? `Are you sure you want to delete ${deleteTargetPaths.length} items? This action cannot be undone.`
+    : `Are you sure you want to delete "${deleteTargetPaths[0]?.split('/').pop() || deleteTargetPaths[0]}"? This action cannot be undone.`;
 
   return (
     <>
@@ -256,7 +398,25 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         <div className="flex-shrink-0 h-2" />
 
         {/* Root folder toggle + file tree */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 thin-scrollbar">
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 thin-scrollbar"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              useExplorerStore.getState().clearSelection();
+              useExplorerStore.getState().clearFocused();
+            }
+          }}
+          onContextMenu={(e) => {
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
+              const store = useExplorerStore.getState();
+              store.clearSelection();
+              store.clearFocused();
+              store.setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
+            }
+          }}
+        >
           {/* Root folder row */}
           <button
             onClick={() => setRootExpanded(!rootExpanded)}
@@ -310,8 +470,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
               nodes={rootFiles}
               onFileClick={handleFileClick}
               currentFile={currentFile}
+              scrollRef={scrollRef}
               onLoadDirectory={loadDirectory}
-              onAskAI={onAskAIFile}
+
+              onPaste={handlePaste}
+              onExternalDrop={handleExternalDrop}
               creatingFileAtRoot={creatingFileAtRoot}
               creatingFolderAtRoot={creatingFolderAtRoot}
               onRootCreationDone={() => {
@@ -322,11 +485,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 if (!client) return;
 
                 try {
-                  // Create empty file
-                  await client.saveFile(filePath, '');
-                  // Reload the parent directory
-                  const parentPath = filePath.substring(0, filePath.lastIndexOf('/')) || '.';
+                  const resolved = await resolveConflict(client, filePath);
+                  await client.saveFile(resolved, '');
+                  const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);
+                  return resolved;
                 } catch (error) {
                   console.error('[FileBrowser] Failed to create file:', error);
                   setError(`Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -336,9 +499,11 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 if (!client) return;
 
                 try {
-                  await client.createFolder(folderPath);
-                  const parentPath = folderPath.substring(0, folderPath.lastIndexOf('/')) || '.';
+                  const resolved = await resolveConflict(client, folderPath);
+                  await client.createFolder(resolved);
+                  const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);
+                  return resolved;
                 } catch (error) {
                   console.error('[FileBrowser] Failed to create folder:', error);
                   setError(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -348,7 +513,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 if (!client) return;
 
                 try {
-                  await client.renameFile(oldPath, newPath);
+                  const resolved = await resolveConflict(client, newPath);
+                  await client.renameFile(oldPath, resolved);
 
                   // Update open tab if this file was open in the editor
                   const store = useWorkspaceStore.getState();
@@ -356,35 +522,40 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                   if (fileState) {
                     const wasActive = store.currentFile === oldPath;
                     store.closeFile(oldPath);
-                    store.openFile(newPath, fileState.content);
+                    store.openFile(resolved, fileState.content);
                     if (wasActive) {
-                      store.setCurrentFile(newPath);
+                      store.setCurrentFile(resolved);
                     }
                   }
 
                   // Reload the parent directory to show updated files
                   const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);
+                  // Also reload destination parent if different
+                  const destParent = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
+                  if (destParent !== parentPath) {
+                    await loadDirectory(destParent);
+                  }
                 } catch (error) {
                   console.error('[FileBrowser] Failed to rename:', error);
                   setError(`Failed to rename: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
               }}
               onDelete={(path) => {
-                setDeleteTargetPath(path);
+                setDeleteTargetPaths([path]);
+                setDeleteDialogOpen(true);
+              }}
+              onDeleteMultiple={(paths) => {
+                setDeleteTargetPaths(paths);
                 setDeleteDialogOpen(true);
               }}
               onDuplicate={async (path) => {
                 if (!client) return;
 
                 try {
-                  // Generate new path with (copy) suffix
-                  const ext = path.lastIndexOf('.') > 0 ? path.substring(path.lastIndexOf('.')) : '';
-                  const baseName = ext ? path.substring(0, path.lastIndexOf('.')) : path;
-                  const newPath = `${baseName} (copy)${ext}`;
+                  const newPath = await resolveConflict(client, path);
 
                   await client.duplicateFile(path, newPath);
-                  // Reload the parent directory to show updated files
                   const parentPath = path.substring(0, path.lastIndexOf('/')) || '.';
                   await loadDirectory(parentPath);
                 } catch (error) {
@@ -416,7 +587,8 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           // Get file/folder name
           const fileName = moveSourcePath.split('/').pop() || moveSourcePath;
           // Build new path
-          const newPath = targetPath === '.' ? fileName : `${targetPath}/${fileName}`;
+          const rawPath = targetPath === '.' ? fileName : `${targetPath}/${fileName}`;
+          const newPath = await resolveConflict(client, rawPath);
 
           await client.renameFile(moveSourcePath, newPath);
           // Reload both the source and target directories
@@ -440,17 +612,23 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         if (!client) return;
 
         try {
-          await client.deleteFile(deleteTargetPath);
-          // Reload the parent directory to show updated files
-          const parentPath = deleteTargetPath.substring(0, deleteTargetPath.lastIndexOf('/')) || '.';
-          await loadDirectory(parentPath);
+          const dirsToRefresh = new Set<string>();
+          for (const path of deleteTargetPaths) {
+            await client.deleteFile(path);
+            const parentPath = path.substring(0, path.lastIndexOf('/')) || '.';
+            dirsToRefresh.add(parentPath);
+          }
+          for (const dir of dirsToRefresh) {
+            await loadDirectory(dir);
+          }
+          useExplorerStore.getState().clearSelection();
         } catch (error) {
           console.error('[FileBrowser] Failed to delete:', error);
           setError(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }}
-      title="Delete file"
-      message={`Are you sure you want to delete "${deleteTargetPath.split('/').pop() || deleteTargetPath}"? This action cannot be undone.`}
+      title={deleteTargetPaths.length > 1 ? `Delete ${deleteTargetPaths.length} items` : 'Delete file'}
+      message={deleteMessage}
       confirmText="Delete"
       cancelText="Cancel"
       variant="danger"

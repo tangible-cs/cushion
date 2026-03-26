@@ -94,17 +94,18 @@ export function EditorTabRow({
       {/* Center — tabs area + right toggle */}
       <div
         className="min-w-0 flex-1 flex items-end"
-        style={noDragStyle}
       >
         <div className="min-w-0 flex-1">
           {tabs.length > 0 ? (
-            <EditorTabs
-              tabs={tabs}
-              currentFile={currentFile}
-              onSelectTab={onSelectTab}
-              onCloseTab={onCloseTab}
-              onAddTab={onAddTab}
-            />
+            <div className="w-fit max-w-full" style={noDragStyle}>
+              <EditorTabs
+                tabs={tabs}
+                currentFile={currentFile}
+                onSelectTab={onSelectTab}
+                onCloseTab={onCloseTab}
+                onAddTab={onAddTab}
+              />
+            </div>
           ) : (
             <div className="h-10" />
           )}

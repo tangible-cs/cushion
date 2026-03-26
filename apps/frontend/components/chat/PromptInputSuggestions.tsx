@@ -14,7 +14,7 @@ export function usePromptSuggestions() {
   const commands = useChatStore((state) => state.commands);
   const openFiles = useWorkspaceStore((state) => state.openFiles);
   const workspaceMetadata = useWorkspaceStore((state) => state.metadata);
-  const fileTree = useWorkspaceStore((state) => state.fileTree);
+  const filePaths = useWorkspaceStore((state) => state.flatFileList);
 
   const [trigger, setTrigger] = useState<TriggerState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -87,8 +87,8 @@ export function usePromptSuggestions() {
       limit: 20,
     });
 
-    const searchResults = workspaceMetadata && fileTree.length > 0
-      ? searchFiles(query, fileTree, 20).map((p) => p.replace(/\\/g, '/'))
+    const searchResults = workspaceMetadata && filePaths.length > 0
+      ? searchFiles(query, filePaths, 20).map((p) => p.replace(/\\/g, '/'))
       : [];
 
     const seen = new Set<string>();
@@ -108,7 +108,7 @@ export function usePromptSuggestions() {
     }
 
     return [...agentResults.map((r) => r.obj), ...fileSuggestions];
-  }, [trigger, agentSuggestions, recentFiles, commandSuggestions, workspaceMetadata, fileTree]);
+  }, [trigger, agentSuggestions, recentFiles, commandSuggestions, workspaceMetadata, filePaths]);
 
   const setTriggerState = useCallback((next: TriggerState | null) => {
     setTrigger((prev) => {

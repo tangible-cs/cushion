@@ -14,8 +14,8 @@ import {
 } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
 import { EditorState, Extension } from '@codemirror/state';
-import { fileTreeField } from './wiki-link-plugin';
-import { searchFiles, flattenFileTree } from '../wiki-link-resolver';
+import { filePathsField } from './wiki-link-plugin';
+import { searchFiles } from '../wiki-link-resolver';
 import { getBaseName, getDirectory } from '../path-utils';
 import { createWikiLink } from '../wiki-link';
 
@@ -110,14 +110,14 @@ function wikiLinkCompletions(context: CompletionContext): CompletionResult | nul
   if (!wikiContext) return null;
 
   const { from, to, query } = wikiContext;
-  const fileTree = context.state.field(fileTreeField, false) || [];
+  const filePaths = context.state.field(filePathsField, false) || [];
 
   // Get file suggestions
   let files: string[];
   if (query.length === 0) {
-    files = flattenFileTree(fileTree).slice(0, 20);
+    files = filePaths.slice(0, 20);
   } else {
-    files = searchFiles(query, fileTree, 15);
+    files = searchFiles(query, filePaths, 15);
   }
 
   // Build completion options

@@ -44,7 +44,7 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
     editorRef.current = editor;
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave();
+      handleSave(filePath);
     });
   };
 
@@ -54,7 +54,7 @@ export default function MonacoEditor({ filePath }: MonacoEditorProps) {
       language={toMonacoLanguage(language)}
       value={content}
       theme={monacoTheme}
-      onChange={(value) => handleChange(value ?? '')}
+      onChange={(value) => handleChange(filePath, value ?? '')}
       onMount={handleMount}
       options={{
         minimap: { enabled: false },

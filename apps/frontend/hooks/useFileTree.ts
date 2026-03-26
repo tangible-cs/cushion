@@ -4,105 +4,64 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useDiffReviewStore } from '@/stores/diffReviewStore';
 import { BINARY_FILE_EXTENSIONS } from '@/lib/binary-extensions';
 import type { CoordinatorClient } from '@/lib/coordinator-client';
-import type { FileTreeNode, ConnectionState, WorkspaceMetadata } from '@cushion/types';
+import type { ConnectionState, WorkspaceMetadata } from '@cushion/types';
 
 interface UseFileTreeOptions {
   client: CoordinatorClient | null;
   metadata: WorkspaceMetadata | null;
-  onFilesChanged?: () => void;
+  onFilesChanged?: (affectedDirs: Set<string>) => void;
 }
 
 interface UseFileTreeReturn {
-  fileTree: FileTreeNode[];
+  filePaths: string[];
   connectionState: ConnectionState;
   fetchFileTree: () => Promise<void>;
 }
+
+const BULK_CHANGE_THRESHOLD = 50;
 
 export function useFileTree({
   client,
   metadata,
   onFilesChanged,
 }: UseFileTreeOptions): UseFileTreeReturn {
-  const [fileTree, setFileTreeLocal] = useState<FileTreeNode[]>([]);
-  const [fileTreeWorkspacePath, setFileTreeWorkspacePath] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const workspacePath = metadata?.projectPath ?? null;
-  const setStoreFileTree = useWorkspaceStore((state) => state.setFileTree);
+  const setStoreFlatFileList = useWorkspaceStore((state) => state.setFlatFileList);
   const onFilesChangedRef = useRef(onFilesChanged);
   const fetchRunIdRef = useRef(0);
   onFilesChangedRef.current = onFilesChanged;
-
-  const setFileTree = useCallback((tree: FileTreeNode[], sourceWorkspacePath: string | null) => {
-    setFileTreeLocal(tree);
-    setFileTreeWorkspacePath(sourceWorkspacePath);
-    setStoreFileTree(tree);
-  }, [setStoreFileTree]);
 
   const fetchFileTree = useCallback(async () => {
     const runId = ++fetchRunIdRef.current;
 
     if (!client || !workspacePath) {
-      setFileTree([], workspacePath);
+      setStoreFlatFileList([]);
       return;
     }
 
-    const buildTree = async (relativePath: string): Promise<FileTreeNode[]> => {
-      if (runId !== fetchRunIdRef.current) {
-        return [];
-      }
-
-      const { files } = await client.listFiles(relativePath);
-      const resolved = await Promise.all(
-        files.map(async (node) => {
-          if (node.type !== 'directory') {
-            return node;
-          }
-
-          const childPath = node.path || (relativePath === '.' ? node.name : `${relativePath}/${node.name}`);
-          try {
-            const children = await buildTree(childPath);
-            return { ...node, children };
-          } catch (error) {
-            if (runId !== fetchRunIdRef.current) {
-              return { ...node, children: [] };
-            }
-            console.error('[useFileTree] Failed to list directory:', childPath, error);
-            return { ...node, children: [] };
-          }
-        })
-      );
-
-      return resolved;
-    };
-
     try {
-      const fullTree = await buildTree('.');
+      const { paths } = await client.listAllFiles();
 
-      if (runId !== fetchRunIdRef.current) {
-        return;
-      }
+      if (runId !== fetchRunIdRef.current) return;
 
       const activeWorkspacePath = useWorkspaceStore.getState().metadata?.projectPath ?? null;
-      if (activeWorkspacePath !== workspacePath) {
-        return;
-      }
+      if (activeWorkspacePath !== workspacePath) return;
 
-      setFileTree(fullTree, workspacePath);
+      setStoreFlatFileList(paths);
     } catch (err) {
-      if (runId !== fetchRunIdRef.current) {
-        return;
-      }
+      if (runId !== fetchRunIdRef.current) return;
       console.error('[useFileTree] Failed to fetch file tree:', err);
     }
-  }, [client, workspacePath, setFileTree]);
+  }, [client, workspacePath, setStoreFlatFileList]);
 
-  // Invalidate in-flight tree requests and clear visible tree on workspace switch
+  // Invalidate in-flight requests and clear on workspace switch
   useEffect(() => {
     fetchRunIdRef.current += 1;
-    setFileTree([], workspacePath);
-  }, [workspacePath, setFileTree]);
+    setStoreFlatFileList([]);
+  }, [workspacePath, setStoreFlatFileList]);
 
-  // Fetch tree on mount/dependencies change
+  // Fetch on mount/dependencies change
   useEffect(() => {
     fetchFileTree();
   }, [fetchFileTree]);
@@ -136,13 +95,56 @@ export function useFileTree({
     };
   }, [client, fetchFileTree]);
 
-  // Subscribe to file system watcher notifications
+  // Re-fetch when file filter preferences change
+  const allowedExtensions = useWorkspaceStore((s) => s.preferences.allowedExtensions);
+  const respectGitignore = useWorkspaceStore((s) => s.preferences.respectGitignore);
+  useEffect(() => {
+    if (!client || !workspacePath) return;
+    fetchFileTree();
+  }, [allowedExtensions, respectGitignore]);
+
+  // Subscribe to file system watcher notifications (incremental updates)
   useEffect(() => {
     if (!client || !workspacePath) return;
 
-    const unsubTree = client.onFilesChanged(() => {
-      onFilesChangedRef.current?.();
-      fetchFileTree();
+    const unsubTree = client.onFilesChanged((changes) => {
+      // Collect parent directories affected by creates/deletes
+      const affectedDirs = new Set<string>();
+      for (const change of changes) {
+        if (change.type === 'created' || change.type === 'deleted') {
+          const lastSlash = change.path.lastIndexOf('/');
+          affectedDirs.add(lastSlash > 0 ? change.path.slice(0, lastSlash) : '.');
+        }
+      }
+
+      onFilesChangedRef.current?.(affectedDirs);
+
+      // Bulk operation — full re-fetch
+      if (changes.length > BULK_CHANGE_THRESHOLD) {
+        fetchFileTree();
+        return;
+      }
+
+      // Incremental update of flatFileList (skip directory events —
+      // flatFileList only contains file paths)
+      const state = useWorkspaceStore.getState();
+      let updated = [...state.flatFileList];
+      for (const change of changes) {
+        if (change.isDirectory) continue;
+        if (change.type === 'created') {
+          if (!updated.includes(change.path)) {
+            updated.push(change.path);
+          }
+        } else if (change.type === 'deleted') {
+          updated = updated.filter((p) => p !== change.path);
+          // Close the tab if the deleted file is open
+          if (state.openFiles.has(change.path)) {
+            state.closeFile(change.path);
+          }
+        }
+        // 'modified' doesn't affect the path list
+      }
+      setStoreFlatFileList(updated);
     });
 
     const unsubFile = client.onFileChangedOnDisk(async (filePath, _mtime) => {
@@ -180,9 +182,9 @@ export function useFileTree({
       unsubTree();
       unsubFile();
     };
-  }, [client, workspacePath, fetchFileTree]);
+  }, [client, workspacePath, fetchFileTree, setStoreFlatFileList]);
 
-  const resolvedFileTree = fileTreeWorkspacePath === workspacePath ? fileTree : [];
+  const filePaths = useWorkspaceStore((s) => s.flatFileList);
 
-  return { fileTree: resolvedFileTree, connectionState, fetchFileTree };
+  return { filePaths, connectionState, fetchFileTree };
 }

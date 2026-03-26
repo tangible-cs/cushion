@@ -407,6 +407,10 @@ export class CoordinatorClient {
     return this.call('workspace/files', { relativePath });
   }
 
+  listAllFiles() {
+    return this.call('workspace/allFiles');
+  }
+
   readFile(filePath: string) {
     return this.call('workspace/file', { filePath });
   }
