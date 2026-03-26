@@ -4,8 +4,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useExplorerStore } from '@/stores/explorerStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
-import { ConfirmDialog } from './ConfirmDialog';
-import { FilePlus, FolderPlus, Search, Settings, ChevronDown } from 'lucide-react';
+import { FilePlus, FolderPlus, Search, Settings, ChevronDown, Trash2 } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { LogoSpinner } from '@/components/ui/LogoSpinner';
@@ -31,6 +30,7 @@ interface FileBrowserProps {
   isCollapsed?: boolean;
   onSearch?: () => void;
   onSettings?: () => void;
+  onTrash?: () => void;
 }
 
 export interface FileBrowserHandle {
@@ -39,7 +39,7 @@ export interface FileBrowserHandle {
 }
 
 export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
-  function FileBrowser({ client, onFileOpen, onSidebarToggle, isCollapsed = false, onSearch, onSettings }, ref) {
+  function FileBrowser({ client, onFileOpen, onSidebarToggle, isCollapsed = false, onSearch, onSettings, onTrash }, ref) {
   const { metadata, currentFile, preferences, sidebarWidth: rawSidebarWidth, setSidebarWidth } = useWorkspaceStore();
   const { showToast } = useToast();
   const [rootFiles, setRootFiles] = useState<FileTreeNode[]>([]);
@@ -48,8 +48,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const [rootExpanded, setRootExpanded] = useState(true);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveSourcePath, setMoveSourcePath] = useState<string>('');
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargetPaths, setDeleteTargetPaths] = useState<string[]>([]);
   const [creatingFileAtRoot, setCreatingFileAtRoot] = useState(0);
   const [creatingFolderAtRoot, setCreatingFolderAtRoot] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -273,13 +271,58 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     }
   }, [metadata, onSidebarToggle, isCollapsed]);
 
+  const handleSoftDelete = useCallback(async (paths: string[]) => {
+    if (!client) return;
+
+    try {
+      const trashItems: { id: string; path: string }[] = [];
+      const dirsToRefresh = new Set<string>();
+
+      for (const p of paths) {
+        const result = await client.deleteFile(p);
+        if (result.trashItem) {
+          trashItems.push({ id: result.trashItem.id, path: p });
+        }
+        const parentPath = p.substring(0, p.lastIndexOf('/')) || '.';
+        dirsToRefresh.add(parentPath);
+      }
+
+      for (const dir of dirsToRefresh) {
+        await loadDirectory(dir);
+      }
+      useExplorerStore.getState().clearSelection();
+
+      if (trashItems.length > 0) {
+        const fileName = trashItems[0].path.split('/').pop() || trashItems[0].path;
+        const description = trashItems.length === 1
+          ? `"${fileName}" moved to trash`
+          : `${trashItems.length} items moved to trash`;
+
+        const trashItemIds = trashItems.map((t) => t.id);
+
+        showToast({
+          description,
+          duration: 8000,
+          actions: [{
+            label: 'Undo',
+            onClick: async () => {
+              await client.restoreFromTrash(trashItemIds);
+              for (const dir of dirsToRefresh) {
+                await loadDirectory(dir);
+              }
+            },
+          }],
+        });
+      }
+    } catch (error) {
+      console.error('[FileBrowser] Failed to delete:', error);
+      setError(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [client, loadDirectory, showToast]);
+
   if (!metadata) {
     return null;
   }
-
-  const deleteMessage = deleteTargetPaths.length > 1
-    ? `Are you sure you want to delete ${deleteTargetPaths.length} items? This action cannot be undone.`
-    : `Are you sure you want to delete "${deleteTargetPaths[0]?.split('/').pop() || deleteTargetPaths[0]}"? This action cannot be undone.`;
 
   return (
     <>
@@ -332,6 +375,19 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           >
             <Settings size={16} />
             <span>Settings</span>
+          </button>
+
+          <button
+            onClick={onTrash}
+            className={cn(
+              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
+              "text-sm text-muted-foreground hover:text-foreground",
+              "hover:bg-muted/30",
+              "transition-colors duration-150"
+            )}
+          >
+            <Trash2 size={16} />
+            <span>Trash</span>
           </button>
 
           <button
@@ -506,12 +562,10 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onDelete={(path) => {
-                setDeleteTargetPaths([path]);
-                setDeleteDialogOpen(true);
+                handleSoftDelete([path]);
               }}
               onDeleteMultiple={(paths) => {
-                setDeleteTargetPaths(paths);
-                setDeleteDialogOpen(true);
+                handleSoftDelete(paths);
               }}
               onDuplicate={async (path) => {
                 if (!client) return;
@@ -564,34 +618,6 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
       }}
     />
 
-    <ConfirmDialog
-      isOpen={deleteDialogOpen}
-      onClose={() => setDeleteDialogOpen(false)}
-      onConfirm={async () => {
-        if (!client) return;
-
-        try {
-          const dirsToRefresh = new Set<string>();
-          for (const path of deleteTargetPaths) {
-            await client.deleteFile(path);
-            const parentPath = path.substring(0, path.lastIndexOf('/')) || '.';
-            dirsToRefresh.add(parentPath);
-          }
-          for (const dir of dirsToRefresh) {
-            await loadDirectory(dir);
-          }
-          useExplorerStore.getState().clearSelection();
-        } catch (error) {
-          console.error('[FileBrowser] Failed to delete:', error);
-          setError(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }}
-      title={deleteTargetPaths.length > 1 ? `Delete ${deleteTargetPaths.length} items` : 'Delete file'}
-      message={deleteMessage}
-      confirmText="Delete"
-      cancelText="Cancel"
-      variant="danger"
-    />
     </>
   );
   }

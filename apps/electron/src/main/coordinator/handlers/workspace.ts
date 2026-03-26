@@ -1,4 +1,4 @@
-import type { FileTreeNode } from '@cushion/types';
+import type { FileTreeNode, TrashItem } from '@cushion/types';
 import type { WorkspaceManager } from '../workspace-manager';
 
 export async function handleOpenWorkspace(
@@ -59,9 +59,9 @@ export async function handleRenameFile(
 export async function handleDeleteFile(
   workspaceManager: WorkspaceManager,
   params: { path: string }
-): Promise<{ success: boolean }> {
-  await workspaceManager.deleteFile(params.path);
-  return { success: true };
+): Promise<{ success: boolean; trashItem?: TrashItem }> {
+  const trashItem = await workspaceManager.deleteFile(params.path);
+  return { success: true, trashItem };
 }
 
 export async function handleDuplicateFile(

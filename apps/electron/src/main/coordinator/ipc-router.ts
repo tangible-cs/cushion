@@ -32,6 +32,12 @@ import {
 
 import { handleSkillInstallZip } from './handlers/skill';
 import { handleShellExec, handleLoginStart, handleLoginFinish } from './handlers/shell';
+import {
+  handleTrashRestore,
+  handleTrashList,
+  handleTrashPermanentDelete,
+  handleTrashEmpty,
+} from './handlers/trash';
 
 let workspaceManager: WorkspaceManager;
 let configManager: ConfigManager;
@@ -128,6 +134,22 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
 
   ipcMain.handle('coordinator:workspace/create-folder', async (_event, params: RPCParams<'workspace/create-folder'>) => {
     return handleCreateFolder(workspaceManager, params);
+  });
+
+  ipcMain.handle('coordinator:trash/restore', async (_event, params: RPCParams<'trash/restore'>) => {
+    return handleTrashRestore(workspaceManager, params);
+  });
+
+  ipcMain.handle('coordinator:trash/list', async () => {
+    return handleTrashList(workspaceManager);
+  });
+
+  ipcMain.handle('coordinator:trash/permanent-delete', async (_event, params: RPCParams<'trash/permanent-delete'>) => {
+    return handleTrashPermanentDelete(workspaceManager, params);
+  });
+
+  ipcMain.handle('coordinator:trash/empty', async () => {
+    return handleTrashEmpty(workspaceManager);
   });
 
   ipcMain.handle('coordinator:workspace/file-base64', async (_event, params: RPCParams<'workspace/file-base64'>) => {

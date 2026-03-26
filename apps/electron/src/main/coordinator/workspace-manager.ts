@@ -1,10 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import ignore, { type Ignore } from 'ignore';
-import type { FileTreeNode, FileChange } from '@cushion/types';
+import type { FileTreeNode, FileChange, TrashItem } from '@cushion/types';
 import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS, ALWAYS_VISIBLE_FILENAMES } from './constants';
 import { WorkspaceWatcher } from './workspace-watcher';
 import { writeFileAtomicWithRetry, throwSaveFileError } from './atomic-write';
+import { TrashManager } from './trash-manager';
 
 interface WorkspaceContext {
   projectPath: string;
@@ -38,6 +39,7 @@ const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
 export class WorkspaceManager {
   private currentWorkspace: WorkspaceContext | null = null;
   private watcher = new WorkspaceWatcher();
+  private trashManager = new TrashManager();
   private respectGitignore = true;
   private allowedExtensions: Set<string> = new Set(
     DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
@@ -169,6 +171,7 @@ export class WorkspaceManager {
       projectPath,
     };
 
+    await this.trashManager.init(projectPath);
     this.watcher.start(projectPath);
 
     return {
@@ -413,7 +416,7 @@ export class WorkspaceManager {
     }
   }
 
-  async deleteFile(relativePath: string): Promise<void> {
+  async deleteFile(relativePath: string): Promise<TrashItem> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
@@ -422,12 +425,7 @@ export class WorkspaceManager {
 
     try {
       const stats = await fs.stat(fullPath);
-
-      if (stats.isDirectory()) {
-        await fs.rm(fullPath, { recursive: true, force: true });
-      } else {
-        await fs.unlink(fullPath);
-      }
+      return await this.trashManager.moveToTrash(relativePath, stats.isDirectory());
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         throw new Error(`File not found: ${relativePath}`);
@@ -436,6 +434,31 @@ export class WorkspaceManager {
       }
       throw error;
     }
+  }
+
+  async restoreFromTrash(ids: string[]): Promise<string[]> {
+    if (!this.currentWorkspace) {
+      throw new Error('No workspace open');
+    }
+    return this.trashManager.restore(ids);
+  }
+
+  async permanentlyDeleteFromTrash(ids: string[]): Promise<void> {
+    if (!this.currentWorkspace) {
+      throw new Error('No workspace open');
+    }
+    await this.trashManager.permanentlyDelete(ids);
+  }
+
+  async emptyTrash(): Promise<void> {
+    if (!this.currentWorkspace) {
+      throw new Error('No workspace open');
+    }
+    await this.trashManager.emptyTrash();
+  }
+
+  listTrash(): TrashItem[] {
+    return this.trashManager.listItems();
   }
 
   async duplicateFile(sourcePath: string, destPath: string): Promise<void> {
