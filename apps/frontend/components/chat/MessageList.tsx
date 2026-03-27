@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Blocks, Search } from 'lucide-react';
+import { Wrench, Search, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useAutoScroll } from './useAutoScroll';
@@ -197,11 +197,11 @@ export function MessageList({ className }: MessageListProps) {
                 <button
                   type="button"
                   onClick={() => setShowCustomizeDialog(true)}
-                  className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
-                  aria-label="Customize"
-                  title="Customize"
+                  className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
+                  aria-label="Tools"
+                  title="Tools"
                 >
-                  <Blocks className="size-3.5" />
+                  <Wrench className="size-4" />
                 </button>
                 <DisplayOptionsPopover />
                 <button
@@ -210,11 +210,11 @@ export function MessageList({ className }: MessageListProps) {
                     setSessionMenuOpen(false);
                     setActiveSession(null).catch(() => undefined);
                   }}
-                  className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
+                  className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors"
                   aria-label="New session"
                   title="New session"
                 >
-                  <Icon name="plus-small" size="small" />
+                  <Plus size={18} />
                 </button>
               </div>
             </div>

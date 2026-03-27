@@ -13,6 +13,8 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
   const showCushionFiles = useWorkspaceStore((s) => s.preferences.showCushionFiles);
   const respectGitignore = useWorkspaceStore((s) => s.preferences.respectGitignore);
   const allowedExtensions = useWorkspaceStore((s) => s.preferences.allowedExtensions);
+  const trashMethod = useWorkspaceStore((s) => s.preferences.trashMethod);
+  const confirmSystemTrash = useWorkspaceStore((s) => s.preferences.confirmSystemTrash);
   const updatePreferences = useWorkspaceStore((s) => s.updatePreferences);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -41,6 +43,23 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         checked={respectGitignore}
         onChange={() => updatePreferences({ respectGitignore: !respectGitignore })}
         className="mt-2"
+      />
+
+      <ToggleRow
+        label="Use system trash"
+        description="Move deleted files to the OS trash instead of Cushion's internal trash"
+        checked={trashMethod === 'system'}
+        onChange={() => updatePreferences({ trashMethod: trashMethod === 'system' ? 'cushion' : 'system' })}
+        className="mt-2"
+      />
+
+      <ToggleRow
+        label="Confirm before deleting"
+        description="Show a confirmation dialog before moving files to the system trash"
+        checked={confirmSystemTrash}
+        onChange={() => updatePreferences({ confirmSystemTrash: !confirmSystemTrash })}
+        className="mt-2"
+        disabled={trashMethod !== 'system'}
       />
 
       <div className="mt-6">
@@ -76,15 +95,17 @@ function ToggleRow({
   checked,
   onChange,
   className,
+  disabled,
 }: {
   label: string;
   description: string;
   checked: boolean;
   onChange: () => void;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
-    <label className={cn('flex items-center justify-between gap-4 py-2', className)}>
+    <label className={cn('flex items-center justify-between gap-4 py-2', disabled && 'opacity-40 pointer-events-none', className)}>
       <div>
         <div className="text-sm font-medium">{label}</div>
         <div className="text-xs text-foreground-muted">{description}</div>
@@ -93,6 +114,7 @@ function ToggleRow({
         type="button"
         role="switch"
         aria-checked={checked}
+        disabled={disabled}
         onClick={onChange}
         className={cn(
           'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',

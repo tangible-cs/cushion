@@ -61,7 +61,7 @@ export async function handleDeleteFile(
   params: { path: string }
 ): Promise<{ success: boolean; trashItem?: TrashItem }> {
   const trashItem = await workspaceManager.deleteFile(params.path);
-  return { success: true, trashItem };
+  return { success: true, ...(trashItem && { trashItem }) };
 }
 
 export async function handleDuplicateFile(

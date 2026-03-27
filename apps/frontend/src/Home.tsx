@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { registerBuiltinViews } from '@/lib/register-builtin-views';
-import { Link2, GitBranch } from 'lucide-react';
 
 registerBuiltinViews();
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -9,8 +8,6 @@ import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { FileBrowser, FileBrowserHandle } from '@/components/workspace/FileBrowser';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
 import { EditorPanel } from '@/components/editor/EditorPanel';
-import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
-import { GraphView } from '@/components/graph/GraphView';
 import { QuickSwitcher } from '@/components/quick-switcher';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ToastProvider } from '@/components/chat/Toast';
@@ -18,10 +15,10 @@ import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { TrashViewerPanel } from '@/components/workspace/TrashViewerPanel';
-import { useLinkIndex } from '@/hooks/useLinkIndex';
 import { useFileTree } from '@/hooks/useFileTree';
-import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
+import { matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { useAppearanceStore } from '@/stores/appearanceStore';
+import { useExplorerStore } from '@/stores/explorerStore';
 import { useConfigSync } from '@/hooks/useConfigSync';
 import { useDiffReviewBridge } from '@/hooks/useDiffReviewBridge';
 import { EditorTabRow } from '@/components/editor/EditorTabRow';
@@ -33,8 +30,6 @@ const APP_SHORTCUT_IDS = [
   'app.quickSwitcher.open',
   'app.note.new',
   'app.chat.newSession',
-  'app.graph.toggle',
-  'app.backlinks.toggle',
   'app.overlay.close',
   'app.focusMode.exit',
 ] as const;
@@ -79,8 +74,7 @@ function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: stri
 }
 
 export default function Home() {
-  const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects, tabs, setActiveTab, addNewTab, closeFile, setCurrentFile, sidebarWidth } = useWorkspaceStore();
-  const openFiles = useWorkspaceStore((state) => state.openFiles);
+  const { metadata, openFile, setClient, currentFile, openWorkspace, recentProjects, tabs, setActiveTab, addNewTab, closeFile, removeTab, setCurrentFile, sidebarWidth } = useWorkspaceStore();
   const connectChat = useChatStore((state) => state.connect);
   const disconnectChat = useChatStore((state) => state.disconnect);
   const syncCurrentFile = useChatStore((state) => state.syncCurrentFile);
@@ -88,13 +82,13 @@ export default function Home() {
   const [client, setClientLocal] = useState<CoordinatorClient | null>(null);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarCollapsed = useExplorerStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useExplorerStore((s) => s.setSidebarCollapsed);
+  const toggleSidebarCollapsed = useExplorerStore((s) => s.toggleSidebarCollapsed);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<'none' | 'chat'>('none');
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const lastRightPanelModeRef = useRef<'chat'>('chat');
-  const [showBacklinks, setShowBacklinks] = useState(false);
-  const [showGraph, setShowGraph] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const fileBrowserRef = useRef<FileBrowserHandle>(null);
@@ -107,13 +101,6 @@ export default function Home() {
       fileBrowserRef.current?.refreshFileList();
       fileBrowserRef.current?.refreshDirectories(affectedDirs);
     },
-  });
-
-  const linkIndex = useLinkIndex({
-    client,
-    metadata,
-    filePaths,
-    openFiles,
   });
 
   const { workspaceConfigLoadedRef } = useConfigSync({
@@ -139,10 +126,8 @@ export default function Home() {
       { isOpen: showQuickSwitcher, close: () => setShowQuickSwitcher(false) },
       { isOpen: showSettings, close: () => setShowSettings(false) },
       { isOpen: showTrash, close: () => setShowTrash(false) },
-      { isOpen: showGraph, close: () => setShowGraph(false) },
-      { isOpen: showBacklinks, close: () => setShowBacklinks(false) },
     ]);
-  }, [metadata, showBacklinks, showGraph, showQuickSwitcher, showSettings, showTrash, showWorkspaceModal]);
+  }, [metadata, showQuickSwitcher, showSettings, showTrash, showWorkspaceModal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -290,16 +275,6 @@ export default function Home() {
         setActiveSession(null).catch(() => undefined);
         return;
       }
-      if (matchShortcut(e, appShortcuts['app.graph.toggle'])) {
-        e.preventDefault();
-        setShowGraph((v) => !v);
-        return;
-      }
-      if (matchShortcut(e, appShortcuts['app.backlinks.toggle'])) {
-        e.preventDefault();
-        setShowBacklinks((v) => !v);
-        return;
-      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -347,45 +322,57 @@ export default function Home() {
     setRightPanelMode('chat');
   }, []);
 
-  const handleSidebarToggle = useCallback((collapsed: boolean) => {
-    setSidebarCollapsed(collapsed);
-  }, []);
 
   const toggleFocusMode = useCallback(() => {
     setFocusModeEnabled((prev) => !prev);
   }, []);
 
-  const handleSelectTab = useCallback(
-    (filePath: string) => {
-      const tab = tabs.find((t) => t.filePath === filePath);
-      if (tab) {
-        setActiveTab(tab.id);
-      } else {
-        setCurrentFile(filePath);
-      }
-    },
-    [tabs, setActiveTab, setCurrentFile]
-  );
-
   const handleCloseTab = useCallback(
-    (filePath: string) => {
-      closeFile(filePath);
+    (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId);
+      if (!tab) return;
+      if (tab.filePath === '__new_tab__') {
+        removeTab(tabId);
+      } else {
+        closeFile(tab.filePath);
+      }
       const remaining = useWorkspaceStore.getState().tabs;
       if (remaining.length > 0) {
-        setCurrentFile(remaining[0].filePath);
+        const active = remaining.find((t) => t.isActive) || remaining[0];
+        setCurrentFile(active.filePath);
       } else {
         setCurrentFile(null);
       }
     },
-    [closeFile, setCurrentFile]
+    [tabs, closeFile, removeTab, setCurrentFile]
   );
+
+  const handleCloseOthers = useCallback(
+    (tabId: string) => {
+      tabs.forEach((t) => {
+        if (t.id !== tabId) handleCloseTab(t.id);
+      });
+    },
+    [tabs, handleCloseTab]
+  );
+
+  const handleCloseToRight = useCallback(
+    (tabId: string) => {
+      const idx = tabs.findIndex((t) => t.id === tabId);
+      if (idx === -1) return;
+      tabs.slice(idx + 1).forEach((t) => handleCloseTab(t.id));
+    },
+    [tabs, handleCloseTab]
+  );
+
+  const handleCloseAll = useCallback(() => {
+    tabs.forEach((t) => handleCloseTab(t.id));
+  }, [tabs, handleCloseTab]);
 
   const isSidebarHidden = sidebarCollapsed || focusModeEnabled;
 
   useEffect(() => {
     if (!focusModeEnabled) return;
-    setShowBacklinks(false);
-    setShowGraph(false);
     setShowQuickSwitcher(false);
     setShowWorkspaceModal(false);
     setShowSettings(false);
@@ -440,9 +427,6 @@ export default function Home() {
     }
   }, [client, openFile, fetchFileTree]);
 
-  const backlinksShortcutLabel = formatShortcutList(appShortcuts['app.backlinks.toggle']);
-  const graphShortcutLabel = formatShortcutList(appShortcuts['app.graph.toggle']);
-
   useEffect(() => {
     if (!window.electronAPI?.onOpenWorkspace) return;
     window.electronAPI.onOpenWorkspace((path) => {
@@ -472,12 +456,14 @@ export default function Home() {
             if (focusModeEnabled) {
               setFocusModeEnabled(false);
             }
-            setSidebarCollapsed((prev) => !prev);
+            toggleSidebarCollapsed();
           }}
           tabs={tabs}
-          currentFile={currentFile}
-          onSelectTab={handleSelectTab}
+          onSelectTab={setActiveTab}
           onCloseTab={handleCloseTab}
+          onCloseOthers={handleCloseOthers}
+          onCloseToRight={handleCloseToRight}
+          onCloseAll={handleCloseAll}
           onAddTab={addNewTab}
           rightPanelOpen={rightPanelMode !== 'none'}
           rightPanelWidth={resolvedRightPanelWidth}
@@ -489,7 +475,7 @@ export default function Home() {
           ref={fileBrowserRef}
           client={client}
           onFileOpen={handleFileOpen}
-          onSidebarToggle={handleSidebarToggle}
+          onSidebarToggle={setSidebarCollapsed}
           isCollapsed={isSidebarHidden}
           onSearch={() => setShowQuickSwitcher(true)}
           onSettings={() => {
@@ -512,29 +498,6 @@ export default function Home() {
               />
           </div>
 
-            {!focusModeEnabled && (
-              <div className="flex items-center border-t" style={{ backgroundColor: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}>
-               <div className="flex-1" />
-                 <button
-                   onClick={() => setShowBacklinks((v) => !v)}
-                   className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                   style={{ color: showBacklinks ? 'var(--accent-primary)' : 'var(--foreground-muted)' }}
-                   title={backlinksShortcutLabel ? `Toggle backlinks (${backlinksShortcutLabel})` : 'Toggle backlinks'}
-                 >
-                   <Link2 size={13} />
-                   Backlinks
-                 </button>
-                 <button
-                   onClick={() => setShowGraph(true)}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs transition-colors"
-                  style={{ color: 'var(--foreground-muted)' }}
-                  title={graphShortcutLabel ? `Open graph view (${graphShortcutLabel})` : 'Open graph view'}
-               >
-                <GitBranch size={13} />
-                Graph
-              </button>
-            </div>
-          )}
         </main>
 
         <aside
@@ -560,28 +523,6 @@ export default function Home() {
             <ChatSidebar />
           )}
         </aside>
-
-      {!focusModeEnabled && showBacklinks && (
-        <ModalOverlay onBackdropClick={() => setShowBacklinks(false)}>
-          <BacklinksPanel
-            currentFile={currentFile}
-            linkIndex={linkIndex}
-            onNavigate={handleNavigateToFile}
-            onClose={() => setShowBacklinks(false)}
-          />
-        </ModalOverlay>
-      )}
-
-      {!focusModeEnabled && showGraph && (
-        <ModalOverlay onBackdropClick={() => setShowGraph(false)}>
-          <GraphView
-            linkIndex={linkIndex}
-            currentFile={currentFile}
-            onNodeClick={handleNavigateToFile}
-            onClose={() => setShowGraph(false)}
-          />
-        </ModalOverlay>
-      )}
 
       {!focusModeEnabled && showTrash && (
         <ModalOverlay onBackdropClick={() => setShowTrash(false)}>

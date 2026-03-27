@@ -6,7 +6,7 @@ import { searchFiles } from '@/lib/wiki-link-resolver';
 import { formatShortcutList, matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { getBaseName, getDirectory } from '@/lib/path-utils';
 import { cn } from '@/lib/utils';
-import { FolderIcon, FileIcon } from '@/components/shared/FileIcons';
+import { FileIcon } from '@/components/shared/FileIcons';
 
 interface QuickSwitcherProps {
   isOpen: boolean;
@@ -302,8 +302,6 @@ export function QuickSwitcher({
                   <div className={cn('shrink-0', index === selectedIndex ? 'text-foreground' : 'text-muted-foreground')}>
                     {item.type === 'create' ? (
                       <Plus size={20} />
-                    ) : item.directory ? (
-                      <FolderIcon />
                     ) : (
                       <FileIcon />
                     )}

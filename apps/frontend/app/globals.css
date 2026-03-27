@@ -2,6 +2,7 @@
 @import '../styles/markdown-editor.css';
 @import '../styles/opencode-chat.css';
 @import '../components/chat/provider-icon.css';
+@import 'tw-animate-css';
 
 @tailwind base;
 @tailwind components;
@@ -116,13 +117,6 @@
   --tab-text-color: var(--text-muted);
   --tab-text-color-active: var(--text-normal);
 
-  /* Component tokens: graph (Obsidian-aligned) */
-  --graph-text: var(--text-normal);
-  --graph-line: var(--color-base-35);
-  --graph-node: var(--text-muted);
-  --graph-node-unresolved: var(--text-faint);
-  --graph-node-focused: var(--color-accent);
-
   /* Shadows and elevation */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -200,7 +194,6 @@ html.dark {
   color-scheme: dark;
 }
 
-
 body {
   color: var(--foreground);
   background: var(--background);
@@ -215,11 +208,9 @@ body {
   outline: none;
 }
 
-
 * {
   box-sizing: border-box;
 }
-
 
 /* pdf.js annotation editor toolbar fixes — Tailwind Preflight overrides box-sizing
    and pseudo-element defaults that pdf.js relies on */
@@ -888,7 +879,6 @@ body {
 .chat-dock .chat-dock-panel {
   border-color: var(--background-modifier-border-focus);
 }
-
 
 [data-slot="session-turn-message-content"] {
   margin-top: 0;
@@ -2288,8 +2278,6 @@ body {
   width: 20px;
   height: 20px;
 }
-
-
 
 /* Collapsible trigger styles (tool trigger) */
 [data-slot="collapsible-trigger"] {

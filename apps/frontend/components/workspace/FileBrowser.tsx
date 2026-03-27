@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useExplorerStore } from '@/stores/explorerStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
+import { DeleteSystemTrashDialog } from './DeleteSystemTrashDialog';
 import { FilePlus, FolderPlus, Search, Settings, ChevronDown, Trash2 } from 'lucide-react';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -50,6 +51,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
   const [moveSourcePath, setMoveSourcePath] = useState<string>('');
   const [creatingFileAtRoot, setCreatingFileAtRoot] = useState(0);
   const [creatingFolderAtRoot, setCreatingFolderAtRoot] = useState(0);
+  const [pendingDeletePaths, setPendingDeletePaths] = useState<string[] | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const sidebarRef = useRef<ElementRef<"aside">>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -562,10 +564,18 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
                 }
               }}
               onDelete={(path) => {
-                handleSoftDelete([path]);
+                if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
+                  setPendingDeletePaths([path]);
+                } else {
+                  handleSoftDelete([path]);
+                }
               }}
               onDeleteMultiple={(paths) => {
-                handleSoftDelete(paths);
+                if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
+                  setPendingDeletePaths(paths);
+                } else {
+                  handleSoftDelete(paths);
+                }
               }}
               onDuplicate={async (path) => {
                 if (!client) return;
@@ -615,6 +625,18 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
           console.error('[FileBrowser] Failed to move:', error);
           setError(`Failed to move: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+      }}
+    />
+
+    <DeleteSystemTrashDialog
+      paths={pendingDeletePaths}
+      onClose={() => setPendingDeletePaths(null)}
+      onConfirm={(dontAskAgain) => {
+        if (pendingDeletePaths) handleSoftDelete(pendingDeletePaths);
+        if (dontAskAgain) {
+          useWorkspaceStore.getState().updatePreferences({ confirmSystemTrash: false });
+        }
+        setPendingDeletePaths(null);
       }}
     />
 

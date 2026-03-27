@@ -46,6 +46,7 @@ let configWatcher: ConfigWatcher;
 async function loadFileFilter() {
   let respectGitignore = true;
   let extensions = DEFAULT_ALLOWED_EXTENSIONS;
+  let trashMethod: 'cushion' | 'system' = 'cushion';
   try {
     const { content } = await configManager.readConfig('settings.json');
     if (content) {
@@ -56,12 +57,16 @@ async function loadFileFilter() {
       if (Array.isArray(parsed.allowedExtensions)) {
         extensions = parsed.allowedExtensions;
       }
+      if (parsed.trashMethod === 'cushion' || parsed.trashMethod === 'system') {
+        trashMethod = parsed.trashMethod;
+      }
     }
   } catch {}
   if (respectGitignore) {
     await workspaceManager.loadGitignore();
   }
   workspaceManager.setFileFilter(respectGitignore, extensions);
+  workspaceManager.setTrashMethod(trashMethod);
 }
 
 export async function initCoordinator(mainWindow: BrowserWindow) {
@@ -169,7 +174,11 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
   });
 
   ipcMain.handle('coordinator:config/write', async (_event, params: RPCParams<'config/write'>) => {
-    return handleConfigWrite(configManager, params);
+    const result = await handleConfigWrite(configManager, params);
+    if (params.file === 'settings.json') {
+      await loadFileFilter();
+    }
+    return result;
   });
 
   ipcMain.handle('coordinator:skill/install-zip', async (_event, params: RPCParams<'skill/install-zip'>) => {

@@ -28,6 +28,9 @@ interface ExplorerStore {
   creatingFileInDir: string | null;
   creatingFolderInDir: string | null;
 
+  sidebarCollapsed: boolean;
+  revealPath: string | null;
+
   // Actions
   selectOnly: (path: string) => void;
   toggleSelect: (path: string) => void;
@@ -47,6 +50,10 @@ interface ExplorerStore {
   setLoadingDir: (path: string, loading: boolean) => void;
   setCreatingFileInDir: (dir: string | null) => void;
   setCreatingFolderInDir: (dir: string | null) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
+  revealInExplorer: (path: string) => void;
+  clearRevealPath: () => void;
   resetExplorerState: () => void;
 }
 
@@ -63,6 +70,8 @@ export const useExplorerStore = create<ExplorerStore>()((set, get) => ({
   loadingDirs: new Set(),
   creatingFileInDir: null,
   creatingFolderInDir: null,
+  sidebarCollapsed: false,
+  revealPath: null,
 
   selectOnly: (path) => {
     set({ selectedPaths: new Set([path]), lastSelectedPath: path });
@@ -174,6 +183,35 @@ export const useExplorerStore = create<ExplorerStore>()((set, get) => ({
     set(dir ? { creatingFolderInDir: dir, creatingFileInDir: null } : { creatingFolderInDir: null });
   },
 
+  setSidebarCollapsed: (collapsed) => {
+    set({ sidebarCollapsed: collapsed });
+  },
+  toggleSidebarCollapsed: () => {
+    set({ sidebarCollapsed: !get().sidebarCollapsed });
+  },
+
+  revealInExplorer: (path) => {
+    // Expand all ancestor directories so the target becomes visible
+    const parts = path.split('/');
+    const next = new Set(get().expandedDirs);
+    for (let i = 1; i <= parts.length; i++) {
+      next.add(parts.slice(0, i).join('/'));
+    }
+    set({
+      sidebarCollapsed: false,
+      expandedDirs: next,
+      revealPath: path,
+      selectedPaths: new Set([path]),
+      lastSelectedPath: path,
+      focusedPath: path,
+      focusedType: path.includes('.') ? 'file' : 'directory',
+    });
+  },
+
+  clearRevealPath: () => {
+    set({ revealPath: null });
+  },
+
   resetExplorerState: () => {
     set({
       expandedDirs: new Set(),
@@ -188,6 +226,8 @@ export const useExplorerStore = create<ExplorerStore>()((set, get) => ({
       clipboard: null,
       creatingFileInDir: null,
       creatingFolderInDir: null,
+      sidebarCollapsed: false,
+      revealPath: null,
     });
   },
 }));

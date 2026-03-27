@@ -3,6 +3,7 @@ import type { TabState } from '@cushion/types';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorTabs } from './EditorTabs';
+import { isElectron, noDragStyle } from './editor-path';
 
 interface EditorTabRowProps {
   sidebarOpen?: boolean;
@@ -10,17 +11,16 @@ interface EditorTabRowProps {
   onToggleSidebar?: () => void;
   onOpenWorkspace?: () => void;
   tabs: TabState[];
-  currentFile: string | null;
-  onSelectTab: (filePath: string) => void;
-  onCloseTab: (filePath: string) => void;
+  onSelectTab: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
+  onCloseOthers?: (tabId: string) => void;
+  onCloseToRight?: (tabId: string) => void;
+  onCloseAll?: () => void;
   onAddTab?: () => void;
   rightPanelOpen?: boolean;
   rightPanelWidth?: number;
   onToggleRightPanel?: () => void;
 }
-
-const isElectron = !!window.electronAPI;
-const noDragStyle = isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
 
 export function EditorTabRow({
   sidebarOpen,
@@ -28,9 +28,11 @@ export function EditorTabRow({
   onToggleSidebar,
   onOpenWorkspace,
   tabs,
-  currentFile,
   onSelectTab,
   onCloseTab,
+  onCloseOthers,
+  onCloseToRight,
+  onCloseAll,
   onAddTab,
   rightPanelOpen,
   rightPanelWidth,
@@ -39,7 +41,7 @@ export function EditorTabRow({
   return (
     <div
       className={cn(
-        'relative flex items-end bg-tab-container min-h-[40px] flex-shrink-0',
+        'relative flex items-center bg-tab-container min-h-[40px] flex-shrink-0',
         "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:content-['']",
         isElectron && 'select-none'
       )}
@@ -91,19 +93,19 @@ export function EditorTabRow({
       </div>
 
       <div
-        className="min-w-0 flex-1 flex items-end"
+        className="min-w-0 flex-1 flex items-center"
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           {tabs.length > 0 ? (
-            <div className="max-w-full" style={noDragStyle}>
-              <EditorTabs
-                tabs={tabs}
-                currentFile={currentFile}
-                onSelectTab={onSelectTab}
-                onCloseTab={onCloseTab}
-                onAddTab={onAddTab}
-              />
-            </div>
+            <EditorTabs
+              tabs={tabs}
+              onSelectTab={onSelectTab}
+              onCloseTab={onCloseTab}
+              onCloseOthers={onCloseOthers}
+              onCloseToRight={onCloseToRight}
+              onCloseAll={onCloseAll}
+              onAddTab={onAddTab}
+            />
           ) : (
             <div className="h-10" />
           )}
@@ -113,7 +115,7 @@ export function EditorTabRow({
           <button
             onClick={onToggleRightPanel}
             className={cn(
-              'mx-2 h-7 w-7 flex-shrink-0 flex items-center justify-center rounded-md self-center',
+              'mx-2 h-7 w-7 flex-shrink-0 flex items-center justify-center rounded-md',
               rightPanelOpen ? 'text-foreground' : 'text-muted-foreground',
               'hover:text-foreground',
               'hover:bg-muted/30',
