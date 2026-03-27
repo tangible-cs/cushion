@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS: Required<CushionSettings> = {
     '.mp3', '.wav', '.ogg', '.flac', '.m4a',
     '.mp4', '.webm', '.mov',
   ],
+  trashMethod: 'cushion',
+  confirmSystemTrash: true,
 };
 
 export const DEFAULT_WORKSPACE: Required<CushionWorkspace> = {

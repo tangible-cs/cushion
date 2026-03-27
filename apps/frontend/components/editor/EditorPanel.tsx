@@ -465,7 +465,7 @@ export function EditorPanel({
             focusModeEnabled={focusModeEnabled}
             onToggleFocusMode={onToggleFocusMode}
             onShare={handleShare}
-            centerContent={breadcrumb.text}
+            segments={breadcrumb.segments}
             centerTitle={breadcrumb.title}
           />
       )}

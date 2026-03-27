@@ -478,6 +478,45 @@ export function FileTree({
     }
   };
 
+  // Reveal path: load ancestor dirs and scroll into view
+  const revealPath = useExplorerStore((s) => s.revealPath);
+  const { clearRevealPath } = useExplorerStore();
+
+  useEffect(() => {
+    if (!revealPath || !onLoadDirectory) return;
+    clearRevealPath();
+
+    // Load contents for every ancestor directory that was just expanded
+    const parts = revealPath.split('/');
+    const loadAncestors = async () => {
+      for (let i = 1; i <= parts.length; i++) {
+        const dirPath = parts.slice(0, i).join('/');
+        if (!useExplorerStore.getState().dirContents.has(dirPath)) {
+          try {
+            const contents = await onLoadDirectory(dirPath);
+            setDirContents(dirPath, contents);
+          } catch { /* ignore */ }
+        }
+      }
+      // After loading, scroll to the target on the next frame
+      requestAnimationFrame(() => {
+        const rows = flattenVisibleTree(
+          nodes,
+          useExplorerStore.getState().expandedDirs,
+          useExplorerStore.getState().dirContents,
+          showCushionFiles,
+          useExplorerStore.getState().creatingFileInDir,
+          useExplorerStore.getState().creatingFolderInDir,
+        );
+        const idx = rows.findIndex((r) => r.kind === 'item' && r.path === revealPath);
+        if (idx >= 0) {
+          virtualizer.scrollToIndex(idx, { align: 'center' });
+        }
+      });
+    };
+    loadAncestors();
+  }, [revealPath]);
+
   const virtualItems = virtualizer.getVirtualItems();
 
   return (

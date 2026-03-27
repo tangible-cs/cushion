@@ -3,8 +3,14 @@ interface BuildEditorBreadcrumbInput {
   currentFile: string | null;
 }
 
+export interface BreadcrumbSegment {
+  label: string;
+  /** Directory path to reveal in explorer, or null for non-navigable segments (project root, current file). */
+  dirPath: string | null;
+}
+
 export interface EditorBreadcrumb {
-  text: string;
+  segments: BreadcrumbSegment[];
   title: string;
 }
 
@@ -29,29 +35,48 @@ export function buildEditorBreadcrumb({
   currentFile,
 }: BuildEditorBreadcrumbInput): EditorBreadcrumb {
   if (currentFile === '__new_tab__') {
-    return { text: 'New tab', title: 'New tab' };
+    return { segments: [{ label: 'New tab', dirPath: null }], title: 'New tab' };
   }
 
   const root = projectName?.trim() ?? '';
   const fileSegments = currentFile ? normalizePath(currentFile) : [];
 
+  // Build directory paths for intermediate folders
+  // e.g. ["a", "b", "file.md"] → dirPaths: ["a", "a/b", null]
+  const dirPaths: (string | null)[] = [];
+  for (let i = 0; i < fileSegments.length; i++) {
+    if (i < fileSegments.length - 1) {
+      dirPaths.push(fileSegments.slice(0, i + 1).join('/'));
+    } else {
+      dirPaths.push(null); // last segment is the file itself
+    }
+  }
+
+  // Strip extension from last segment for display
   if (fileSegments.length > 0) {
     const lastIndex = fileSegments.length - 1;
     fileSegments[lastIndex] = stripLastExtension(fileSegments[lastIndex]);
   }
 
-  const segments = root ? [root, ...fileSegments] : fileSegments;
-  const breadcrumb = segments.join(' / ');
+  const segments: BreadcrumbSegment[] = [];
 
-  if (breadcrumb) {
+  if (root) {
+    segments.push({ label: root, dirPath: null });
+  }
+
+  for (let i = 0; i < fileSegments.length; i++) {
+    segments.push({ label: fileSegments[i], dirPath: dirPaths[i] });
+  }
+
+  if (segments.length > 0) {
     return {
-      text: breadcrumb,
-      title: breadcrumb,
+      segments,
+      title: segments.map((s) => s.label).join(' / '),
     };
   }
 
   return {
-    text: 'No file selected',
+    segments: [],
     title: 'No file selected',
   };
 }

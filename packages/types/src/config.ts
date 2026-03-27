@@ -19,6 +19,8 @@ export interface CushionSettings {
   fileSortOrder?: 'alphabetical' | 'modified' | 'created';
   respectGitignore?: boolean;
   allowedExtensions?: string[];
+  trashMethod?: 'cushion' | 'system';
+  confirmSystemTrash?: boolean;
 }
 
 export interface CushionAppearance {

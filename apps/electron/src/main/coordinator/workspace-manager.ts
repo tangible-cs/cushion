@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { shell } from 'electron';
 import ignore, { type Ignore } from 'ignore';
 import type { FileTreeNode, FileChange, TrashItem } from '@cushion/types';
 import { IGNORED_PATTERNS, DEFAULT_ALLOWED_EXTENSIONS, ALWAYS_VISIBLE_FILENAMES } from './constants';
@@ -41,6 +42,7 @@ export class WorkspaceManager {
   private watcher = new WorkspaceWatcher();
   private trashManager = new TrashManager();
   private respectGitignore = true;
+  private trashMethod: 'cushion' | 'system' = 'cushion';
   private allowedExtensions: Set<string> = new Set(
     DEFAULT_ALLOWED_EXTENSIONS.map((e) => e.toLowerCase())
   );
@@ -50,6 +52,10 @@ export class WorkspaceManager {
     this.respectGitignore = respectGitignore;
     this.allowedExtensions = new Set(extensions.map((e) => e.toLowerCase()));
     this.syncWatcherFilter();
+  }
+
+  setTrashMethod(method: 'cushion' | 'system') {
+    this.trashMethod = method;
   }
 
   async loadGitignore(): Promise<void> {
@@ -416,7 +422,7 @@ export class WorkspaceManager {
     }
   }
 
-  async deleteFile(relativePath: string): Promise<TrashItem> {
+  async deleteFile(relativePath: string): Promise<TrashItem | undefined> {
     if (!this.currentWorkspace) {
       throw new Error('No workspace open');
     }
@@ -424,6 +430,10 @@ export class WorkspaceManager {
     const fullPath = this.resolvePath(relativePath);
 
     try {
+      if (this.trashMethod === 'system') {
+        await shell.trashItem(fullPath);
+        return undefined;
+      }
       const stats = await fs.stat(fullPath);
       return await this.trashManager.moveToTrash(relativePath, stats.isDirectory());
     } catch (error: any) {

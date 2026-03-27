@@ -49,22 +49,6 @@ export const shortcutRegistry = [
     defaultBindings: ['Mod+Shift+N'],
   },
   {
-    id: 'app.graph.toggle',
-    label: 'Toggle graph view',
-    description: 'Open or close the graph view.',
-    scope: 'app',
-    category: 'App',
-    defaultBindings: ['Mod+G'],
-  },
-  {
-    id: 'app.backlinks.toggle',
-    label: 'Toggle backlinks',
-    description: 'Open or close the backlinks panel.',
-    scope: 'app',
-    category: 'App',
-    defaultBindings: ['Mod+Shift+B'],
-  },
-  {
     id: 'app.overlay.close',
     label: 'Close overlays',
     description: 'Close modals, dialogs, and popovers.',
