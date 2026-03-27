@@ -11,13 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-const isElectron = !!window.electronAPI;
-const noDragStyle = isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
+import { noDragStyle } from './editor-path';
 
 interface EditorTabsProps {
   tabs: TabState[];
-  currentFile: string | null;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onCloseOthers?: (tabId: string) => void;
@@ -32,7 +29,7 @@ function getFileName(filePath: string): string {
   return name.endsWith('.md') ? name.slice(0, -3) : name;
 }
 
-export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onCloseOthers, onCloseToRight, onCloseAll, onAddTab }: EditorTabsProps) {
+export function EditorTabs({ tabs, onSelectTab, onCloseTab, onCloseOthers, onCloseToRight, onCloseAll, onAddTab }: EditorTabsProps) {
   const openFiles = useWorkspaceStore((s) => s.openFiles);
   const convertPreviewTab = useWorkspaceStore((s) => s.convertPreviewTab);
   const [contextMenu, setContextMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
@@ -66,7 +63,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onClose
               "transition-colors duration-150",
               isActive
                 ? "z-10 rounded-t-lg rounded-b-none bg-tab-active text-tab-text-active border-border border-b-background"
-                : "rounded-none border-transparent text-tab-text hover:bg-[var(--background-modifier-hover)] hover:text-tab-text-active",
+                : "rounded-none border-transparent text-tab-text hover:text-tab-text-active after:absolute after:inset-x-1 after:inset-y-1 after:rounded-lg after:transition-colors after:duration-150 hover:after:bg-[var(--background-modifier-hover)]",
               showInactiveSeparator && "before:absolute before:left-0 before:top-2 before:h-4 before:w-px before:bg-border"
             )}
             style={noDragStyle}
@@ -75,7 +72,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onClose
             onDoubleClick={() => handleDoubleClick(tab)}
             onContextMenu={(e) => handleContextMenu(e, tab.id)}
           >
-            <span className={cn("truncate min-w-0 flex-1 -translate-y-[3px]", tab.isPreview && "italic")}>
+            <span className={cn("truncate min-w-0 flex-1", tab.isPreview && "italic")}>
               {getFileName(tab.filePath)}
             </span>
             {isDirty && (
@@ -103,7 +100,7 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onClose
         <button
           onClick={onAddTab}
           className={cn(
-            "h-9 w-8 rounded flex items-center justify-center shrink-0 ml-1",
+            "h-7 w-7 rounded-sm flex items-center justify-center shrink-0 ml-1 self-center",
             "text-muted-foreground hover:text-foreground",
             "hover:bg-[var(--background-modifier-hover)]",
             "transition-colors duration-150"
@@ -132,26 +129,22 @@ export function EditorTabs({ tabs, currentFile, onSelectTab, onCloseTab, onClose
         <DropdownMenuContent align="start" side="bottom" sideOffset={0}>
           <DropdownMenuItem onClick={() => {
             if (contextMenu) onCloseTab(contextMenu.tabId);
-            setContextMenu(null);
           }}>
             Close
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => {
             if (contextMenu) onCloseOthers?.(contextMenu.tabId);
-            setContextMenu(null);
           }}>
             Close others
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => {
             if (contextMenu) onCloseToRight?.(contextMenu.tabId);
-            setContextMenu(null);
           }}>
             Close to the right
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => {
             onCloseAll?.();
-            setContextMenu(null);
           }}>
             Close all
           </DropdownMenuItem>

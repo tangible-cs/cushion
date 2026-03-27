@@ -1,6 +1,6 @@
 
 import { Fragment, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Eye, Share2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ScanEye, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Breadcrumb,
@@ -14,7 +14,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -97,7 +96,7 @@ export function EditorNavRow({
             title={focusModeEnabled ? 'Exit focus mode' : 'Enter focus mode'}
             aria-pressed={!!focusModeEnabled}
           >
-            <Eye size={16} />
+            <ScanEye size={18} />
           </button>
         )}
 
@@ -111,7 +110,7 @@ export function EditorNavRow({
           )}
           title="Share"
         >
-          <Share2 size={16} />
+          <Share2 size={18} />
         </button>
       </div>
     </div>
@@ -144,7 +143,6 @@ function BreadcrumbNav({ segments }: { segments: BreadcrumbSegment[] }) {
   return (
     <Breadcrumb>
       <BreadcrumbList className="flex-nowrap text-sm">
-        {/* First segment (project name — not navigable) */}
         <BreadcrumbItem className="truncate">
           {tail.length === 0 && !needsCollapse ? (
             <BreadcrumbPage className="truncate">{first.label}</BreadcrumbPage>
@@ -158,7 +156,6 @@ function BreadcrumbNav({ segments }: { segments: BreadcrumbSegment[] }) {
           )}
         </BreadcrumbItem>
 
-        {/* Collapsed segments in dropdown */}
         {needsCollapse && (
           <>
             <BreadcrumbSeparator />
@@ -168,7 +165,6 @@ function BreadcrumbNav({ segments }: { segments: BreadcrumbSegment[] }) {
                   <BreadcrumbEllipsis />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  <DropdownMenuGroup>
                     {collapsed.map((seg, i) => (
                       <DropdownMenuItem
                         key={i}
@@ -177,14 +173,12 @@ function BreadcrumbNav({ segments }: { segments: BreadcrumbSegment[] }) {
                         {seg.label}
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </BreadcrumbItem>
           </>
         )}
 
-        {/* Visible tail segments */}
         {tail.map((seg, i) => (
           <Fragment key={i}>
             <BreadcrumbSeparator />

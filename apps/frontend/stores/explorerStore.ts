@@ -28,10 +28,7 @@ interface ExplorerStore {
   creatingFileInDir: string | null;
   creatingFolderInDir: string | null;
 
-  // Sidebar visibility
   sidebarCollapsed: boolean;
-
-  // Reveal (set externally to scroll-to + highlight a path)
   revealPath: string | null;
 
   // Actions
@@ -54,6 +51,7 @@ interface ExplorerStore {
   setCreatingFileInDir: (dir: string | null) => void;
   setCreatingFolderInDir: (dir: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
   revealInExplorer: (path: string) => void;
   clearRevealPath: () => void;
   resetExplorerState: () => void;
@@ -188,6 +186,9 @@ export const useExplorerStore = create<ExplorerStore>()((set, get) => ({
   setSidebarCollapsed: (collapsed) => {
     set({ sidebarCollapsed: collapsed });
   },
+  toggleSidebarCollapsed: () => {
+    set({ sidebarCollapsed: !get().sidebarCollapsed });
+  },
 
   revealInExplorer: (path) => {
     // Expand all ancestor directories so the target becomes visible
@@ -203,7 +204,7 @@ export const useExplorerStore = create<ExplorerStore>()((set, get) => ({
       selectedPaths: new Set([path]),
       lastSelectedPath: path,
       focusedPath: path,
-      focusedType: 'directory',
+      focusedType: path.includes('.') ? 'file' : 'directory',
     });
   },
 

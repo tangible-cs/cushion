@@ -478,7 +478,6 @@ export function FileTree({
     }
   };
 
-  // Reveal path: load ancestor dirs and scroll into view
   const revealPath = useExplorerStore((s) => s.revealPath);
   const { clearRevealPath } = useExplorerStore();
 
@@ -486,7 +485,6 @@ export function FileTree({
     if (!revealPath || !onLoadDirectory) return;
     clearRevealPath();
 
-    // Load contents for every ancestor directory that was just expanded
     const parts = revealPath.split('/');
     const loadAncestors = async () => {
       for (let i = 1; i <= parts.length; i++) {
@@ -498,7 +496,6 @@ export function FileTree({
           } catch { /* ignore */ }
         }
       }
-      // After loading, scroll to the target on the next frame
       requestAnimationFrame(() => {
         const rows = flattenVisibleTree(
           nodes,
@@ -515,6 +512,7 @@ export function FileTree({
       });
     };
     loadAncestors();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only fire when a new revealPath is set
   }, [revealPath]);
 
   const virtualItems = virtualizer.getVirtualItems();

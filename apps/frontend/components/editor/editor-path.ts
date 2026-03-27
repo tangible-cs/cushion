@@ -1,3 +1,6 @@
+export const isElectron = !!window.electronAPI;
+export const noDragStyle = isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
+
 interface BuildEditorBreadcrumbInput {
   projectName: string | null;
   currentFile: string | null;
@@ -48,11 +51,10 @@ export function buildEditorBreadcrumb({
     if (i < fileSegments.length - 1) {
       dirPaths.push(fileSegments.slice(0, i + 1).join('/'));
     } else {
-      dirPaths.push(null); // last segment is the file itself
+      dirPaths.push(null);
     }
   }
 
-  // Strip extension from last segment for display
   if (fileSegments.length > 0) {
     const lastIndex = fileSegments.length - 1;
     fileSegments[lastIndex] = stripLastExtension(fileSegments[lastIndex]);

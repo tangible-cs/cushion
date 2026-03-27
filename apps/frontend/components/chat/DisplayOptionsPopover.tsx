@@ -1,8 +1,8 @@
 
 import { useState } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
 import { useChatStore } from '@/stores/chatStore';
 import { cn } from '@/lib/utils';
-import { Icon } from './Icon';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 
 function ToggleRow({
@@ -58,13 +58,13 @@ export function DisplayOptionsPopover() {
         <button
           type="button"
           className={cn(
-            'size-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors',
+            'size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--overlay-10)] hover:text-foreground transition-colors',
             open && 'bg-[var(--overlay-10)] text-foreground'
           )}
           aria-label="Display options"
           title="Display options"
         >
-          <Icon name="sliders" size="small" />
+          <SlidersHorizontal size={18} />
         </button>
       </PopoverTrigger>
       <PopoverContent className="p-1 !bg-surface-elevated !border-border">

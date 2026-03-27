@@ -3,6 +3,7 @@ import type { TabState } from '@cushion/types';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorTabs } from './EditorTabs';
+import { isElectron, noDragStyle } from './editor-path';
 
 interface EditorTabRowProps {
   sidebarOpen?: boolean;
@@ -10,7 +11,6 @@ interface EditorTabRowProps {
   onToggleSidebar?: () => void;
   onOpenWorkspace?: () => void;
   tabs: TabState[];
-  currentFile: string | null;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onCloseOthers?: (tabId: string) => void;
@@ -22,16 +22,12 @@ interface EditorTabRowProps {
   onToggleRightPanel?: () => void;
 }
 
-const isElectron = !!window.electronAPI;
-const noDragStyle = isElectron ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
-
 export function EditorTabRow({
   sidebarOpen,
   sidebarWidth,
   onToggleSidebar,
   onOpenWorkspace,
   tabs,
-  currentFile,
   onSelectTab,
   onCloseTab,
   onCloseOthers,
@@ -103,7 +99,6 @@ export function EditorTabRow({
           {tabs.length > 0 ? (
             <EditorTabs
               tabs={tabs}
-              currentFile={currentFile}
               onSelectTab={onSelectTab}
               onCloseTab={onCloseTab}
               onCloseOthers={onCloseOthers}

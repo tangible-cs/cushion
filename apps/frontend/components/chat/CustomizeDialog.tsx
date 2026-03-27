@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Blocks, Cable, BookOpen, X } from 'lucide-react';
+import { Blocks, FileText, BookOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SkillsPanel } from './SkillsPanel';
 import { McpsPanel } from './McpsPanel';
@@ -27,13 +27,13 @@ export function CustomizeDialog({ onClose }: CustomizeDialogProps) {
         {/* Left nav */}
         <div className="flex w-[150px] shrink-0 flex-col gap-1 border-r border-border p-2">
           <TabButton
-            icon={<Blocks className="size-4" />}
+            icon={<FileText className="size-4" />}
             label="Skills"
             active={activeTab === 'skills'}
             onClick={() => setActiveTab('skills')}
           />
           <TabButton
-            icon={<Cable className="size-4" />}
+            icon={<Blocks className="size-4" />}
             label="MCPs"
             active={activeTab === 'mcps'}
             onClick={() => setActiveTab('mcps')}

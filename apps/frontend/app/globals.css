@@ -2,7 +2,7 @@
 @import '../styles/markdown-editor.css';
 @import '../styles/opencode-chat.css';
 @import '../components/chat/provider-icon.css';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @tailwind base;
 @tailwind components;

@@ -42,11 +42,6 @@ const config: Config = {
         'tab-active': 'var(--tab-background-active)',
         'tab-text': 'var(--tab-text-color)',
         'tab-text-active': 'var(--tab-text-color-active)',
-        'graph-text': 'var(--graph-text)',
-        'graph-line': 'var(--graph-line)',
-        'graph-node': 'var(--graph-node)',
-        'graph-node-unresolved': 'var(--graph-node-unresolved)',
-        'graph-node-focused': 'var(--graph-node-focused)',
       },
       keyframes: {
         slideIn: {

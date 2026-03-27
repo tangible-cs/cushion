@@ -84,6 +84,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const sidebarCollapsed = useExplorerStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useExplorerStore((s) => s.setSidebarCollapsed);
+  const toggleSidebarCollapsed = useExplorerStore((s) => s.toggleSidebarCollapsed);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<'none' | 'chat'>('none');
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
@@ -321,20 +322,10 @@ export default function Home() {
     setRightPanelMode('chat');
   }, []);
 
-  const handleSidebarToggle = useCallback((collapsed: boolean) => {
-    setSidebarCollapsed(collapsed);
-  }, []);
 
   const toggleFocusMode = useCallback(() => {
     setFocusModeEnabled((prev) => !prev);
   }, []);
-
-  const handleSelectTab = useCallback(
-    (tabId: string) => {
-      setActiveTab(tabId);
-    },
-    [setActiveTab]
-  );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -465,11 +456,10 @@ export default function Home() {
             if (focusModeEnabled) {
               setFocusModeEnabled(false);
             }
-            setSidebarCollapsed(!sidebarCollapsed);
+            toggleSidebarCollapsed();
           }}
           tabs={tabs}
-          currentFile={currentFile}
-          onSelectTab={handleSelectTab}
+          onSelectTab={setActiveTab}
           onCloseTab={handleCloseTab}
           onCloseOthers={handleCloseOthers}
           onCloseToRight={handleCloseToRight}
@@ -485,7 +475,7 @@ export default function Home() {
           ref={fileBrowserRef}
           client={client}
           onFileOpen={handleFileOpen}
-          onSidebarToggle={handleSidebarToggle}
+          onSidebarToggle={setSidebarCollapsed}
           isCollapsed={isSidebarHidden}
           onSearch={() => setShowQuickSwitcher(true)}
           onSettings={() => {
