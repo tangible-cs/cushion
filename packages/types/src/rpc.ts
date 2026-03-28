@@ -10,8 +10,6 @@ export interface TrashItem {
   isDirectory: boolean;
 }
 
-// --- Unified dictation types ---
-
 export type DictationModelName =
   | 'whisper-tiny'
   | 'whisper-base'
@@ -192,7 +190,7 @@ export interface RPCMethodMap {
     result: { success: boolean };
   };
 
-  // --- Dictation RPCs ---
+  // Dictation
   'dictation/list-models': {
     params: void;
     result: { models: DictationModelInfo[] };
@@ -268,7 +266,6 @@ export interface RPCServerNotificationMap {
   'workspace/fileChangedOnDisk': { filePath: string; mtime: number };
   'config/changed': { file: string };
 
-  // --- Dictation notifications ---
   'dictation/download-progress': {
     model: DictationModelName;
     downloadedBytes: number;
