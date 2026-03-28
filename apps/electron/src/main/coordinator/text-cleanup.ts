@@ -25,7 +25,7 @@ function getFillers(language?: string): string[] {
   return FILLER_MAPS.fallback;
 }
 
-export function removeFillers(text: string, language?: string): string {
+function removeFillers(text: string, language?: string): string {
   const fillers = getFillers(language);
   const pattern = new RegExp(`\\b(${fillers.join('|')})\\b[,.]?\\s*`, 'gi');
   let result = text.replace(pattern, ' ');
@@ -34,7 +34,7 @@ export function removeFillers(text: string, language?: string): string {
   return result;
 }
 
-export function collapseStutters(text: string): string {
+function collapseStutters(text: string): string {
   const words = text.split(/\s+/);
   if (words.length === 0) return text;
 

@@ -93,19 +93,14 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     requestAnimationFrame(() => setIsVisible(true));
   }, []);
 
-  const getIcon = () => {
-    if (toast.icon) return toast.icon;
+  const icon = toast.icon ?? (() => {
     switch (toast.variant) {
-      case 'success':
-        return <CheckCircle className="size-5 text-accent-green" />;
-      case 'error':
-        return <AlertCircle className="size-5 text-accent-red" />;
-      case 'loading':
-        return <Loader2 className="size-5 text-accent animate-spin" />;
-      default:
-        return null;
+      case 'success': return <CheckCircle className="size-5 text-accent-green" />;
+      case 'error': return <AlertCircle className="size-5 text-accent-red" />;
+      case 'loading': return <Loader2 className="size-5 text-accent animate-spin" />;
+      default: return null;
     }
-  };
+  })();
 
   const getVariantStyles = () => {
     switch (toast.variant) {
@@ -137,7 +132,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
         </button>
       )}
       <div className="flex gap-3 pr-5">
-        {getIcon() && <div className="shrink-0 mt-0.5">{getIcon()}</div>}
+        {icon && <div className="shrink-0 mt-0.5">{icon}</div>}
         <div className="flex-1 min-w-0">
           {toast.title && (
             <p className="text-sm font-medium text-foreground">{toast.title}</p>

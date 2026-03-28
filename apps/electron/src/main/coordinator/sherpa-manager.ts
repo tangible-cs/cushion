@@ -236,14 +236,12 @@ export class SherpaManager {
     this.transcribing = true;
 
     return new Promise((resolve, reject) => {
-      const done = <T>(fn: (...args: T[]) => void) => (...args: T[]) => {
-        this.transcribing = false;
-        fn(...args);
-      };
+      const cleanup = () => { this.transcribing = false; };
 
       const timeout = setTimeout(() => {
         try { ws.close(); } catch {}
-        done(reject)(new Error('sherpa-onnx transcription timed out') as any);
+        cleanup();
+        reject(new Error('sherpa-onnx transcription timed out'));
       }, TRANSCRIPTION_TIMEOUT_MS);
 
       const ws = new WebSocket(`ws://127.0.0.1:${this.port}`);
@@ -266,17 +264,19 @@ export class SherpaManager {
 
       ws.on('close', () => {
         clearTimeout(timeout);
+        cleanup();
         let text = result.trim();
         try {
           const parsed = JSON.parse(result);
           text = (parsed.text || '').trim();
         } catch {}
-        done(resolve)({ text, language: 'auto' } as any);
+        resolve({ text, language: 'auto' });
       });
 
       ws.on('error', (error) => {
         clearTimeout(timeout);
-        done(reject)(new Error(`sherpa-onnx transcription failed: ${error.message}`) as any);
+        cleanup();
+        reject(new Error(`sherpa-onnx transcription failed: ${error.message}`));
       });
     });
   }

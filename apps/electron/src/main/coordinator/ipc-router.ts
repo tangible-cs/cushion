@@ -126,7 +126,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
   await dictationConfigManager.init();
   postProcessor = new PostProcessor(dictationConfigManager);
 
-  hotkeyManager = new HotkeyManager(notifyRenderer, mainWindow);
+  hotkeyManager = new HotkeyManager(notifyRenderer);
   try {
     const config = await dictationConfigManager.read();
     if (config.hotkey) hotkeyManager.register(config.hotkey);

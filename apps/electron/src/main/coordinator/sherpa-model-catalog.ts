@@ -9,19 +9,12 @@ export interface SherpaModelEntry {
   sizeMb: number;
   languages: string[];
   downloadUrl: string;
-  /** Directory name inside the tar.bz2 archive */
   extractDir: string;
-  /** Files that must exist after extraction for the model to be valid */
   requiredFiles: string[];
-  /** UI grouping category */
   category: DictationModelCategory;
-  /** Whisper model prefix for CLI args (e.g. 'tiny', 'base') */
   whisperPrefix?: string;
-  /** Relative speed score 0-1 (1 = fastest) */
   speedScore: number;
-  /** Relative accuracy score 0-1 (1 = best) */
   accuracyScore: number;
-  /** Show "Recommended" badge in UI */
   isRecommended: boolean;
 }
 

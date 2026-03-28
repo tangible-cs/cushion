@@ -1,11 +1,10 @@
-import { globalShortcut, type BrowserWindow } from 'electron';
+import { globalShortcut } from 'electron';
 
 export class HotkeyManager {
   private currentHotkey: string | null = null;
 
   constructor(
     private notifyRenderer: (channel: string, data: unknown) => void,
-    private mainWindow: BrowserWindow,
   ) {}
 
   register(hotkey: string): boolean {

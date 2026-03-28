@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, createWriteStream } from 'fs';
+import https from 'https';
 import path from 'path';
 import { app } from 'electron';
 import { extractTarBz2 } from './tar-utils';
@@ -106,7 +107,6 @@ export class SherpaBinaryManager {
       await fs.mkdir(extractDir, { recursive: true });
       await extractTarBz2(archivePath, extractDir);
 
-      // Find and copy binary
       const binaryPath = await this.findFileInDir(extractDir, config.binaryName);
       if (!binaryPath) throw new Error(`Binary ${config.binaryName} not found in archive`);
 
@@ -116,10 +116,8 @@ export class SherpaBinaryManager {
         await fs.chmod(outputPath, 0o755);
       }
 
-      // Copy shared libraries
       await this.copyLibraries(extractDir, config.libPattern);
 
-      // Cleanup
       await fs.rm(extractDir, { recursive: true, force: true });
       await fs.rm(archivePath, { force: true });
 
@@ -131,16 +129,6 @@ export class SherpaBinaryManager {
       this.notify('dictation/binary-download-error', { error: err.message });
       throw err;
     }
-  }
-
-  async deleteBinary(): Promise<void> {
-    // Remove entire sherpa bin directory
-    await fs.rm(this.binDir, { recursive: true, force: true });
-    await fs.mkdir(this.binDir, { recursive: true });
-  }
-
-  getBinDir(): string {
-    return this.binDir;
   }
 
   private async copyLibraries(extractDir: string, pattern: RegExp): Promise<void> {
@@ -214,10 +202,6 @@ export class SherpaBinaryManager {
 
   private downloadWithRedirects(url: string, destPath: string, redirectCount: number): Promise<void> {
     if (redirectCount > MAX_REDIRECTS) return Promise.reject(new Error('Too many redirects'));
-
-    // Dynamic import to avoid top-level require
-    const https = require('https') as typeof import('https');
-    const { createWriteStream } = require('fs') as typeof import('fs');
 
     return new Promise((resolve, reject) => {
       if (!url.startsWith('https://')) {

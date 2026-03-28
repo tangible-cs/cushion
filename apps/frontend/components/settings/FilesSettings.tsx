@@ -85,9 +85,7 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
   );
 }
 
-/* ── Toggle row ── */
-
-function ToggleRow({
+export function ToggleRow({
   label,
   description,
   checked,
@@ -128,8 +126,6 @@ function ToggleRow({
     </label>
   );
 }
-
-/* ── Permitted types dialog ── */
 
 function PermittedTypesDialog({ onClose }: { onClose: () => void }) {
   const allowedExtensions = useWorkspaceStore((s) => s.preferences.allowedExtensions);

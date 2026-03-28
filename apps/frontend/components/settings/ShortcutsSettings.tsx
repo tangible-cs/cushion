@@ -52,7 +52,6 @@ export function ShortcutsSettings() {
         });
     });
 
-    // Pre-compute conflicts per shortcut
     const perShortcut = new Map<ShortcutId, ShortcutId[]>();
     shortcutRegistry.forEach((shortcut) => {
       const bindings = resolvedBindings.get(shortcut.id) || [];
@@ -71,7 +70,7 @@ export function ShortcutsSettings() {
       if (conflicts.length > 0) perShortcut.set(shortcut.id, conflicts);
     });
 
-    return { conflictMap: map, conflictsPerShortcut: perShortcut };
+    return { conflictsPerShortcut: perShortcut };
   }, [resolvedBindings]);
 
   const filteredGroups = useMemo(() => {
@@ -267,8 +266,6 @@ export function ShortcutsSettings() {
   );
 }
 
-/* ── Global hotkey row for dictation ── */
-
 function DictationHotkeyRow({ query }: { query: string }) {
   const hotkey = useDictationStore((s) => s.hotkey);
   const updateHotkey = useDictationStore((s) => s.updateHotkey);
@@ -276,7 +273,6 @@ function DictationHotkeyRow({ query }: { query: string }) {
   const pressedModifiers = useRef(new Set<string>());
   const [preview, setPreview] = useState('');
 
-  // Filter by search
   const term = query.trim().toLowerCase();
   if (term) {
     const haystack = 'dictation toggle recording global hotkey'.toLowerCase();
@@ -312,7 +308,6 @@ function DictationHotkeyRow({ query }: { query: string }) {
         return;
       }
 
-      // Non-modifier key pressed — build accelerator
       const parts: string[] = [];
       if (e.ctrlKey) parts.push('Control');
       if (e.altKey) parts.push('Alt');

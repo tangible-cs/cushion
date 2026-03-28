@@ -404,15 +404,12 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     resolveReview();
   }, [resolveReview]);
 
-  // Diff review refs are gated on `hidden` prop — see effect below the diff subscription
-
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
     let cancelled = false;
 
-    // Theme that adapts via CSS variables (supports light/dark)
     const adaptiveTheme = EditorView.theme({
       '&': {
         backgroundColor: 'var(--md-bg)',
@@ -480,7 +477,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       { tag: tags.invalid, color: 'var(--md-text-faint)' },
     ]);
 
-    // Filter out Mod-g / Shift-Mod-g (conflicts with app.graph.toggle)
     const filteredSearchKeymap = searchKeymap.filter((binding) => {
       const key = binding.key?.toLowerCase() ?? '';
       return key !== 'mod-g' && key !== 'shift-mod-g';
@@ -489,7 +485,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     const prefs = useWorkspaceStore.getState().preferences;
 
     const extensions: Extension[] = [
-      // -- Features (non-keymap) --
       lineNumbersCompartmentRef.current.of(
         prefs.showLineNumber ? [lineNumbers(), highlightActiveLineGutter()] : []
       ),
@@ -522,7 +517,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
           : EditorView.contentAttributes.of({ spellcheck: 'false' })
       ),
       EditorView.lineWrapping,
-      // -- Keymaps (CM-internal, explicitly listed) --
       keymap.of([
         ...(prefs.autoPairBrackets ? closeBracketsKeymap : []),
         ...defaultKeymap,
@@ -544,7 +538,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
         if (!isReviewingRef.current) return;
         const count = getChunkCount(update.state);
         useDiffReviewStore.getState().updateChunkCount(count);
-        // Auto-exit when all chunks are resolved (individual accept/reject)
         if (count === 0) {
           resolveReview();
         }
@@ -621,13 +614,11 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
           ? EditorView.theme({ '.cm-content': { maxWidth: 'var(--md-content-max-width, 900px)' } })
           : EditorView.theme({ '.cm-content': { maxWidth: 'none' } })
       ),
-      // Diff review: merge view (starts empty, enabled dynamically)
       mergeViewCompartmentRef.current.of([]),
       diffKeymapCompartmentRef.current.of([]),
       diffTheme,
     ];
 
-    // Create edit tracker for dictation correction learning (inert until startTracking is called)
     if (!editTrackerRef.current) {
       editTrackerRef.current = createDictationEditTracker({
         onCorrections: (original, edited) => {
@@ -696,13 +687,9 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
         viewRef.current = null;
       }
     };
-    // content intentionally omitted — initial-value only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, language]);
 
-  // Sync external content changes (e.g. file changed on disk) into CodeMirror
-  // Uses isSyncingContentRef to prevent the updateListener from treating this as a user edit,
-  // which would convert preview tabs to permanent and break tab reuse.
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -783,7 +770,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     preferences.readableLineLength,
   ]);
 
-  // Update file paths when they change (for wiki-link resolution)
   useEffect(() => {
     if (viewRef.current && filePaths) {
       updateWikiLinkFilePaths(viewRef.current, filePaths);
@@ -801,7 +787,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     }
   }, [focusModeEnabled, scheduleTypewriterCentering, stopTypewriterScroll]);
 
-  // Subscribe to pending diff reviews
   useEffect(() => {
     const unsub = useDiffReviewStore.subscribe(
       (state) => state.pendingDiff,
@@ -831,7 +816,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     return unsub;
   }, [filePath, handleAcceptAll, handleRejectAll]);
 
-  // Recalculate CM6 layout when revealed after being hidden
   useEffect(() => {
     if (hidden) return;
     const view = viewRef.current;
@@ -841,7 +825,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     });
   }, [hidden]);
 
-  // Gate diff review refs — only the active (non-hidden) editor should own them
   useEffect(() => {
     if (hidden) {
       // Clear refs so inactive editor doesn't intercept actions
@@ -855,7 +838,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     }
   }, [hidden, handleAcceptAll, handleRejectAll, handleExitReview, onDiffAcceptAll, onDiffRejectAll, onDiffExitReview]);
 
-  // Wire insertTextAtCursorRef so dictation store can insert text
   useEffect(() => {
     if (hidden) {
       return;

@@ -1,5 +1,5 @@
 import fs from 'fs/promises';
-import { existsSync, createWriteStream } from 'fs';
+import { existsSync, createWriteStream, statSync } from 'fs';
 import path from 'path';
 import https from 'https';
 import { app } from 'electron';
@@ -36,10 +36,6 @@ export class SherpaModelManager {
   async init(): Promise<void> {
     await fs.mkdir(this.modelsDir, { recursive: true });
     await this.cleanStaleTmpFiles();
-  }
-
-  getModelsDir(): string {
-    return this.modelsDir;
   }
 
   async listAllModels(): Promise<DictationModelInfo[]> {
@@ -144,7 +140,7 @@ export class SherpaModelManager {
         // Fallback: find a directory that looks right
         const entries = await fs.readdir(extractDir);
         const found = entries.find(e => {
-          try { return require('fs').statSync(path.join(extractDir, e)).isDirectory(); } catch { return false; }
+          try { return statSync(path.join(extractDir, e)).isDirectory(); } catch { return false; }
         });
         if (found) {
           if (existsSync(targetDir)) {

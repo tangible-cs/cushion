@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useDictationStore } from '@/stores/dictationStore';
 import { cn } from '@/lib/utils';
+import { ToggleRow } from './FilesSettings';
 
 const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
@@ -80,36 +81,6 @@ export function DictationPostProcessing() {
     updatePostProcessing({ model });
   };
 
-  const handleFillerToggle = () => {
-    const next = !fillerRemoval;
-    setFillerRemoval(next);
-    updatePostProcessing({ fillerRemoval: next });
-  };
-
-  const handleStutterToggle = () => {
-    const next = !stutterCollapse;
-    setStutterCollapse(next);
-    updatePostProcessing({ stutterCollapse: next });
-  };
-
-  const handleNoteContextToggle = () => {
-    const next = !includeNoteContext;
-    setIncludeNoteContext(next);
-    updatePostProcessing({ includeNoteContext: next });
-  };
-
-  const handleAutoLearnToggle = () => {
-    const next = !autoLearnCorrections;
-    setAutoLearnCorrections(next);
-    updatePostProcessing({ autoLearnCorrections: next });
-  };
-
-  const handleSkipShortToggle = () => {
-    const next = !skipShort;
-    setSkipShort(next);
-    updatePostProcessing({ skipShortTranscriptions: next });
-  };
-
   const handleThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Math.max(1, Math.min(15, Number(e.target.value) || 1));
     setShortThreshold(val);
@@ -120,124 +91,40 @@ export function DictationPostProcessing() {
     <div>
       <h3 className="text-xs uppercase tracking-wide text-foreground-faint mb-3">Text Cleanup</h3>
 
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">Remove filler words</div>
-          <div className="text-xs text-foreground-muted">Remove uh, um, hmm and similar filler sounds</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={fillerRemoval}
-          onClick={handleFillerToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            fillerRemoval ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              fillerRemoval ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
-
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">Collapse stutters</div>
-          <div className="text-xs text-foreground-muted">Collapse repeated words (e.g. no no no &rarr; no)</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={stutterCollapse}
-          onClick={handleStutterToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            stutterCollapse ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              stutterCollapse ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
-
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">Auto-learn corrections</div>
-          <div className="text-xs text-foreground-muted">Learn new words when you edit dictated text</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={autoLearnCorrections}
-          onClick={handleAutoLearnToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            autoLearnCorrections ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              autoLearnCorrections ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
+      <ToggleRow
+        label="Remove filler words"
+        description="Remove uh, um, hmm and similar filler sounds"
+        checked={fillerRemoval}
+        onChange={() => { const next = !fillerRemoval; setFillerRemoval(next); updatePostProcessing({ fillerRemoval: next }); }}
+      />
+      <ToggleRow
+        label="Collapse stutters"
+        description="Collapse repeated words (e.g. no no no → no)"
+        checked={stutterCollapse}
+        onChange={() => { const next = !stutterCollapse; setStutterCollapse(next); updatePostProcessing({ stutterCollapse: next }); }}
+      />
+      <ToggleRow
+        label="Auto-learn corrections"
+        description="Learn new words when you edit dictated text"
+        checked={autoLearnCorrections}
+        onChange={() => { const next = !autoLearnCorrections; setAutoLearnCorrections(next); updatePostProcessing({ autoLearnCorrections: next }); }}
+      />
 
       <h3 className="text-xs uppercase tracking-wide text-foreground-faint mb-3 mt-6">AI Post-Processing</h3>
 
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">AI post-processing</div>
-          <div className="text-xs text-foreground-muted">Clean up transcribed text with an LLM</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={handleToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            enabled ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              enabled ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
-
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">Skip short phrases</div>
-          <div className="text-xs text-foreground-muted">Skip AI enhancement for very short phrases like &ldquo;yes&rdquo; or &ldquo;okay&rdquo;</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={skipShort}
-          disabled={!enabled}
-          onClick={handleSkipShortToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            skipShort && enabled ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-            !enabled && 'opacity-40 cursor-not-allowed',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              skipShort ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
+      <ToggleRow
+        label="AI post-processing"
+        description="Clean up transcribed text with an LLM"
+        checked={enabled}
+        onChange={() => { const next = !enabled; setEnabled(next); updatePostProcessing({ enabled: next }); }}
+      />
+      <ToggleRow
+        label="Skip short phrases"
+        description="Skip AI enhancement for very short phrases"
+        checked={skipShort}
+        disabled={!enabled}
+        onChange={() => { const next = !skipShort; setSkipShort(next); updatePostProcessing({ skipShortTranscriptions: next }); }}
+      />
 
       {enabled && skipShort && (
         <div className="flex items-center gap-3 py-2 pl-4">
@@ -253,30 +140,13 @@ export function DictationPostProcessing() {
         </div>
       )}
 
-      <label className="flex items-center justify-between gap-4 py-2">
-        <div>
-          <div className="text-sm font-medium">Include note context</div>
-          <div className="text-xs text-foreground-muted">Send surrounding text to match tone and style</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={includeNoteContext}
-          disabled={!enabled}
-          onClick={handleNoteContextToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-border transition-colors',
-            includeNoteContext && enabled ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-subtle)]',
-            !enabled && 'opacity-40 cursor-not-allowed',
-          )}
-        >
-          <span
-            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-background transition-transform ${
-              includeNoteContext ? 'translate-x-4' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </label>
+      <ToggleRow
+        label="Include note context"
+        description="Send surrounding text to match tone and style"
+        checked={includeNoteContext}
+        disabled={!enabled}
+        onChange={() => { const next = !includeNoteContext; setIncludeNoteContext(next); updatePostProcessing({ includeNoteContext: next }); }}
+      />
 
       <div className="flex items-center justify-between mt-3">
         <div>

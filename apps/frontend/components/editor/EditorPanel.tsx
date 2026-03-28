@@ -124,17 +124,14 @@ export function EditorPanel({
     return () => container.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Restore scroll position after CodeMirror measures the new editor
   useEffect(() => {
     if (!currentFile) return;
     const container = editorContainerRef.current;
     if (!container) return;
     const target = scrollPositionsRef.current.get(currentFile) ?? 0;
-    // First attempt: immediate rAF (before paint)
     const id1 = requestAnimationFrame(() => {
       container.scrollTop = target;
     });
-    // Second attempt: after CM6 measurement settles
     let id3 = 0;
     const id2 = requestAnimationFrame(() => {
       id3 = requestAnimationFrame(() => {
@@ -336,7 +333,6 @@ export function EditorPanel({
   const onDictationCorrectionRef = useRef<((original: string, edited: string) => void) | null>(null);
   const isReviewing = useDiffReviewStore((s) => s.reviewingFilePath === currentFile);
 
-  // Wire up diffSaveRef: saves to disk, marks saved, clears pending autosave
   useEffect(() => {
     diffSaveRef.current = async (fp: string, content: string) => {
       try {
@@ -354,7 +350,6 @@ export function EditorPanel({
     return () => { diffSaveRef.current = null; };
   }, [client, markFileSaved]);
 
-  // Wire dictation store's insert callback to the editor's insertTextAtCursorRef
   useEffect(() => {
     setInsertTextCallback((text) => insertTextAtCursorRef.current?.(text));
     setGetNoteContextCallback(() => getNoteContextRef.current?.() ?? '');
@@ -368,7 +363,6 @@ export function EditorPanel({
     };
   }, []);
 
-  // Wire dictation correction handler
   useEffect(() => {
     onDictationCorrectionRef.current = async (original, edited) => {
       try {
@@ -401,7 +395,6 @@ export function EditorPanel({
     };
   }, [client]);
 
-  // Clear edit tracking on note switch
   useEffect(() => {
     clearEditTrackingRef.current?.();
   }, [currentFile]);

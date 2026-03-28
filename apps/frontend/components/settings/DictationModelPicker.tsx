@@ -27,7 +27,6 @@ export function DictationModelDialog({ onClose }: DictationModelDialogProps) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Group models by category
   const grouped = new Map<DictationModelCategory, DictationModelInfo[]>();
   for (const cat of CATEGORY_ORDER) grouped.set(cat, []);
   for (const model of models) {
@@ -134,9 +133,7 @@ function ModelCard({
         isDownloading && 'opacity-100 border-[var(--border)]',
       )}
     >
-      {/* Main content: two columns */}
       <div className="flex gap-3">
-        {/* Left column: name, badges, description */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm text-foreground">{model.label}</span>
@@ -159,7 +156,6 @@ function ModelCard({
           <p className="text-xs text-foreground-muted mt-0.5">{model.description}</p>
         </div>
 
-        {/* Right column: accuracy + speed bars */}
         <div className="shrink-0 w-[140px] flex flex-col justify-center gap-1.5">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-foreground-faint w-[50px] shrink-0 text-right">accuracy</span>
@@ -182,7 +178,6 @@ function ModelCard({
         </div>
       </div>
 
-      {/* Bottom row: language left, action + size right */}
       <div className="flex items-center mt-2 text-[11px] text-foreground-faint">
         <span className="inline-flex items-center gap-1">
           <Globe size={11} />
@@ -228,7 +223,6 @@ function ModelCard({
         )}
       </div>
 
-      {/* Download progress bar */}
       {isDownloading && (
         <div className="mt-2">
           <div className="h-1 rounded-full bg-[var(--border-subtle)] overflow-hidden">
