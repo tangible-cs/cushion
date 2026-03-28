@@ -80,6 +80,8 @@ export type ChatState = {
   displayPreferences: DisplayPreferences;
   currentFileContext: CurrentFileContext | null;
   includeCurrentFile: boolean;
+  /** Tracks the last file path sent per session so we only send on file switch */
+  lastSentFilePath: Record<string, string | null>;
   promptBySession: Record<string, PromptPart[]>;
   promptSessionOrder: string[];
   activeSessionByDirectory: Record<string, string | null>;
@@ -186,6 +188,7 @@ export const initialState: ChatState = {
   displayPreferences: DEFAULT_DISPLAY_PREFERENCES,
   currentFileContext: null,
   includeCurrentFile: true,
+  lastSentFilePath: {},
   promptBySession: {},
   promptSessionOrder: [],
   activeSessionByDirectory: {},

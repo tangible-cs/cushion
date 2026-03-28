@@ -45,6 +45,22 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         className="mt-2"
       />
 
+      <div className="flex items-center justify-between mt-4">
+        <div>
+          <div className="text-sm font-medium">Permitted file types</div>
+          <div className="text-xs text-foreground-muted">
+            {allowedExtensions.length} extension{allowedExtensions.length !== 1 && 's'} allowed
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setDialogOpen(true)}
+          className="text-xs text-foreground-muted hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border hover:bg-background-secondary"
+        >
+          Manage
+        </button>
+      </div>
+
       <ToggleRow
         label="Use system trash"
         description="Move deleted files to the OS trash instead of Cushion's internal trash"
@@ -61,24 +77,6 @@ export function FilesSettings({ embedded = false }: FilesSettingsProps) {
         className="mt-2"
         disabled={trashMethod !== 'system'}
       />
-
-      <div className="mt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">Permitted file types</div>
-            <div className="text-xs text-foreground-muted">
-              {allowedExtensions.length} extension{allowedExtensions.length !== 1 && 's'} allowed
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setDialogOpen(true)}
-            className="text-xs text-foreground-muted hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border hover:bg-background-secondary"
-          >
-            Manage
-          </button>
-        </div>
-      </div>
 
       {dialogOpen && (
         <PermittedTypesDialog onClose={() => setDialogOpen(false)} />

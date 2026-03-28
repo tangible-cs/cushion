@@ -298,21 +298,35 @@ export async function handleSendPrompt(
     });
   }
 
-  // Auto-include current file if enabled
+  // Auto-include current file only on file switch (not every message)
   const usedUrls = new Set(fileAttachmentParts.map((part) => part.url));
   const currentFileParts: FilePartInput[] = [];
-  const { currentFileContext, includeCurrentFile } = get();
+  const currentFileFramingParts: TextPartInput[] = [];
+  const { currentFileContext, includeCurrentFile, lastSentFilePath } = get();
   if (currentFileContext && includeCurrentFile && currentFileContext.enabled) {
-    const url = buildFileUrl(directory, currentFileContext.path);
-    if (!usedUrls.has(url)) {
-      const name = currentFileContext.path.split(/[/\\]/).pop() || currentFileContext.path;
-      currentFileParts.push({
-        id: createPartId(),
-        type: 'file',
-        mime: 'text/plain',
-        filename: name,
-        url,
-      });
+    const alreadySent = lastSentFilePath[nextSessionId] === currentFileContext.path;
+    if (!alreadySent) {
+      const url = buildFileUrl(directory, currentFileContext.path);
+      if (!usedUrls.has(url)) {
+        const name = currentFileContext.path.split(/[/\\]/).pop() || currentFileContext.path;
+        currentFileParts.push({
+          id: createPartId(),
+          type: 'file',
+          mime: 'text/plain',
+          filename: name,
+          url,
+        });
+        currentFileFramingParts.push({
+          id: createPartId(),
+          type: 'text',
+          text: `User is now viewing ${currentFileContext.path}.`,
+          synthetic: true,
+        });
+      }
+      // Track that we sent this file for this session
+      set((prev) => ({
+        lastSentFilePath: { ...prev.lastSentFilePath, [nextSessionId]: currentFileContext.path },
+      }));
     }
   }
 
@@ -340,6 +354,7 @@ export async function handleSendPrompt(
     ...fileAttachmentParts,
     ...framingParts,
     ...currentFileParts,
+    ...currentFileFramingParts,
     ...agentAttachmentParts,
     ...imageAttachmentParts,
   ];

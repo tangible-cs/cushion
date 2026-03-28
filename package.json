@@ -27,6 +27,7 @@
   },
   "overrides": {
     "@codemirror/view": "^6.40.0",
-    "@codemirror/state": "^6.6.0"
+    "@codemirror/state": "^6.6.0",
+    "@lezer/common": "^1.5.1"
   }
 }

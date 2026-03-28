@@ -10,7 +10,8 @@ import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
 import { EditorPanel } from '@/components/editor/EditorPanel';
 import { QuickSwitcher } from '@/components/quick-switcher';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
-import { ToastProvider } from '@/components/chat/Toast';
+import { ToastProvider, useToast } from '@/components/chat/Toast';
+import { registerToastFn, unregisterToastFn } from '@/utils/toast-bridge';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
@@ -18,6 +19,8 @@ import { TrashViewerPanel } from '@/components/workspace/TrashViewerPanel';
 import { useFileTree } from '@/hooks/useFileTree';
 import { matchShortcut, useShortcutBindings } from '@/lib/shortcuts';
 import { useAppearanceStore } from '@/stores/appearanceStore';
+import { useDictationStore } from '@/stores/dictationStore';
+import { init as initFocusTracker, destroy as destroyFocusTracker } from '@/lib/focus-tracker';
 import { useExplorerStore } from '@/stores/explorerStore';
 import { useConfigSync } from '@/hooks/useConfigSync';
 import { useDiffReviewBridge } from '@/hooks/useDiffReviewBridge';
@@ -71,6 +74,15 @@ function applyAppearanceToDOM(resolvedTheme: 'light' | 'dark', accentColor: stri
   }
 
   window.electronAPI?.updateTitleBarTheme(TITLEBAR_OVERLAY_COLORS[resolvedTheme]);
+}
+
+function ToastBridge() {
+  const { showToast } = useToast();
+  useEffect(() => {
+    registerToastFn(showToast);
+    return () => unregisterToastFn();
+  }, [showToast]);
+  return null;
 }
 
 export default function Home() {
@@ -130,6 +142,11 @@ export default function Home() {
   }, [metadata, showQuickSwitcher, showSettings, showTrash, showWorkspaceModal]);
 
   useEffect(() => {
+    initFocusTracker();
+    return () => destroyFocusTracker();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function connect() {
@@ -138,6 +155,7 @@ export default function Home() {
         if (!cancelled) {
           setClientLocal(shared);
           setClient(shared);
+          useDictationStore.getState().setClient(shared);
         }
       } catch (err) {
         console.error('[Page] Failed to connect to coordinator:', err);
@@ -446,6 +464,7 @@ export default function Home() {
 
   return (
     <ToastProvider>
+      <ToastBridge />
       <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
       {!focusModeEnabled && (
         <EditorTabRow

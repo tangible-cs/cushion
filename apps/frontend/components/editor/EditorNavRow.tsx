@@ -30,6 +30,7 @@ interface EditorNavRowProps {
   onShare?: () => void;
   segments: BreadcrumbSegment[];
   centerTitle?: string;
+  extraButtons?: React.ReactNode;
 }
 
 const MAX_VISIBLE_SEGMENTS = 3;
@@ -44,6 +45,7 @@ export function EditorNavRow({
   onShare,
   segments,
   centerTitle,
+  extraButtons,
 }: EditorNavRowProps) {
   return (
     <div className="grid h-9 grid-cols-[minmax(72px,1fr),minmax(0,2fr),minmax(72px,1fr)] items-center gap-2 border-b border-transparent bg-background px-2 flex-shrink-0">
@@ -81,6 +83,7 @@ export function EditorNavRow({
       </div>
 
       <div className="min-w-0 flex items-center justify-end gap-1">
+        {extraButtons}
         {onToggleFocusMode && (
           <button
             onClick={onToggleFocusMode}

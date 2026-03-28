@@ -5,6 +5,8 @@ directories:
   output: release
 files:
   - out/**/*
+asarUnpack:
+  - "**/node_modules/ffmpeg-static/**/*"
 extraResources:
   - from: ../coordinator/dist
     to: coordinator/dist

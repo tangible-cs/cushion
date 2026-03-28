@@ -15,6 +15,11 @@ export interface EditorPanelContextValue {
   diffRejectAllRef: React.MutableRefObject<(() => void) | null>;
   diffExitReviewRef: React.MutableRefObject<(() => void) | null>;
   diffSaveRef: React.MutableRefObject<((filePath: string, content: string) => Promise<void>) | null>;
+  insertTextAtCursorRef: React.MutableRefObject<((text: string) => { from: number; to: number } | void) | null>;
+  getNoteContextRef: React.MutableRefObject<(() => string) | null>;
+  startEditTrackingRef: React.MutableRefObject<((originalText: string, from: number, to: number) => void) | null>;
+  clearEditTrackingRef: React.MutableRefObject<(() => void) | null>;
+  onDictationCorrectionRef: React.MutableRefObject<((original: string, edited: string) => void) | null>;
 }
 
 const EditorPanelCtx = createContext<EditorPanelContextValue | null>(null);

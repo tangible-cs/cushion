@@ -70,6 +70,8 @@ import { modernSearchExtension } from '@/lib/codemirror-search-panel';
 import { useShortcutBindings } from '@/lib/shortcuts';
 import { toCodeMirrorKey } from '@/lib/shortcuts/utils';
 import { useEditorPanelContext } from './EditorPanelContext';
+import { extractNoteContext } from '@/lib/extract-note-context';
+import { createDictationEditTracker, type DictationEditTracker } from '@/lib/dictation-edit-tracker';
 
 interface CodeEditorProps {
   filePath: string;
@@ -154,6 +156,11 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     diffExitReviewRef: onDiffExitReview,
     diffSaveRef: onDiffSave,
     onAddSelectionToChat,
+    insertTextAtCursorRef,
+    getNoteContextRef,
+    startEditTrackingRef,
+    clearEditTrackingRef,
+    onDictationCorrectionRef,
   } = useEditorPanelContext();
   const content = useWorkspaceStore((s) => s.openFiles.get(filePath)?.content ?? '');
   const language = useWorkspaceStore((s) => s.openFiles.get(filePath)?.language);
@@ -181,6 +188,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
   const mergeViewCompartmentRef = useRef(new Compartment());
   const diffKeymapCompartmentRef = useRef(new Compartment());
   const isReviewingRef = useRef(false);
+  const editTrackerRef = useRef<DictationEditTracker | null>(null);
 
   const editorShortcuts = useShortcutBindings(EDITOR_SHORTCUT_IDS);
   const listShortcuts = useShortcutBindings(EDITOR_LIST_SHORTCUT_IDS);
@@ -619,6 +627,16 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       diffTheme,
     ];
 
+    // Create edit tracker for dictation correction learning (inert until startTracking is called)
+    if (!editTrackerRef.current) {
+      editTrackerRef.current = createDictationEditTracker({
+        onCorrections: (original, edited) => {
+          onDictationCorrectionRef.current?.(original, edited);
+        },
+      });
+    }
+    extensions.push(editTrackerRef.current.extension);
+
     const initEditor = async () => {
       const langExt = await getLanguageExtension(filePath, language);
       if (cancelled) return;
@@ -671,6 +689,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
         typewriterRafRef.current = null;
       }
       stopTypewriterScroll();
+      editTrackerRef.current?.clearTracking();
       window.removeEventListener('mouseup', handleWindowMouseUp);
       if (viewRef.current) {
         viewRef.current.destroy();
@@ -835,6 +854,43 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       if (onDiffExitReview) onDiffExitReview.current = handleExitReview;
     }
   }, [hidden, handleAcceptAll, handleRejectAll, handleExitReview, onDiffAcceptAll, onDiffRejectAll, onDiffExitReview]);
+
+  // Wire insertTextAtCursorRef so dictation store can insert text
+  useEffect(() => {
+    if (hidden) {
+      return;
+    }
+    insertTextAtCursorRef.current = (text: string) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const sel = view.state.selection.main;
+      const from = sel.from;
+      view.dispatch({
+        changes: { from, to: sel.to, insert: text },
+        selection: { anchor: from + text.length },
+      });
+      return { from, to: from + text.length };
+    };
+    getNoteContextRef.current = () => {
+      const view = viewRef.current;
+      if (!view) return '';
+      return extractNoteContext(view);
+    };
+    startEditTrackingRef.current = (originalText, from, to) => {
+      const view = viewRef.current;
+      if (!view) return;
+      editTrackerRef.current?.startTracking(view, originalText, from, to);
+    };
+    clearEditTrackingRef.current = () => {
+      editTrackerRef.current?.clearTracking();
+    };
+    return () => {
+      insertTextAtCursorRef.current = null;
+      getNoteContextRef.current = null;
+      startEditTrackingRef.current = null;
+      clearEditTrackingRef.current = null;
+    };
+  }, [hidden, insertTextAtCursorRef, getNoteContextRef, startEditTrackingRef, clearEditTrackingRef]);
 
   return (
     <div

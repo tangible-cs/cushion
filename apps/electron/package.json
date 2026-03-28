@@ -14,9 +14,12 @@
     "chokidar": "^5.0.0",
     "ignore": "^7.0.5",
     "pdf-lib": "^1.17.1",
+    "ffmpeg-static": "^5.2.0",
+    "ws": "^8.18.0",
     "write-file-atomic": "^7.0.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.5.14",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "electron": "^35.1.2",

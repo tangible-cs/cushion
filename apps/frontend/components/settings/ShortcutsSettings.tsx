@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, RotateCcw, Search, Plus, X } from 'lucide-react';
 import { shortcutRegistry, type ShortcutDefinition, type ShortcutId } from '@/lib/shortcuts/registry';
 import {
@@ -9,7 +9,15 @@ import {
   shortcutFromEvent,
 } from '@/lib/shortcuts/utils';
 import { resolveBindings, useShortcutsStore } from '@/stores/shortcutsStore';
+import { useDictationStore } from '@/stores/dictationStore';
 import { cn } from '@/lib/utils';
+
+const HOTKEY_KEY_MAP: Record<string, string> = {
+  Control: 'Control',
+  Alt: 'Alt',
+  Shift: 'Shift',
+  Meta: 'Super',
+};
 
 const shortcutById = new Map<ShortcutId, ShortcutDefinition>(
   shortcutRegistry.map((shortcut) => [shortcut.id, shortcut])
@@ -241,11 +249,161 @@ export function ShortcutsSettings() {
             </div>
           </div>
         ))}
-        {filteredGroups.length === 0 && (
+        {filteredGroups.length === 0 && !query.trim() && (
           <div className="p-8 text-sm text-foreground-muted">
             No shortcuts match your search.
           </div>
         )}
+
+        <DictationHotkeyRow query={query} />
+
+        {filteredGroups.length === 0 && query.trim() && (
+          <div className="p-8 text-sm text-foreground-muted">
+            No shortcuts match your search.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Global hotkey row for dictation ── */
+
+function DictationHotkeyRow({ query }: { query: string }) {
+  const hotkey = useDictationStore((s) => s.hotkey);
+  const updateHotkey = useDictationStore((s) => s.updateHotkey);
+  const [recording, setRecording] = useState(false);
+  const pressedModifiers = useRef(new Set<string>());
+  const [preview, setPreview] = useState('');
+
+  // Filter by search
+  const term = query.trim().toLowerCase();
+  if (term) {
+    const haystack = 'dictation toggle recording global hotkey'.toLowerCase();
+    if (!haystack.includes(term)) return null;
+  }
+
+  const cancel = () => {
+    setRecording(false);
+    setPreview('');
+    pressedModifiers.current.clear();
+  };
+
+  const save = (accel: string) => {
+    setRecording(false);
+    setPreview('');
+    pressedModifiers.current.clear();
+    updateHotkey(accel);
+  };
+
+  useEffect(() => {
+    if (!recording) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === 'Escape') { cancel(); return; }
+
+      const mod = HOTKEY_KEY_MAP[e.key];
+      if (mod) {
+        pressedModifiers.current.add(mod);
+        setPreview([...pressedModifiers.current].join('+'));
+        return;
+      }
+
+      // Non-modifier key pressed — build accelerator
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push('Control');
+      if (e.altKey) parts.push('Alt');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.metaKey) parts.push('Super');
+      parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+      save(parts.join('+'));
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const mod = HOTKEY_KEY_MAP[e.key];
+      if (!mod) return;
+
+      const mods = pressedModifiers.current;
+      if (mods.size >= 2) {
+        save([...mods].join('+'));
+      } else {
+        mods.delete(mod);
+        setPreview(mods.size > 0 ? [...mods].join('+') : '');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, [recording]);
+
+  return (
+    <div className="px-6 py-4">
+      <div className="text-xs uppercase tracking-wide text-foreground-faint">
+        Global
+      </div>
+      <div className="mt-2 divide-y divide-border">
+        <div
+          className={cn(
+            'flex items-start justify-between gap-4 py-3',
+            recording && 'bg-surface-tertiary/60 rounded-lg px-3 -mx-3',
+          )}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-foreground">Toggle dictation</div>
+            <div className="text-xs text-foreground-muted mt-1">
+              Start or stop voice dictation from anywhere
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-wrap gap-1 justify-end">
+              {recording ? (
+                <span className="text-xs text-foreground-muted">
+                  {preview || 'Press keys...'}
+                </span>
+              ) : hotkey ? (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-tertiary text-xs text-foreground">
+                  <kbd className="font-mono">{hotkey}</kbd>
+                </span>
+              ) : (
+                <span className="text-xs text-foreground-muted">Unassigned</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => recording ? cancel() : setRecording(true)}
+                className={cn(
+                  'flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border transition-colors',
+                  recording
+                    ? 'border-[var(--accent-primary)] text-[var(--accent-primary)] bg-[var(--accent-primary-12)]'
+                    : 'border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary',
+                )}
+              >
+                <Plus size={12} />
+                {recording ? 'Recording' : 'Change'}
+              </button>
+              <button
+                type="button"
+                onClick={() => updateHotkey('Control+Super')}
+                className="px-2 py-1 text-xs rounded-md border border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

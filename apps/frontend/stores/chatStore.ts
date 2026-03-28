@@ -287,6 +287,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
           currentFileContext: state.currentFileContext
             ? { ...state.currentFileContext, enabled: next }
             : null,
+          // Clear tracking so toggling back on re-sends the file
+          ...(!next ? { lastSentFilePath: {} } : {}),
         };
       });
     },

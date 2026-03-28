@@ -39,9 +39,42 @@ import {
   handleTrashEmpty,
 } from './handlers/trash';
 
+import { DictationConfigManager } from './dictation-config';
+import { PostProcessor } from './post-processor';
+import { HotkeyManager } from './hotkey-manager';
+import { SherpaModelManager } from './sherpa-model-manager';
+import { SherpaManager } from './sherpa-manager';
+import { SherpaBinaryManager } from './sherpa-binary-manager';
+
+import {
+  handleDictationListModels,
+  handleDictationDownloadModel,
+  handleDictationCancelDownload,
+  handleDictationDeleteModel,
+  handleDictationStartServer,
+  handleDictationStopServer,
+  handleDictationServerStatus,
+  handleDictationTranscribe,
+  handleDictationEnsureBinary,
+  handleDictationBinaryStatus,
+  handleDictationPostProcess,
+  handleDictationConfigRead,
+  handleDictationConfigWrite,
+  handleDictationDictionaryAdd,
+  handleDictationDictionaryRemove,
+  handleDictationLearnCorrection,
+  handleDictationUpdateHotkey,
+} from './handlers/dictation';
+
 let workspaceManager: WorkspaceManager;
 let configManager: ConfigManager;
 let configWatcher: ConfigWatcher;
+let dictationConfigManager: DictationConfigManager;
+let postProcessor: PostProcessor;
+let hotkeyManager: HotkeyManager;
+let sherpaModelManager: SherpaModelManager;
+let sherpaManager: SherpaManager;
+let sherpaBinaryManager: SherpaBinaryManager;
 
 async function loadFileFilter() {
   let respectGitignore = true;
@@ -69,13 +102,50 @@ async function loadFileFilter() {
   workspaceManager.setTrashMethod(trashMethod);
 }
 
+async function warmStartDictationServer() {
+  const config = await dictationConfigManager.read();
+  const model = config.selectedModel;
+  if (!sherpaModelManager.isModelDownloaded(model)) return;
+  const { available } = sherpaBinaryManager.isBinaryAvailable();
+  if (!available) return;
+  const modelDir = sherpaModelManager.getModelDir(model);
+  await sherpaManager.start(model, modelDir);
+}
+
 export async function initCoordinator(mainWindow: BrowserWindow) {
   workspaceManager = new WorkspaceManager();
   configManager = new ConfigManager();
   configWatcher = new ConfigWatcher();
   configManager.setConfigWatcher(configWatcher);
 
+  const notifyRenderer = (channel: string, data: unknown) => {
+    mainWindow.webContents.send(`coordinator:${channel}`, data);
+  };
+
+  dictationConfigManager = new DictationConfigManager();
+  await dictationConfigManager.init();
+  postProcessor = new PostProcessor(dictationConfigManager);
+
+  hotkeyManager = new HotkeyManager(notifyRenderer, mainWindow);
+  try {
+    const config = await dictationConfigManager.read();
+    if (config.hotkey) hotkeyManager.register(config.hotkey);
+  } catch {}
+
+  sherpaModelManager = new SherpaModelManager(notifyRenderer);
+  await sherpaModelManager.init();
+
+  sherpaManager = new SherpaManager(notifyRenderer);
+  await sherpaManager.init();
+
+  sherpaBinaryManager = new SherpaBinaryManager(notifyRenderer);
+  await sherpaBinaryManager.init();
+
   await ensurePermissionDefaults();
+
+  warmStartDictationServer().catch((err) => {
+    console.warn('[Coordinator] Dictation warm-start failed:', err?.message || err);
+  });
 
   workspaceManager.setOnFilesChanged((changes: FileChange[]) => {
     mainWindow.webContents.send('coordinator:workspace/filesChanged', { changes });
@@ -92,6 +162,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     mainWindow.webContents.send('coordinator:config/changed', { file });
   });
 
+  // Workspace handlers
   ipcMain.handle('coordinator:workspace/open', async (_event, params: RPCParams<'workspace/open'>) => {
     const result = await handleOpenWorkspace(workspaceManager, params);
     configManager.setWorkspacePath(params.projectPath);
@@ -141,6 +212,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleCreateFolder(workspaceManager, params);
   });
 
+  // Trash handlers
   ipcMain.handle('coordinator:trash/restore', async (_event, params: RPCParams<'trash/restore'>) => {
     return handleTrashRestore(workspaceManager, params);
   });
@@ -157,6 +229,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleTrashEmpty(workspaceManager);
   });
 
+  // File base64 handlers
   ipcMain.handle('coordinator:workspace/file-base64', async (_event, params: RPCParams<'workspace/file-base64'>) => {
     return handleReadFileBase64(workspaceManager, params);
   });
@@ -169,6 +242,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleSaveFileBase64(workspaceManager, params);
   });
 
+  // Config handlers
   ipcMain.handle('coordinator:config/read', async (_event, params: RPCParams<'config/read'>) => {
     return handleConfigRead(configManager, params);
   });
@@ -181,6 +255,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return result;
   });
 
+  // Skill/shell handlers
   ipcMain.handle('coordinator:skill/install-zip', async (_event, params: RPCParams<'skill/install-zip'>) => {
     return handleSkillInstallZip(params);
   });
@@ -197,9 +272,80 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleLoginFinish();
   });
 
+  // --- Unified dictation handlers ---
+  ipcMain.handle('coordinator:dictation/list-models', async () => {
+    return handleDictationListModels(sherpaModelManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/download-model', async (_event, params: RPCParams<'dictation/download-model'>) => {
+    return handleDictationDownloadModel(sherpaModelManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/cancel-download', async () => {
+    return handleDictationCancelDownload(sherpaModelManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/delete-model', async (_event, params: RPCParams<'dictation/delete-model'>) => {
+    return handleDictationDeleteModel(sherpaModelManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/start-server', async (_event, params: RPCParams<'dictation/start-server'>) => {
+    return handleDictationStartServer(sherpaManager, sherpaModelManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/stop-server', async () => {
+    return handleDictationStopServer(sherpaManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/server-status', async () => {
+    return handleDictationServerStatus(sherpaManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/transcribe', async (_event, params: RPCParams<'dictation/transcribe'>) => {
+    return handleDictationTranscribe(sherpaManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/ensure-binary', async () => {
+    return handleDictationEnsureBinary(sherpaBinaryManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/binary-status', async () => {
+    return handleDictationBinaryStatus(sherpaBinaryManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/post-process', async (_event, params: RPCParams<'dictation/post-process'>) => {
+    return handleDictationPostProcess(postProcessor, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/dictation-config-read', async () => {
+    return handleDictationConfigRead(dictationConfigManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/dictation-config-write', async (_event, params: RPCParams<'dictation/dictation-config-write'>) => {
+    return handleDictationConfigWrite(dictationConfigManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/dictionary-add', async (_event, params: RPCParams<'dictation/dictionary-add'>) => {
+    return handleDictationDictionaryAdd(dictationConfigManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/dictionary-remove', async (_event, params: RPCParams<'dictation/dictionary-remove'>) => {
+    return handleDictationDictionaryRemove(dictationConfigManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/learn-correction', async (_event, params: RPCParams<'dictation/learn-correction'>) => {
+    return handleDictationLearnCorrection(dictationConfigManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/update-hotkey', async (_event, params: RPCParams<'dictation/update-hotkey'>) => {
+    return handleDictationUpdateHotkey(hotkeyManager, dictationConfigManager, params);
+  });
 }
 
 export function stopCoordinator() {
   workspaceManager?.stopWatcher();
   configWatcher?.stop();
+  hotkeyManager?.dispose();
+  sherpaModelManager?.dispose();
+  sherpaManager?.dispose();
 }

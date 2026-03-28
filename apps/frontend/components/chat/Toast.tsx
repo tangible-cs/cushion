@@ -123,12 +123,20 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   return (
     <div
       className={cn(
-        "pointer-events-auto w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300",
+        "pointer-events-auto relative w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300",
         getVariantStyles(),
         isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
       )}
     >
-      <div className="flex gap-3">
+      {!toast.persistent && (
+        <button
+          onClick={() => onDismiss(toast.id)}
+          className="absolute top-2 right-2 size-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+      <div className="flex gap-3 pr-5">
         {getIcon() && <div className="shrink-0 mt-0.5">{getIcon()}</div>}
         <div className="flex-1 min-w-0">
           {toast.title && (
@@ -152,14 +160,6 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
             </div>
           )}
         </div>
-        {!toast.persistent && (
-          <button
-            onClick={() => onDismiss(toast.id)}
-            className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        )}
       </div>
     </div>
   );
