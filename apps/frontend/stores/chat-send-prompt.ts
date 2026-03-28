@@ -123,7 +123,6 @@ export async function handleSendPrompt(
   const directory = state.directory;
   if (!directory) return;
 
-  // Interrupt-and-send: if the active session is busy, queue the prompt and abort
   const activeId = state.activeSessionId;
   if (activeId) {
     const sessionStatus = state.sessionStatus[activeId];
@@ -282,7 +281,6 @@ export async function handleSendPrompt(
     };
   });
 
-  // Build framing text parts for file pills that have selections
   const framingParts: TextPartInput[] = [];
   for (const ref of inlineFiles) {
     const fileRef = ref as FilePartWithSelection;
@@ -298,7 +296,6 @@ export async function handleSendPrompt(
     });
   }
 
-  // Auto-include current file only on file switch (not every message)
   const usedUrls = new Set(fileAttachmentParts.map((part) => part.url));
   const currentFileParts: FilePartInput[] = [];
   const currentFileFramingParts: TextPartInput[] = [];
@@ -323,7 +320,6 @@ export async function handleSendPrompt(
           synthetic: true,
         });
       }
-      // Track that we sent this file for this session
       set((prev) => ({
         lastSentFilePath: { ...prev.lastSentFilePath, [nextSessionId]: currentFileContext.path },
       }));
@@ -391,7 +387,6 @@ export async function handleSendPrompt(
     };
   });
 
-  // Fire-and-forget: all updates come via SSE events, not the response body.
   void (async () => {
     try {
       await client.session.prompt({
@@ -405,7 +400,6 @@ export async function handleSendPrompt(
       });
     } catch (error) {
       const sdkError = mapSdkError(error);
-      // Remove the optimistic message and its parts
       set((prev) => {
         const list = prev.messages[nextSessionId] ?? [];
         const nextParts = { ...prev.parts };
@@ -426,7 +420,6 @@ export async function handleSendPrompt(
             : {}),
         };
       });
-      // Restore the prompt text and record the session error
       restorePrompt(
         set, sessionKey, workspaceKey, updateWorkspaceKey,
         previousPrompt, previousParts, nextSessionId, sdkError.message

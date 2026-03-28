@@ -58,17 +58,12 @@ let getNoteContextCallback: (() => string) | null = null;
 let onTextInsertedCallback: ((originalText: string, from: number, to: number) => void) | null = null;
 let dictationConfig: DictationConfig | null = null;
 let recordingFocusTarget: FocusTarget | null = null;
-
-// Notification cleanup handles
 let serverStatusCleanup: (() => void) | null = null;
 let downloadProgressCleanup: (() => void) | null = null;
 let downloadCompleteCleanup: (() => void) | null = null;
 let downloadErrorCleanup: (() => void) | null = null;
 let hotkeyPressedCleanup: (() => void) | null = null;
 let hotkeyFailedCleanup: (() => void) | null = null;
-let binaryDownloadProgressCleanup: (() => void) | null = null;
-let binaryDownloadCompleteCleanup: (() => void) | null = null;
-let binaryDownloadErrorCleanup: (() => void) | null = null;
 
 export function setInsertTextCallback(cb: ((text: string) => { from: number; to: number } | void) | null) {
   insertTextCallback = cb;
@@ -110,7 +105,6 @@ export const useDictationStore = create<DictationState>()(
     setClient: (client) => {
       coordinatorClient = client;
 
-      // Subscribe to unified dictation notifications
       if (serverStatusCleanup) serverStatusCleanup();
       serverStatusCleanup = window.electronAPI!.onCoordinatorNotification(
         'dictation/server-status-changed',
@@ -160,23 +154,6 @@ export const useDictationStore = create<DictationState>()(
         },
       );
 
-      if (binaryDownloadProgressCleanup) binaryDownloadProgressCleanup();
-      binaryDownloadProgressCleanup = window.electronAPI!.onCoordinatorNotification(
-        'dictation/binary-download-progress',
-        () => {},
-      );
-
-      if (binaryDownloadCompleteCleanup) binaryDownloadCompleteCleanup();
-      binaryDownloadCompleteCleanup = window.electronAPI!.onCoordinatorNotification(
-        'dictation/binary-download-complete',
-        () => {},
-      );
-
-      if (binaryDownloadErrorCleanup) binaryDownloadErrorCleanup();
-      binaryDownloadErrorCleanup = window.electronAPI!.onCoordinatorNotification(
-        'dictation/binary-download-error',
-        () => {},
-      );
 
       client.call('dictation/server-status').then((info) => {
         set({ serverStatus: info.status });
