@@ -6,8 +6,8 @@ import type { DictationConfig, DictationModelName } from '@cushion/types';
 const CONFIG_FILE = 'dictation.json';
 
 const DEFAULT_CONFIG: DictationConfig = {
-  selectedModel: 'whisper-base',
-  hotkey: 'Control+Super',
+  selectedModel: 'parakeet-v3',
+  hotkey: 'Control+W',
   postProcessing: {
     enabled: false,
     provider: 'openai',
@@ -17,29 +17,32 @@ const DEFAULT_CONFIG: DictationConfig = {
     stutterCollapse: true,
     includeNoteContext: true,
     autoLearnCorrections: true,
+    fuzzyCorrection: true,
+    dictionaryInPrompt: true,
     skipShortTranscriptions: true,
     shortTextThreshold: 3,
   },
   dictionary: [],
+  accelerator: 'cpu',
 };
 
 /** Map old whisper model name to unified DictationModelName */
 function migrateWhisperModel(name: string): DictationModelName {
   switch (name) {
-    case 'tiny': return 'whisper-tiny';
-    case 'base': return 'whisper-base';
+    case 'tiny': return 'whisper-small';
+    case 'base': return 'whisper-small';
     case 'small': return 'whisper-small';
     case 'medium': return 'whisper-medium';
     case 'turbo': return 'whisper-turbo';
     case 'large': return 'whisper-large-v3';
-    default: return 'whisper-base';
+    default: return 'parakeet-v3';
   }
 }
 
 /** Detect old config format and migrate to unified */
 function migrateConfig(raw: Record<string, unknown>): DictationConfig {
-  // Already migrated — has unified selectedModel as DictationModelName
-  if (raw.selectedModel && typeof raw.selectedModel === 'string' && raw.selectedModel.includes('-')) {
+  // Already migrated — no legacy selectedEngine field present
+  if (raw.selectedModel && typeof raw.selectedModel === 'string' && !raw.selectedEngine) {
     return {
       ...DEFAULT_CONFIG,
       ...raw,

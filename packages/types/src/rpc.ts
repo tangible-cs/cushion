@@ -11,8 +11,6 @@ export interface TrashItem {
 }
 
 export type DictationModelName =
-  | 'whisper-tiny'
-  | 'whisper-base'
   | 'whisper-small'
   | 'whisper-medium'
   | 'whisper-turbo'
@@ -65,10 +63,13 @@ export interface DictationConfig {
     stutterCollapse: boolean;
     includeNoteContext?: boolean;
     autoLearnCorrections: boolean;
+    fuzzyCorrection: boolean;
+    dictionaryInPrompt: boolean;
     skipShortTranscriptions: boolean;
     shortTextThreshold: number;
   };
   dictionary: string[];
+  accelerator?: 'cpu' | 'gpu';
 }
 
 export interface TranscriptionResult {
@@ -259,6 +260,18 @@ export interface RPCMethodMap {
     params: { hotkey: string };
     result: { success: boolean };
   };
+  'dictation/is-gpu-available': {
+    params: void;
+    result: { available: boolean; gpuName: string | null };
+  };
+  'dictation/gpu-binary-status': {
+    params: void;
+    result: { available: boolean; path: string | null };
+  };
+  'dictation/ensure-gpu-binary': {
+    params: void;
+    result: { path: string };
+  };
 }
 
 export interface RPCServerNotificationMap {
@@ -288,6 +301,13 @@ export interface RPCServerNotificationMap {
   };
   'dictation/binary-download-complete': { path: string };
   'dictation/binary-download-error': { error: string };
+  'dictation/gpu-binary-download-progress': {
+    downloadedBytes: number;
+    totalBytes: number;
+    percent: number;
+  };
+  'dictation/gpu-binary-download-complete': { path: string };
+  'dictation/gpu-binary-download-error': { error: string };
   'dictation/hotkey-pressed': {};
   'dictation/hotkey-registration-failed': { hotkey: string; error: string };
 }

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import { existsSync, createWriteStream } from 'fs';
+import { execFile } from 'child_process';
 import https from 'https';
 import path from 'path';
 import { app } from 'electron';
@@ -42,6 +43,21 @@ const BINARIES: Record<string, BinaryConfig> = {
   },
 };
 
+const GPU_BINARIES: Record<string, BinaryConfig> = {
+  'win32-x64': {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-win-x64-cuda.tar.bz2`,
+    binaryName: 'sherpa-onnx-offline-websocket-server.exe',
+    outputName: 'sherpa-onnx-ws-win32-x64-gpu.exe',
+    libPattern: /\.dll$/,
+  },
+  'linux-x64': {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-linux-x64-gpu.tar.bz2`,
+    binaryName: 'sherpa-onnx-offline-websocket-server',
+    outputName: 'sherpa-onnx-ws-linux-x64-gpu',
+    libPattern: /\.so(\.\d+)*$/,
+  },
+};
+
 const MAX_REDIRECTS = 5;
 const ALLOWED_REDIRECT_HOSTS = new Set([
   'github.com',
@@ -55,6 +71,8 @@ type NotifyFn = (channel: string, data: unknown) => void;
 export class SherpaBinaryManager {
   private binDir: string;
   private notify: NotifyFn;
+  private cudaAvailable: boolean | null = null;
+  private gpuName: string | null = null;
 
   constructor(notify: NotifyFn) {
     this.notify = notify;
@@ -63,6 +81,10 @@ export class SherpaBinaryManager {
 
   async init(): Promise<void> {
     await fs.mkdir(this.binDir, { recursive: true });
+    await fs.mkdir(path.join(this.binDir, 'gpu'), { recursive: true });
+    if (GPU_BINARIES[this.getBinaryKey()]) {
+      await this.detectCuda();
+    }
   }
 
   private getBinaryKey(): string {
@@ -93,16 +115,68 @@ export class SherpaBinaryManager {
   }
 
   async downloadBinary(): Promise<{ path: string }> {
-    const key = this.getBinaryKey();
     const config = this.getConfig();
-    if (!config) throw new Error(`Unsupported platform/arch: ${key}`);
+    if (!config) throw new Error(`Unsupported platform/arch: ${this.getBinaryKey()}`);
+    return this._downloadVariant(config, this.binDir, 'dictation/binary-download');
+  }
 
-    const archivePath = path.join(this.binDir, config.archiveName);
-    const extractDir = path.join(this.binDir, `temp-sherpa-${key}`);
+  isGpuSupported(): boolean {
+    return GPU_BINARIES[this.getBinaryKey()] !== undefined && this.cudaAvailable === true;
+  }
+
+  getGpuName(): string | null {
+    return this.gpuName;
+  }
+
+  /** Probe for NVIDIA GPU via nvidia-smi */
+  private detectCuda(): Promise<void> {
+    return new Promise((resolve) => {
+      const bin = process.platform === 'win32' ? 'nvidia-smi.exe' : 'nvidia-smi';
+      execFile(bin, ['--query-gpu=name', '--format=csv,noheader'], { timeout: 5000, windowsHide: true }, (err, stdout) => {
+        const name = stdout?.trim().split('\n')[0]?.trim();
+        this.cudaAvailable = !err && !!name;
+        this.gpuName = this.cudaAvailable ? name! : null;
+        resolve();
+      });
+    });
+  }
+
+  isGpuBinaryAvailable(): { available: boolean; path: string | null } {
+    const config = GPU_BINARIES[this.getBinaryKey()];
+    if (!config) return { available: false, path: null };
+    const outputPath = path.join(this.binDir, 'gpu', config.outputName);
+    if (existsSync(outputPath)) return { available: true, path: outputPath };
+    return { available: false, path: null };
+  }
+
+  async ensureGpuBinary(): Promise<{ path: string }> {
+    const status = this.isGpuBinaryAvailable();
+    if (status.available && status.path) return { path: status.path };
+    const config = GPU_BINARIES[this.getBinaryKey()];
+    if (!config) throw new Error(`GPU not supported on ${this.getBinaryKey()}`);
+    return this._downloadVariant(config, path.join(this.binDir, 'gpu'), 'dictation/gpu-binary-download');
+  }
+
+  getBinaryPath(accelerator: 'cpu' | 'gpu'): string | null {
+    if (accelerator === 'gpu') {
+      const status = this.isGpuBinaryAvailable();
+      return status.path;
+    }
+    return this.getOutputPath();
+  }
+
+  private async _downloadVariant(
+    config: BinaryConfig,
+    targetDir: string,
+    notifyPrefix: string,
+  ): Promise<{ path: string }> {
+    const key = this.getBinaryKey();
+    const archivePath = path.join(targetDir, config.archiveName);
+    const extractDir = path.join(targetDir, `temp-sherpa-${key}`);
 
     try {
       const url = `${GITHUB_RELEASE_URL}/${config.archiveName}`;
-      await this.downloadFile(url, archivePath);
+      await this.downloadFile(url, archivePath, notifyPrefix);
 
       await fs.mkdir(extractDir, { recursive: true });
       await extractTarBz2(archivePath, extractDir);
@@ -110,34 +184,35 @@ export class SherpaBinaryManager {
       const binaryPath = await this.findFileInDir(extractDir, config.binaryName);
       if (!binaryPath) throw new Error(`Binary ${config.binaryName} not found in archive`);
 
-      const outputPath = path.join(this.binDir, config.outputName);
+      const outputPath = path.join(targetDir, config.outputName);
       await fs.copyFile(binaryPath, outputPath);
       if (process.platform !== 'win32') {
         await fs.chmod(outputPath, 0o755);
       }
 
-      await this.copyLibraries(extractDir, config.libPattern);
+      await this.copyLibraries(extractDir, config.libPattern, targetDir);
 
       await fs.rm(extractDir, { recursive: true, force: true });
       await fs.rm(archivePath, { force: true });
 
-      this.notify('dictation/binary-download-complete', { path: outputPath });
+      this.notify(`${notifyPrefix}-complete`, { path: outputPath });
       return { path: outputPath };
     } catch (err: any) {
       await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
       await fs.rm(archivePath, { force: true }).catch(() => {});
-      this.notify('dictation/binary-download-error', { error: err.message });
+      this.notify(`${notifyPrefix}-error`, { error: err.message });
       throw err;
     }
   }
 
-  private async copyLibraries(extractDir: string, pattern: RegExp): Promise<void> {
+  private async copyLibraries(extractDir: string, pattern: RegExp, targetDir?: string): Promise<void> {
+    const destDir = targetDir || this.binDir;
     const libs = await this.findFilesMatching(extractDir, pattern);
     const versionedLibs = new Map<string, string>();
 
     for (const libPath of libs) {
       const libName = path.basename(libPath);
-      const destPath = path.join(this.binDir, libName);
+      const destPath = path.join(destDir, libName);
       await fs.copyFile(libPath, destPath);
       if (process.platform !== 'win32') {
         await fs.chmod(destPath, 0o755);
@@ -154,8 +229,8 @@ export class SherpaBinaryManager {
     // Replace unversioned copies with symlinks on macOS/Linux
     if (process.platform !== 'win32') {
       for (const [baseName, versionedName] of versionedLibs) {
-        const basePath = path.join(this.binDir, baseName);
-        const versionedPath = path.join(this.binDir, versionedName);
+        const basePath = path.join(destDir, baseName);
+        const versionedPath = path.join(destDir, versionedName);
         try {
           const stat = await fs.lstat(basePath);
           if (existsSync(versionedPath) && !stat.isSymbolicLink()) {
@@ -196,11 +271,11 @@ export class SherpaBinaryManager {
     return results;
   }
 
-  private downloadFile(url: string, destPath: string): Promise<void> {
-    return this.downloadWithRedirects(url, destPath, 0);
+  private downloadFile(url: string, destPath: string, notifyPrefix?: string): Promise<void> {
+    return this.downloadWithRedirects(url, destPath, 0, notifyPrefix);
   }
 
-  private downloadWithRedirects(url: string, destPath: string, redirectCount: number): Promise<void> {
+  private downloadWithRedirects(url: string, destPath: string, redirectCount: number, notifyPrefix?: string): Promise<void> {
     if (redirectCount > MAX_REDIRECTS) return Promise.reject(new Error('Too many redirects'));
 
     return new Promise((resolve, reject) => {
@@ -222,7 +297,7 @@ export class SherpaBinaryManager {
             reject(new Error('Invalid redirect URL'));
             return;
           }
-          this.downloadWithRedirects(res.headers.location, destPath, redirectCount + 1)
+          this.downloadWithRedirects(res.headers.location, destPath, redirectCount + 1, notifyPrefix)
             .then(resolve, reject);
           return;
         }
@@ -249,7 +324,7 @@ export class SherpaBinaryManager {
               totalBytes,
               percent: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
             };
-            this.notify('dictation/binary-download-progress', progress);
+            this.notify(`${notifyPrefix || 'dictation/binary-download'}-progress`, progress);
           }
         });
 

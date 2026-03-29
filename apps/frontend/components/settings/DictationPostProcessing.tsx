@@ -33,6 +33,8 @@ export function DictationPostProcessing() {
   const [stutterCollapse, setStutterCollapse] = useState(storePostProcessing.stutterCollapse ?? true);
   const [includeNoteContext, setIncludeNoteContext] = useState(storePostProcessing.includeNoteContext ?? true);
   const [autoLearnCorrections, setAutoLearnCorrections] = useState(storePostProcessing.autoLearnCorrections ?? true);
+  const [fuzzyCorrection, setFuzzyCorrection] = useState(storePostProcessing.fuzzyCorrection ?? true);
+  const [dictionaryInPrompt, setDictionaryInPrompt] = useState(storePostProcessing.dictionaryInPrompt ?? true);
   const [skipShort, setSkipShort] = useState(storePostProcessing.skipShortTranscriptions ?? true);
   const [shortThreshold, setShortThreshold] = useState(storePostProcessing.shortTextThreshold ?? 3);
 
@@ -46,6 +48,8 @@ export function DictationPostProcessing() {
     setStutterCollapse(storePostProcessing.stutterCollapse ?? true);
     setIncludeNoteContext(storePostProcessing.includeNoteContext ?? true);
     setAutoLearnCorrections(storePostProcessing.autoLearnCorrections ?? true);
+    setFuzzyCorrection(storePostProcessing.fuzzyCorrection ?? true);
+    setDictionaryInPrompt(storePostProcessing.dictionaryInPrompt ?? true);
     setSkipShort(storePostProcessing.skipShortTranscriptions ?? true);
     setShortThreshold(storePostProcessing.shortTextThreshold ?? 3);
   }, [storePostProcessing]);
@@ -110,7 +114,14 @@ export function DictationPostProcessing() {
         onChange={() => { const next = !autoLearnCorrections; setAutoLearnCorrections(next); updatePostProcessing({ autoLearnCorrections: next }); }}
       />
 
-      <h3 className="text-xs uppercase tracking-wide text-foreground-faint mb-3 mt-6">AI Post-Processing</h3>
+      <h3 className="text-xs uppercase tracking-wide text-foreground-faint mb-3 mt-6">Post-Processing</h3>
+
+      <ToggleRow
+        label="Fuzzy correction"
+        description="Auto-correct words using your dictionary"
+        checked={fuzzyCorrection}
+        onChange={() => { const next = !fuzzyCorrection; setFuzzyCorrection(next); updatePostProcessing({ fuzzyCorrection: next }); }}
+      />
 
       <ToggleRow
         label="AI post-processing"
@@ -147,8 +158,15 @@ export function DictationPostProcessing() {
         disabled={!enabled}
         onChange={() => { const next = !includeNoteContext; setIncludeNoteContext(next); updatePostProcessing({ includeNoteContext: next }); }}
       />
+      <ToggleRow
+        label="Use dictionary with AI"
+        description="Include custom dictionary in the AI prompt"
+        checked={dictionaryInPrompt}
+        disabled={!enabled}
+        onChange={() => { const next = !dictionaryInPrompt; setDictionaryInPrompt(next); updatePostProcessing({ dictionaryInPrompt: next }); }}
+      />
 
-      <div className="flex items-center justify-between mt-3">
+      <div className={cn("flex items-center justify-between mt-3", !enabled && "opacity-40")}>
         <div>
           <div className="text-sm font-medium">Processing Model</div>
           <div className="text-xs text-foreground-muted">

@@ -21,6 +21,12 @@ interface DownloadProgress {
   bytesPerSec: number;
 }
 
+interface GpuDownloadProgress {
+  percent: number;
+  downloadedBytes: number;
+  totalBytes: number;
+}
+
 interface DictationState {
   status: DictationStatus;
   error: string | null;
@@ -32,6 +38,12 @@ interface DictationState {
   postProcessing: DictationConfig['postProcessing'];
   dictionary: string[];
   hotkey: string;
+  accelerator: 'cpu' | 'gpu';
+  gpuAvailable: boolean;
+  gpuName: string | null;
+  gpuBinaryDownloaded: boolean;
+  gpuBinaryDownloading: boolean;
+  gpuBinaryDownloadProgress: GpuDownloadProgress | null;
   setClient: (client: CoordinatorClient) => void;
   loadSettings: () => Promise<void>;
   refreshModels: () => Promise<void>;
@@ -43,6 +55,7 @@ interface DictationState {
   addDictionaryWord: (word: string) => Promise<void>;
   removeDictionaryWord: (word: string) => Promise<void>;
   updateHotkey: (hotkey: string) => Promise<void>;
+  updateAccelerator: (value: 'cpu' | 'gpu') => Promise<void>;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   toggleRecording: () => void;
@@ -64,6 +77,9 @@ let downloadCompleteCleanup: (() => void) | null = null;
 let downloadErrorCleanup: (() => void) | null = null;
 let hotkeyPressedCleanup: (() => void) | null = null;
 let hotkeyFailedCleanup: (() => void) | null = null;
+let gpuDownloadProgressCleanup: (() => void) | null = null;
+let gpuDownloadCompleteCleanup: (() => void) | null = null;
+let gpuDownloadErrorCleanup: (() => void) | null = null;
 
 export function setInsertTextCallback(cb: ((text: string) => { from: number; to: number } | void) | null) {
   insertTextCallback = cb;
@@ -95,12 +111,18 @@ export const useDictationStore = create<DictationState>()(
     error: null,
     serverStatus: 'stopped',
     models: [],
-    selectedModel: 'whisper-base',
+    selectedModel: 'parakeet-v3',
     downloadProgress: null,
     settingsLoaded: false,
     postProcessing: { enabled: false, provider: 'openai', apiKey: '', model: 'gpt-4o-mini', fillerRemoval: true, stutterCollapse: true, includeNoteContext: true, autoLearnCorrections: true, skipShortTranscriptions: true, shortTextThreshold: 3 } as DictationConfig['postProcessing'],
     dictionary: [],
-    hotkey: 'Control+Super',
+    hotkey: 'Control+W',
+    accelerator: 'cpu',
+    gpuAvailable: false,
+    gpuName: null,
+    gpuBinaryDownloaded: false,
+    gpuBinaryDownloading: false,
+    gpuBinaryDownloadProgress: null,
 
     setClient: (client) => {
       coordinatorClient = client;
@@ -154,6 +176,30 @@ export const useDictationStore = create<DictationState>()(
         },
       );
 
+      if (gpuDownloadProgressCleanup) gpuDownloadProgressCleanup();
+      gpuDownloadProgressCleanup = window.electronAPI!.onCoordinatorNotification(
+        'dictation/gpu-binary-download-progress',
+        (data: GpuDownloadProgress) => {
+          set({ gpuBinaryDownloadProgress: data });
+        },
+      );
+
+      if (gpuDownloadCompleteCleanup) gpuDownloadCompleteCleanup();
+      gpuDownloadCompleteCleanup = window.electronAPI!.onCoordinatorNotification(
+        'dictation/gpu-binary-download-complete',
+        () => {
+          set({ gpuBinaryDownloading: false, gpuBinaryDownloaded: true, gpuBinaryDownloadProgress: null });
+        },
+      );
+
+      if (gpuDownloadErrorCleanup) gpuDownloadErrorCleanup();
+      gpuDownloadErrorCleanup = window.electronAPI!.onCoordinatorNotification(
+        'dictation/gpu-binary-download-error',
+        (data: { error: string }) => {
+          set({ gpuBinaryDownloading: false, gpuBinaryDownloadProgress: null });
+          showGlobalToast({ description: `GPU binary download failed: ${data.error}`, variant: 'error' });
+        },
+      );
 
       client.call('dictation/server-status').then((info) => {
         set({ serverStatus: info.status });
@@ -165,7 +211,7 @@ export const useDictationStore = create<DictationState>()(
           selectedModel: config.selectedModel,
           postProcessing: config.postProcessing,
           dictionary: config.dictionary,
-          hotkey: config.hotkey || 'Control+Super',
+          hotkey: config.hotkey || 'Control+W',
         });
       }).catch(() => {});
     },
@@ -174,9 +220,11 @@ export const useDictationStore = create<DictationState>()(
       const client = coordinatorClient;
       if (!client) return;
 
-      const [modelsResult, config] = await Promise.all([
+      const [modelsResult, config, gpuAvailableResult, gpuBinaryResult] = await Promise.all([
         client.call('dictation/list-models'),
         client.call('dictation/dictation-config-read'),
+        client.call('dictation/is-gpu-available'),
+        client.call('dictation/gpu-binary-status'),
       ]);
 
       dictationConfig = config;
@@ -185,7 +233,11 @@ export const useDictationStore = create<DictationState>()(
         selectedModel: config.selectedModel,
         postProcessing: config.postProcessing,
         dictionary: config.dictionary,
-        hotkey: config.hotkey || 'Control+Super',
+        hotkey: config.hotkey || 'Control+W',
+        accelerator: config.accelerator || 'cpu',
+        gpuAvailable: gpuAvailableResult.available,
+        gpuName: gpuAvailableResult.gpuName,
+        gpuBinaryDownloaded: gpuBinaryResult.available,
         settingsLoaded: true,
       });
     },
@@ -219,7 +271,7 @@ export const useDictationStore = create<DictationState>()(
 
       if (get().selectedModel === model) {
         const downloaded = get().models.find((m) => m.downloaded);
-        const fallback = downloaded ? downloaded.name : 'whisper-base';
+        const fallback = downloaded ? downloaded.name : 'parakeet-v3';
         await get().selectModel(fallback);
       }
     },
@@ -263,6 +315,31 @@ export const useDictationStore = create<DictationState>()(
       dictationConfig = { ...dictationConfig, hotkey };
       set({ hotkey });
       await client.call('dictation/update-hotkey', { hotkey });
+    },
+
+    updateAccelerator: async (value) => {
+      const client = coordinatorClient;
+      if (!client || !dictationConfig) return;
+
+      if (value === 'gpu' && !get().gpuBinaryDownloaded) {
+        set({ gpuBinaryDownloading: true, gpuBinaryDownloadProgress: { percent: 0, downloadedBytes: 0, totalBytes: 0 } });
+        try {
+          await client.call('dictation/ensure-gpu-binary');
+          set({ gpuBinaryDownloading: false, gpuBinaryDownloaded: true, gpuBinaryDownloadProgress: null });
+        } catch {
+          set({ gpuBinaryDownloading: false, gpuBinaryDownloadProgress: null });
+          return;
+        }
+      }
+
+      dictationConfig = { ...dictationConfig, accelerator: value };
+      set({ accelerator: value });
+      await client.call('dictation/dictation-config-write', { config: dictationConfig });
+
+      if (get().serverStatus === 'running') {
+        await client.call('dictation/stop-server');
+        await client.call('dictation/start-server', { model: get().selectedModel });
+      }
     },
 
     startRecording: async () => {

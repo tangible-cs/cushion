@@ -64,6 +64,9 @@ import {
   handleDictationDictionaryRemove,
   handleDictationLearnCorrection,
   handleDictationUpdateHotkey,
+  handleDictationIsGpuAvailable,
+  handleDictationGpuBinaryStatus,
+  handleDictationEnsureGpuBinary,
 } from './handlers/dictation';
 
 let workspaceManager: WorkspaceManager;
@@ -105,11 +108,19 @@ async function loadFileFilter() {
 async function warmStartDictationServer() {
   const config = await dictationConfigManager.read();
   const model = config.selectedModel;
+  const accelerator = config.accelerator || 'cpu';
   if (!sherpaModelManager.isModelDownloaded(model)) return;
-  const { available } = sherpaBinaryManager.isBinaryAvailable();
-  if (!available) return;
+
+  if (accelerator === 'gpu') {
+    const { available } = sherpaBinaryManager.isGpuBinaryAvailable();
+    if (!available) return;
+  } else {
+    const { available } = sherpaBinaryManager.isBinaryAvailable();
+    if (!available) return;
+  }
+
   const modelDir = sherpaModelManager.getModelDir(model);
-  await sherpaManager.start(model, modelDir);
+  await sherpaManager.start(model, modelDir, undefined, accelerator);
 }
 
 export async function initCoordinator(mainWindow: BrowserWindow) {
@@ -290,7 +301,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
   });
 
   ipcMain.handle('coordinator:dictation/start-server', async (_event, params: RPCParams<'dictation/start-server'>) => {
-    return handleDictationStartServer(sherpaManager, sherpaModelManager, params);
+    return handleDictationStartServer(sherpaManager, sherpaModelManager, dictationConfigManager, params);
   });
 
   ipcMain.handle('coordinator:dictation/stop-server', async () => {
@@ -339,6 +350,18 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
 
   ipcMain.handle('coordinator:dictation/update-hotkey', async (_event, params: RPCParams<'dictation/update-hotkey'>) => {
     return handleDictationUpdateHotkey(hotkeyManager, dictationConfigManager, params);
+  });
+
+  ipcMain.handle('coordinator:dictation/is-gpu-available', async () => {
+    return handleDictationIsGpuAvailable(sherpaBinaryManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/gpu-binary-status', async () => {
+    return handleDictationGpuBinaryStatus(sherpaBinaryManager);
+  });
+
+  ipcMain.handle('coordinator:dictation/ensure-gpu-binary', async () => {
+    return handleDictationEnsureGpuBinary(sherpaBinaryManager);
   });
 }
 

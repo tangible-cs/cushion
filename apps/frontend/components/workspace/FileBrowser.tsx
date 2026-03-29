@@ -376,9 +376,9 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             <FolderPlus size={16} className="flex-shrink-0" />
             <span className="truncate whitespace-nowrap">New folder</span>
           </button>
-          <button onClick={() => useDictationStore.getState().toggleRecording()} className={sidebarBtnClass} title="Dictation">
+          <button onClick={() => useDictationStore.getState().toggleRecording()} className={sidebarBtnClass} title="Whisper">
             <AudioLines size={16} className="flex-shrink-0" />
-            <span className="truncate whitespace-nowrap">Dictation</span>
+            <span className="truncate whitespace-nowrap">Whisper</span>
           </button>
         </div>
 

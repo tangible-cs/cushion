@@ -273,12 +273,6 @@ function DictationHotkeyRow({ query }: { query: string }) {
   const pressedModifiers = useRef(new Set<string>());
   const [preview, setPreview] = useState('');
 
-  const term = query.trim().toLowerCase();
-  if (term) {
-    const haystack = 'dictation toggle recording global hotkey'.toLowerCase();
-    if (!haystack.includes(term)) return null;
-  }
-
   const cancel = () => {
     setRecording(false);
     setPreview('');
@@ -341,6 +335,12 @@ function DictationHotkeyRow({ query }: { query: string }) {
     };
   }, [recording]);
 
+  const term = query.trim().toLowerCase();
+  if (term) {
+    const haystack = 'whisper toggle recording global hotkey'.toLowerCase();
+    if (!haystack.includes(term)) return null;
+  }
+
   return (
     <div className="px-6 py-4">
       <div className="text-xs uppercase tracking-wide text-foreground-faint">
@@ -354,9 +354,9 @@ function DictationHotkeyRow({ query }: { query: string }) {
           )}
         >
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-foreground">Toggle dictation</div>
+            <div className="text-sm font-medium text-foreground">Toggle whisper</div>
             <div className="text-xs text-foreground-muted mt-1">
-              Start or stop voice dictation from anywhere
+              Start or stop voice recording from anywhere
             </div>
           </div>
 
@@ -391,7 +391,7 @@ function DictationHotkeyRow({ query }: { query: string }) {
               </button>
               <button
                 type="button"
-                onClick={() => updateHotkey('Control+Super')}
+                onClick={() => updateHotkey('Control+W')}
                 className="px-2 py-1 text-xs rounded-md border border-border text-foreground-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
               >
                 Reset

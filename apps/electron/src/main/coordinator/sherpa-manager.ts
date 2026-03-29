@@ -27,6 +27,7 @@ export class SherpaManager {
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private startupPromise: Promise<void> | null = null;
   private transcribing = false;
+  private currentAccelerator: 'cpu' | 'gpu' = 'cpu';
   private cachedFFmpegPath: string | null = null;
   private notify: NotifyFn;
   private binDir: string;
@@ -40,13 +41,14 @@ export class SherpaManager {
     this.resolveFFmpegPath();
   }
 
-  async start(modelName: DictationModelName, modelDir: string, language?: string): Promise<void> {
+  async start(modelName: DictationModelName, modelDir: string, language?: string, accelerator: 'cpu' | 'gpu' = 'cpu'): Promise<void> {
     if (this.startupPromise) return this.startupPromise;
-    if (this.ready && this.modelName === modelName) return;
+    if (this.ready && this.modelName === modelName && this.currentAccelerator === accelerator) return;
     if (this.process) await this.stop();
 
     this.modelName = modelName;
-    this.startupPromise = this._doStart(modelName, modelDir, language);
+    this.currentAccelerator = accelerator;
+    this.startupPromise = this._doStart(modelName, modelDir, language, accelerator);
     try {
       await this.startupPromise;
     } finally {
@@ -126,11 +128,13 @@ export class SherpaManager {
     this.notify('dictation/server-status-changed', this.getStatus());
   }
 
-  private async _doStart(modelName: DictationModelName, modelDir: string, language?: string): Promise<void> {
+  private async _doStart(modelName: DictationModelName, modelDir: string, language?: string, accelerator: 'cpu' | 'gpu' = 'cpu'): Promise<void> {
     this.setStatus('starting');
 
-    const wsBinary = this.getWsBinaryPath();
-    if (!wsBinary) throw new Error('sherpa-onnx WS server binary not found');
+    const isGpu = accelerator === 'gpu';
+    const effectiveBinDir = isGpu ? path.join(this.binDir, 'gpu') : this.binDir;
+    const wsBinary = this.getWsBinaryPath(accelerator);
+    if (!wsBinary) throw new Error(`sherpa-onnx WS server binary not found (${accelerator})`);
     if (!existsSync(modelDir)) throw new Error(`Model directory not found: ${modelDir}`);
 
     const entry = SHERPA_MODEL_CATALOG[modelName];
@@ -142,7 +146,11 @@ export class SherpaManager {
 
     const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
     const pathSep = process.platform === 'win32' ? ';' : ':';
-    spawnEnv.PATH = this.binDir + pathSep + (process.env.PATH || '');
+    spawnEnv.PATH = effectiveBinDir + pathSep + (process.env.PATH || '');
+
+    if (isGpu && process.platform === 'linux') {
+      spawnEnv.LD_LIBRARY_PATH = effectiveBinDir + pathSep + (process.env.LD_LIBRARY_PATH || '');
+    }
 
     if (process.platform === 'win32') {
       const safeTmp = this.getSafeTempDir();
@@ -150,11 +158,14 @@ export class SherpaManager {
       spawnEnv.TMP = safeTmp;
     }
 
+    console.log('[sherpa-onnx] Spawning:', wsBinary, args.join(' '));
+    console.log('[sherpa-onnx] cwd:', effectiveBinDir, '| accelerator:', accelerator);
+
     this.process = spawn(wsBinary, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
       env: spawnEnv,
-      cwd: this.binDir,
+      cwd: effectiveBinDir,
     });
 
     let stderrBuffer = '';
@@ -221,7 +232,8 @@ export class SherpaManager {
 
     if (!ready) {
       const info = getInfo();
-      const detail = info.stderr?.trim().slice(0, 200) || (info.exitCode !== null ? `exit code: ${info.exitCode}` : '');
+      if (info.stderr) console.error('[sherpa-onnx] Full stderr:\n', info.stderr);
+      const detail = info.stderr?.trim().slice(0, 500) || (info.exitCode !== null ? `exit code: ${info.exitCode}` : '');
       throw new Error(`sherpa-onnx process died during startup${detail ? `: ${detail}` : ''}`);
     }
 
@@ -360,11 +372,13 @@ export class SherpaManager {
     }
   }
 
-  private getWsBinaryPath(): string | null {
+  private getWsBinaryPath(accelerator: 'cpu' | 'gpu' = 'cpu'): string | null {
     const ext = process.platform === 'win32' ? '.exe' : '';
     const platformArch = `${process.platform}-${process.arch}`;
-    const binaryName = `sherpa-onnx-ws-${platformArch}${ext}`;
-    const binaryPath = path.join(this.binDir, binaryName);
+    const gpuSuffix = accelerator === 'gpu' ? '-gpu' : '';
+    const binaryName = `sherpa-onnx-ws-${platformArch}${gpuSuffix}${ext}`;
+    const binDir = accelerator === 'gpu' ? path.join(this.binDir, 'gpu') : this.binDir;
+    const binaryPath = path.join(binDir, binaryName);
     if (existsSync(binaryPath)) return binaryPath;
     return null;
   }

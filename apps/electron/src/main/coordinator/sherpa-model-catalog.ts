@@ -20,36 +20,6 @@ export interface SherpaModelEntry {
 
 export const SHERPA_MODEL_CATALOG: Record<DictationModelName, SherpaModelEntry> = {
   // --- Whisper ONNX models ---
-  'whisper-tiny': {
-    label: 'Whisper Tiny',
-    description: 'Fastest, lower accuracy. Good for quick drafts.',
-    engineType: 'whisper',
-    sizeMb: 111,
-    languages: ['multi'],
-    downloadUrl: `${GITHUB_BASE}/sherpa-onnx-whisper-tiny.tar.bz2`,
-    extractDir: 'sherpa-onnx-whisper-tiny',
-    requiredFiles: ['tiny-encoder.int8.onnx', 'tiny-decoder.int8.onnx', 'tiny-tokens.txt'],
-    category: 'Whisper',
-    whisperPrefix: 'tiny',
-    speedScore: 0.85,
-    accuracyScore: 0.35,
-    isRecommended: false,
-  },
-  'whisper-base': {
-    label: 'Whisper Base',
-    description: 'Good balance of speed and accuracy for most languages.',
-    engineType: 'whisper',
-    sizeMb: 198,
-    languages: ['multi'],
-    downloadUrl: `${GITHUB_BASE}/sherpa-onnx-whisper-base.tar.bz2`,
-    extractDir: 'sherpa-onnx-whisper-base',
-    requiredFiles: ['base-encoder.int8.onnx', 'base-decoder.int8.onnx', 'base-tokens.txt'],
-    category: 'Whisper',
-    whisperPrefix: 'base',
-    speedScore: 0.70,
-    accuracyScore: 0.50,
-    isRecommended: false,
-  },
   'whisper-small': {
     label: 'Whisper Small',
     description: 'Solid multilingual accuracy. Recommended starting point.',
@@ -286,6 +256,7 @@ export function buildSherpaCliArgs(
       return [
         `--sense-voice-model=${p('model.int8.onnx')}`,
         `--sense-voice-language=auto`,
+        `--sense-voice-use-itn=true`,
         `--tokens=${p('tokens.txt')}`,
         ...common,
       ];

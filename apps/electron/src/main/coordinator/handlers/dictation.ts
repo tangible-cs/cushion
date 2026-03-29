@@ -32,13 +32,16 @@ export async function handleDictationDeleteModel(
 export async function handleDictationStartServer(
   sherpaManager: SherpaManager,
   modelManager: SherpaModelManager,
+  dictationConfig: DictationConfigManager,
   params: { model: DictationModelName; language?: string },
 ) {
   if (!modelManager.isModelDownloaded(params.model)) {
     throw new Error(`Model "${params.model}" is not downloaded`);
   }
+  const config = await dictationConfig.read();
+  const accelerator = config.accelerator || 'cpu';
   const modelDir = modelManager.getModelDir(params.model);
-  await sherpaManager.start(params.model, modelDir, params.language);
+  await sherpaManager.start(params.model, modelDir, params.language, accelerator);
   return { success: true };
 }
 
@@ -127,4 +130,16 @@ export async function handleDictationUpdateHotkey(
   await dictationConfig.write(config);
   hotkeyManager.register(params.hotkey);
   return { success: true };
+}
+
+export function handleDictationIsGpuAvailable(binaryManager: SherpaBinaryManager) {
+  return { available: binaryManager.isGpuSupported(), gpuName: binaryManager.getGpuName() };
+}
+
+export function handleDictationGpuBinaryStatus(binaryManager: SherpaBinaryManager) {
+  return binaryManager.isGpuBinaryAvailable();
+}
+
+export async function handleDictationEnsureGpuBinary(binaryManager: SherpaBinaryManager) {
+  return binaryManager.ensureGpuBinary();
 }
