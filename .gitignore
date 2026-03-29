@@ -35,7 +35,6 @@ nul
 
 # IDE
 .vscode/
-.cushion/
 
 # Testing
 coverage/
@@ -51,3 +50,4 @@ apps/frontend/public/excalidraw-assets/
 *.tsbuildinfo
 
 *.md
+*.txt

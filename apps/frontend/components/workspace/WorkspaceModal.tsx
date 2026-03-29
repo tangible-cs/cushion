@@ -51,9 +51,9 @@ export function WorkspaceModal({ isOpen, onClose }: WorkspaceModalProps) {
             disabled={isOpening}
             className={cn(
               'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-none',
-              'bg-[var(--accent-primary)] text-white text-sm font-medium',
+              'bg-accent text-white text-sm font-medium',
               'transition-all duration-150 cursor-pointer',
-              'hover:bg-[var(--accent-primary-hover)]',
+              'hover:bg-accent-hover',
               'disabled:opacity-50 disabled:cursor-not-allowed'
             )}
           >

@@ -93,19 +93,14 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     requestAnimationFrame(() => setIsVisible(true));
   }, []);
 
-  const getIcon = () => {
-    if (toast.icon) return toast.icon;
+  const icon = toast.icon ?? (() => {
     switch (toast.variant) {
-      case 'success':
-        return <CheckCircle className="size-5 text-accent-green" />;
-      case 'error':
-        return <AlertCircle className="size-5 text-accent-red" />;
-      case 'loading':
-        return <Loader2 className="size-5 text-accent animate-spin" />;
-      default:
-        return null;
+      case 'success': return <CheckCircle className="size-5 text-accent-green" />;
+      case 'error': return <AlertCircle className="size-5 text-accent-red" />;
+      case 'loading': return <Loader2 className="size-5 text-accent animate-spin" />;
+      default: return null;
     }
-  };
+  })();
 
   const getVariantStyles = () => {
     switch (toast.variant) {
@@ -123,13 +118,21 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   return (
     <div
       className={cn(
-        "pointer-events-auto w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300",
+        "pointer-events-auto relative w-96 max-w-sm rounded-lg border shadow-lg p-4 transition-all duration-300",
         getVariantStyles(),
         isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
       )}
     >
-      <div className="flex gap-3">
-        {getIcon() && <div className="shrink-0 mt-0.5">{getIcon()}</div>}
+      {!toast.persistent && (
+        <button
+          onClick={() => onDismiss(toast.id)}
+          className="absolute top-2 right-2 size-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+      <div className="flex gap-3 pr-5">
+        {icon && <div className="shrink-0 mt-0.5">{icon}</div>}
         <div className="flex-1 min-w-0">
           {toast.title && (
             <p className="text-sm font-medium text-foreground">{toast.title}</p>
@@ -152,14 +155,6 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
             </div>
           )}
         </div>
-        {!toast.persistent && (
-          <button
-            onClick={() => onDismiss(toast.id)}
-            className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground hover:bg-[var(--overlay-10)] transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        )}
       </div>
     </div>
   );

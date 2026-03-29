@@ -123,7 +123,6 @@ export async function handleSendPrompt(
   const directory = state.directory;
   if (!directory) return;
 
-  // Interrupt-and-send: if the active session is busy, queue the prompt and abort
   const activeId = state.activeSessionId;
   if (activeId) {
     const sessionStatus = state.sessionStatus[activeId];
@@ -282,7 +281,6 @@ export async function handleSendPrompt(
     };
   });
 
-  // Build framing text parts for file pills that have selections
   const framingParts: TextPartInput[] = [];
   for (const ref of inlineFiles) {
     const fileRef = ref as FilePartWithSelection;
@@ -298,21 +296,33 @@ export async function handleSendPrompt(
     });
   }
 
-  // Auto-include current file if enabled
   const usedUrls = new Set(fileAttachmentParts.map((part) => part.url));
   const currentFileParts: FilePartInput[] = [];
-  const { currentFileContext, includeCurrentFile } = get();
+  const currentFileFramingParts: TextPartInput[] = [];
+  const { currentFileContext, includeCurrentFile, lastSentFilePath } = get();
   if (currentFileContext && includeCurrentFile && currentFileContext.enabled) {
-    const url = buildFileUrl(directory, currentFileContext.path);
-    if (!usedUrls.has(url)) {
-      const name = currentFileContext.path.split(/[/\\]/).pop() || currentFileContext.path;
-      currentFileParts.push({
-        id: createPartId(),
-        type: 'file',
-        mime: 'text/plain',
-        filename: name,
-        url,
-      });
+    const alreadySent = lastSentFilePath[nextSessionId] === currentFileContext.path;
+    if (!alreadySent) {
+      const url = buildFileUrl(directory, currentFileContext.path);
+      if (!usedUrls.has(url)) {
+        const name = currentFileContext.path.split(/[/\\]/).pop() || currentFileContext.path;
+        currentFileParts.push({
+          id: createPartId(),
+          type: 'file',
+          mime: 'text/plain',
+          filename: name,
+          url,
+        });
+        currentFileFramingParts.push({
+          id: createPartId(),
+          type: 'text',
+          text: `User is now viewing ${currentFileContext.path}.`,
+          synthetic: true,
+        });
+      }
+      set((prev) => ({
+        lastSentFilePath: { ...prev.lastSentFilePath, [nextSessionId]: currentFileContext.path },
+      }));
     }
   }
 
@@ -340,6 +350,7 @@ export async function handleSendPrompt(
     ...fileAttachmentParts,
     ...framingParts,
     ...currentFileParts,
+    ...currentFileFramingParts,
     ...agentAttachmentParts,
     ...imageAttachmentParts,
   ];
@@ -376,7 +387,6 @@ export async function handleSendPrompt(
     };
   });
 
-  // Fire-and-forget: all updates come via SSE events, not the response body.
   void (async () => {
     try {
       await client.session.prompt({
@@ -390,7 +400,6 @@ export async function handleSendPrompt(
       });
     } catch (error) {
       const sdkError = mapSdkError(error);
-      // Remove the optimistic message and its parts
       set((prev) => {
         const list = prev.messages[nextSessionId] ?? [];
         const nextParts = { ...prev.parts };
@@ -411,7 +420,6 @@ export async function handleSendPrompt(
             : {}),
         };
       });
-      // Restore the prompt text and record the session error
       restorePrompt(
         set, sessionKey, workspaceKey, updateWorkspaceKey,
         previousPrompt, previousParts, nextSessionId, sdkError.message

@@ -6,7 +6,6 @@ export const IGNORED_PATTERNS = [
   '.next',
   'coverage',
   '.nyc_output',
-  '.cushion-trash',
 ];
 
 export const ALWAYS_VISIBLE_FILENAMES = ['.gitignore'];

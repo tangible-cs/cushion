@@ -287,6 +287,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           currentFileContext: state.currentFileContext
             ? { ...state.currentFileContext, enabled: next }
             : null,
+          ...(!next ? { lastSentFilePath: {} } : {}),
         };
       });
     },
@@ -322,7 +323,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const next = !get().reviewMode;
       set({ reviewMode: next });
       if (!next) {
-        // Switching OFF: clear snapshots + exit any active review (no review desired)
         const diffStore = useDiffReviewStore.getState();
         diffStore.clearSnapshots();
         if (diffStore.reviewingFilePath) {
@@ -339,7 +339,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
       set({ disabledSkills: next });
       const { client, allSkillNames } = get();
       if (!client) return;
-      // Full idempotent map: explicit allow/deny for every known skill
       const skillPerm: Record<string, 'allow' | 'deny'> = { '*': 'allow' };
       const disabled_ = new Set(next);
       for (const s of allSkillNames) {

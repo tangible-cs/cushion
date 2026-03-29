@@ -5,7 +5,8 @@ import { useExplorerStore } from '@/stores/explorerStore';
 import { FileTree } from './FileTree';
 import { MoveToDialog } from './MoveToDialog';
 import { DeleteSystemTrashDialog } from './DeleteSystemTrashDialog';
-import { FilePlus, FolderPlus, Search, Settings, ChevronDown, Trash2 } from 'lucide-react';
+import { FilePlus, FolderPlus, Search, Settings, ChevronDown, Trash2, AudioLines } from 'lucide-react';
+import { useDictationStore } from '@/stores/dictationStore';
 import { useMediaQuery } from 'usehooks-ts';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { LogoSpinner } from '@/components/ui/LogoSpinner';
@@ -303,6 +304,7 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
         const trashItemIds = trashItems.map((t) => t.id);
 
         showToast({
+          variant: 'error',
           description,
           duration: 8000,
           actions: [{
@@ -326,19 +328,26 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
     return null;
   }
 
+  const RAIL_WIDTH = 48;
+
+  const sidebarBtnClass = cn(
+    "w-full flex items-center gap-3 px-2 h-8 rounded-md",
+    "text-sm text-muted-foreground hover:text-foreground",
+    "hover:bg-muted/30",
+    "transition-colors duration-150"
+  );
+
   return (
     <>
       <aside
         ref={sidebarRef}
         className={cn(
-          "group/sidebar h-full flex-shrink-0 bg-sidebar-bg flex flex-col relative",
-          "transition-[margin] duration-300 ease-in-out",
-          !isCollapsed && "border-r border-border"
+          "group/sidebar h-full flex-shrink-0 flex flex-col relative",
+          "transition-[width,background-color] duration-300 ease-in-out",
+          "border-r border-border overflow-hidden",
+          isCollapsed ? "bg-background" : "bg-sidebar-bg"
         )}
-        style={{
-          width: resolvedSidebarWidth,
-          marginLeft: isCollapsed ? -resolvedSidebarWidth : 0,
-        }}
+        style={{ width: isCollapsed ? RAIL_WIDTH : resolvedSidebarWidth }}
       >
         {!isCollapsed && !isMobile && (
           <ResizeHandle
@@ -352,253 +361,227 @@ export const FileBrowser = forwardRef<FileBrowserHandle, FileBrowserProps>(
             onCollapse={collapseSidebar}
           />
         )}
+
+        {/* Top buttons — icons stay at same position, text clipped when collapsed */}
         <div className="flex-shrink-0 px-2 pt-2 pb-1 space-y-0.5">
-          <button
-            onClick={onSearch}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-          >
-            <Search size={16} />
-            <span>Search</span>
+          <button onClick={onSearch} className={sidebarBtnClass} title="Search">
+            <Search size={16} className="flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">Search</span>
           </button>
-
-          <button
-            onClick={onSettings}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-          >
-            <Settings size={16} />
-            <span>Settings</span>
+          <button onClick={() => { if (isCollapsed) onSidebarToggle?.(false); setCreatingFileAtRoot(c => c + 1); }} className={sidebarBtnClass} title="New file">
+            <FilePlus size={16} className="flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">New file</span>
           </button>
-
-          <button
-            onClick={onTrash}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-          >
-            <Trash2 size={16} />
-            <span>Trash</span>
+          <button onClick={() => { if (isCollapsed) onSidebarToggle?.(false); setCreatingFolderAtRoot(c => c + 1); }} className={sidebarBtnClass} title="New folder">
+            <FolderPlus size={16} className="flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">New folder</span>
           </button>
-
-          <button
-            onClick={() => setCreatingFileAtRoot(c => c + 1)}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-            title="New file"
-          >
-            <FilePlus size={16} />
-            <span>New file</span>
-          </button>
-
-          <button
-            onClick={() => setCreatingFolderAtRoot(c => c + 1)}
-            className={cn(
-              "w-full flex items-center gap-3 px-2 h-8 rounded-md",
-              "text-sm text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-            title="New folder"
-          >
-            <FolderPlus size={16} />
-            <span>New folder</span>
+          <button onClick={() => useDictationStore.getState().toggleRecording()} className={sidebarBtnClass} title="Whisper">
+            <AudioLines size={16} className="flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">Whisper</span>
           </button>
         </div>
 
-        <div className="flex-shrink-0 h-2" />
+        {/* File tree — only when expanded */}
+        {!isCollapsed && (
+          <>
+            <div className="flex-shrink-0 h-2" />
 
-        <div className="flex-shrink-0 px-2">
-          <button
-            onClick={() => setRootExpanded(!rootExpanded)}
-            className={cn(
-              "w-full flex items-center gap-1.5 px-1 h-[26px] rounded text-xs font-semibold uppercase tracking-wide",
-              "text-muted-foreground hover:text-foreground",
-              "hover:bg-muted/30",
-              "transition-colors duration-150"
-            )}
-          >
-            <ChevronDown
-              size={12}
-              className={cn(
-                "transition-transform duration-150 flex-shrink-0",
-                !rootExpanded && "-rotate-90"
-              )}
-            />
-            <span className="truncate">{metadata.projectName}</span>
-          </button>
-        </div>
-
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-2 thin-scrollbar"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              useExplorerStore.getState().clearSelection();
-              useExplorerStore.getState().clearFocused();
-            }
-          }}
-          onContextMenu={(e) => {
-            if (e.target === e.currentTarget) {
-              e.preventDefault();
-              const store = useExplorerStore.getState();
-              store.clearSelection();
-              store.clearFocused();
-              store.setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
-            }
-          }}
-        >
-          {rootExpanded && (
-            isLoading && rootFiles.length === 0 ? (
-            <div className="flex items-center justify-center p-6">
-              <LogoSpinner size={40} />
-            </div>
-          ) : error ? (
-            <div
-              className="p-4 m-2 rounded-md text-sm"
-              style={{
-                backgroundColor: 'var(--accent-red-12)',
-                border: '1px solid var(--accent-red)',
-                color: 'var(--accent-red)',
-              }}
-            >
-              <div>{error}</div>
+            <div className="flex-shrink-0 px-2">
               <button
-                onClick={() => loadDirectory('.')}
-                className="mt-2 px-3 py-1 rounded text-xs transition-colors hover:bg-[var(--overlay-10)]"
-                style={{
-                  backgroundColor: 'transparent',
-                  border: '1px solid var(--accent-red)',
-                  color: 'var(--accent-red)',
-                }}
+                onClick={() => setRootExpanded(!rootExpanded)}
+                className={cn(
+                  "w-full flex items-center gap-1.5 px-1 h-[26px] rounded text-xs font-semibold uppercase tracking-wide",
+                  "text-muted-foreground hover:text-foreground",
+                  "hover:bg-muted/30",
+                  "transition-colors duration-150"
+                )}
               >
-                Retry
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "transition-transform duration-150 flex-shrink-0",
+                    !rootExpanded && "-rotate-90"
+                  )}
+                />
+                <span className="truncate">{metadata.projectName}</span>
               </button>
             </div>
-          ) : (
-            <FileTree
-              nodes={rootFiles}
-              onFileClick={handleFileClick}
-              currentFile={currentFile}
-              scrollRef={scrollRef}
-              onLoadDirectory={loadDirectory}
 
-              onPaste={handlePaste}
-              onExternalDrop={handleExternalDrop}
-              creatingFileAtRoot={creatingFileAtRoot}
-              creatingFolderAtRoot={creatingFolderAtRoot}
-              onRootCreationDone={() => {
-                setCreatingFileAtRoot(0);
-                setCreatingFolderAtRoot(0);
-              }}
-              onAddFile={async (filePath) => {
-                if (!client) return;
-
-                try {
-                  const resolved = await resolveConflict(client, filePath);
-                  await client.saveFile(resolved, '');
-                  const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
-                  await loadDirectory(parentPath);
-                  return resolved;
-                } catch (error) {
-                  console.error('[FileBrowser] Failed to create file:', error);
-                  setError(`Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden px-2 thin-scrollbar"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  useExplorerStore.getState().clearSelection();
+                  useExplorerStore.getState().clearFocused();
                 }
               }}
-              onAddFolder={async (folderPath) => {
-                if (!client) return;
-
-                try {
-                  const resolved = await resolveConflict(client, folderPath);
-                  await client.createFolder(resolved);
-                  const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
-                  await loadDirectory(parentPath);
-                  return resolved;
-                } catch (error) {
-                  console.error('[FileBrowser] Failed to create folder:', error);
-                  setError(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              onContextMenu={(e) => {
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                  const store = useExplorerStore.getState();
+                  store.clearSelection();
+                  store.clearFocused();
+                  store.setContextMenu({ path: '__root__', name: '', type: 'directory', position: { x: e.clientX, y: e.clientY } });
                 }
               }}
-              onRename={async (oldPath, newPath) => {
-                if (!client) return;
+            >
+              {rootExpanded && (
+                isLoading && rootFiles.length === 0 ? (
+                <div className="flex items-center justify-center p-6">
+                  <LogoSpinner size={40} />
+                </div>
+              ) : error ? (
+                <div
+                  className="p-4 m-2 rounded-md text-sm"
+                  style={{
+                    backgroundColor: 'var(--accent-red-12)',
+                    border: '1px solid var(--accent-red)',
+                    color: 'var(--accent-red)',
+                  }}
+                >
+                  <div>{error}</div>
+                  <button
+                    onClick={() => loadDirectory('.')}
+                    className="mt-2 px-3 py-1 rounded text-xs transition-colors hover:bg-[var(--overlay-10)]"
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: '1px solid var(--accent-red)',
+                      color: 'var(--accent-red)',
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <FileTree
+                  nodes={rootFiles}
+                  onFileClick={handleFileClick}
+                  currentFile={currentFile}
+                  scrollRef={scrollRef}
+                  onLoadDirectory={loadDirectory}
 
-                try {
-                  const resolved = await resolveConflict(client, newPath);
-                  await client.renameFile(oldPath, resolved);
+                  onPaste={handlePaste}
+                  onExternalDrop={handleExternalDrop}
+                  creatingFileAtRoot={creatingFileAtRoot}
+                  creatingFolderAtRoot={creatingFolderAtRoot}
+                  onRootCreationDone={() => {
+                    setCreatingFileAtRoot(0);
+                    setCreatingFolderAtRoot(0);
+                  }}
+                  onAddFile={async (filePath) => {
+                    if (!client) return;
 
-                  const store = useWorkspaceStore.getState();
-                  const fileState = store.openFiles.get(oldPath);
-                  if (fileState) {
-                    const wasActive = store.currentFile === oldPath;
-                    store.closeFile(oldPath);
-                    store.openFile(resolved, fileState.content);
-                    if (wasActive) {
-                      store.setCurrentFile(resolved);
+                    try {
+                      const resolved = await resolveConflict(client, filePath);
+                      await client.saveFile(resolved, '');
+                      const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
+                      await loadDirectory(parentPath);
+                      return resolved;
+                    } catch (error) {
+                      console.error('[FileBrowser] Failed to create file:', error);
+                      setError(`Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`);
                     }
-                  }
+                  }}
+                  onAddFolder={async (folderPath) => {
+                    if (!client) return;
 
-                  const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '.';
-                  await loadDirectory(parentPath);
-                  const destParent = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
-                  if (destParent !== parentPath) {
-                    await loadDirectory(destParent);
-                  }
-                } catch (error) {
-                  console.error('[FileBrowser] Failed to rename:', error);
-                  setError(`Failed to rename: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }}
-              onDelete={(path) => {
-                if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
-                  setPendingDeletePaths([path]);
-                } else {
-                  handleSoftDelete([path]);
-                }
-              }}
-              onDeleteMultiple={(paths) => {
-                if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
-                  setPendingDeletePaths(paths);
-                } else {
-                  handleSoftDelete(paths);
-                }
-              }}
-              onDuplicate={async (path) => {
-                if (!client) return;
+                    try {
+                      const resolved = await resolveConflict(client, folderPath);
+                      await client.createFolder(resolved);
+                      const parentPath = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
+                      await loadDirectory(parentPath);
+                      return resolved;
+                    } catch (error) {
+                      console.error('[FileBrowser] Failed to create folder:', error);
+                      setError(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                  onRename={async (oldPath, newPath) => {
+                    if (!client) return;
 
-                try {
-                  const newPath = await resolveConflict(client, path);
+                    try {
+                      const resolved = await resolveConflict(client, newPath);
+                      await client.renameFile(oldPath, resolved);
 
-                  await client.duplicateFile(path, newPath);
-                  const parentPath = path.substring(0, path.lastIndexOf('/')) || '.';
-                  await loadDirectory(parentPath);
-                } catch (error) {
-                  console.error('[FileBrowser] Failed to duplicate:', error);
-                  setError(`Failed to duplicate: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }}
-              onMoveTo={(path) => {
-                setMoveSourcePath(path);
-                setMoveDialogOpen(true);
-              }}
-            />
-          ))}
+                      const store = useWorkspaceStore.getState();
+                      const fileState = store.openFiles.get(oldPath);
+                      if (fileState) {
+                        const wasActive = store.currentFile === oldPath;
+                        store.closeFile(oldPath);
+                        store.openFile(resolved, fileState.content);
+                        if (wasActive) {
+                          store.setCurrentFile(resolved);
+                        }
+                      }
+
+                      const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '.';
+                      await loadDirectory(parentPath);
+                      const destParent = resolved.substring(0, resolved.lastIndexOf('/')) || '.';
+                      if (destParent !== parentPath) {
+                        await loadDirectory(destParent);
+                      }
+                    } catch (error) {
+                      console.error('[FileBrowser] Failed to rename:', error);
+                      setError(`Failed to rename: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                  onDelete={(path) => {
+                    if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
+                      setPendingDeletePaths([path]);
+                    } else {
+                      handleSoftDelete([path]);
+                    }
+                  }}
+                  onDeleteMultiple={(paths) => {
+                    if (preferences.trashMethod === 'system' && preferences.confirmSystemTrash) {
+                      setPendingDeletePaths(paths);
+                    } else {
+                      handleSoftDelete(paths);
+                    }
+                  }}
+                  onDuplicate={async (path) => {
+                    if (!client) return;
+
+                    try {
+                      const newPath = await resolveConflict(client, path);
+
+                      await client.duplicateFile(path, newPath);
+                      const parentPath = path.substring(0, path.lastIndexOf('/')) || '.';
+                      await loadDirectory(parentPath);
+                    } catch (error) {
+                      console.error('[FileBrowser] Failed to duplicate:', error);
+                      setError(`Failed to duplicate: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                  onMoveTo={(path) => {
+                    setMoveSourcePath(path);
+                    setMoveDialogOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Spacer when collapsed to push bottom buttons down */}
+        {isCollapsed && <div className="flex-1" />}
+
+        {/* Bottom bar — Settings & Trash */}
+        <div className={cn(
+          "flex-shrink-0 px-2 py-1.5",
+          isCollapsed ? "space-y-0.5" : "flex items-center justify-end gap-1 border-t border-border"
+        )}>
+          <button onClick={onSettings} className={isCollapsed ? sidebarBtnClass : "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors duration-150"} title="Settings">
+            <Settings size={16} className="flex-shrink-0" />
+            {isCollapsed && <span className="truncate whitespace-nowrap">Settings</span>}
+          </button>
+          <button onClick={onTrash} className={isCollapsed ? sidebarBtnClass : "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors duration-150"} title="Trash">
+            <Trash2 size={16} className="flex-shrink-0" />
+            {isCollapsed && <span className="truncate whitespace-nowrap">Trash</span>}
+          </button>
         </div>
-
       </aside>
 
     <MoveToDialog

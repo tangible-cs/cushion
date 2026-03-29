@@ -35,9 +35,9 @@
 
   --font-family-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --accent-h: 258;
-  --accent-s: 88%;
-  --accent-l: 66%;
+  --accent-h: 254;
+  --accent-s: 80%;
+  --accent-l: 68%;
   --color-accent: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
   --color-accent-1: hsl(var(--accent-h) 83% 53%);
   --color-accent-2: hsl(var(--accent-h) 78% 46%);
@@ -81,15 +81,15 @@
   --border: var(--background-modifier-border);
   --border-subtle: var(--background-modifier-border-hover);
 
-  --accent-primary: var(--interactive-accent);
-  --accent-primary-hover: var(--interactive-accent-hover);
+  --accent-primary: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
+  --accent-primary-hover: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) + 8%));
   --accent-green: var(--color-green);
   --accent-green-hover: #069a41;
   --accent-red: var(--color-red);
   --accent-red-hover: #c92a3d;
-  --accent-green-12: rgba(8, 185, 78, 0.12);
-  --accent-red-12: rgba(233, 49, 71, 0.12);
-  --accent-primary-12: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.12);
+  --accent-green-12: rgba(8, 185, 78, 0.22);
+  --accent-red-12: rgba(233, 49, 71, 0.22);
+  --accent-primary-12: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.22);
 
   --overlay-10: var(--background-modifier-hover);
   --overlay-20: rgba(0, 0, 0, 0.2);
@@ -170,8 +170,8 @@
   --surface-rgb: 30, 30, 30;
   --accent-green-hover: #38b85e;
   --accent-red-hover: #e03a40;
-  --accent-green-12: rgba(68, 207, 110, 0.12);
-  --accent-red-12: rgba(251, 70, 76, 0.12);
+  --accent-green-12: rgba(68, 207, 110, 0.22);
+  --accent-red-12: rgba(251, 70, 76, 0.22);
   --overlay-10: rgba(255, 255, 255, 0.067);
   --overlay-20: rgba(255, 255, 255, 0.15);
   --overlay-white-08: rgba(0, 0, 0, 0.08);

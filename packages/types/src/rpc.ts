@@ -10,6 +10,73 @@ export interface TrashItem {
   isDirectory: boolean;
 }
 
+export type DictationModelName =
+  | 'whisper-small'
+  | 'whisper-medium'
+  | 'whisper-turbo'
+  | 'whisper-large-v3'
+  | 'parakeet-v2'
+  | 'parakeet-v3'
+  | 'moonshine-base'
+  | 'moonshine-v2-tiny'
+  | 'moonshine-v2-small'
+  | 'moonshine-v2-medium'
+  | 'sensevoice'
+  | 'gigaam-v3';
+
+export type DictationEngineType = 'whisper' | 'transducer' | 'moonshine-v1' | 'moonshine-v2' | 'sensevoice' | 'nemo-ctc';
+
+export type DictationModelCategory = 'Whisper' | 'Parakeet' | 'Moonshine' | 'SenseVoice' | 'GigaAM';
+
+export interface DictationModelInfo {
+  name: DictationModelName;
+  label: string;
+  engineType: DictationEngineType;
+  sizeMb: number;
+  languages: string[];
+  downloaded: boolean;
+  category: DictationModelCategory;
+  description: string;
+  speedScore: number;
+  accuracyScore: number;
+  isRecommended: boolean;
+}
+
+export type DictationServerStatus = 'stopped' | 'starting' | 'running' | 'error';
+
+export interface DictationServerInfo {
+  status: DictationServerStatus;
+  port: number | null;
+  modelName: DictationModelName | null;
+}
+
+export interface DictationConfig {
+  selectedModel: DictationModelName;
+  hotkey: string;
+  postProcessing: {
+    enabled: boolean;
+    provider: 'openai' | 'ollama';
+    apiKey?: string;
+    baseUrl?: string;
+    model: string;
+    fillerRemoval: boolean;
+    stutterCollapse: boolean;
+    includeNoteContext?: boolean;
+    autoLearnCorrections: boolean;
+    fuzzyCorrection: boolean;
+    dictionaryInPrompt: boolean;
+    skipShortTranscriptions: boolean;
+    shortTextThreshold: number;
+  };
+  dictionary: string[];
+  accelerator?: 'cpu' | 'gpu';
+}
+
+export interface TranscriptionResult {
+  text: string;
+  language: string;
+}
+
 export interface RPCMethodMap {
   // Workspace
   'workspace/open': {
@@ -123,12 +190,126 @@ export interface RPCMethodMap {
     params: { file: string; content: string };
     result: { success: boolean };
   };
+
+  // Dictation
+  'dictation/list-models': {
+    params: void;
+    result: { models: DictationModelInfo[] };
+  };
+  'dictation/download-model': {
+    params: { model: DictationModelName };
+    result: { success: boolean };
+  };
+  'dictation/cancel-download': {
+    params: void;
+    result: { cancelled: boolean };
+  };
+  'dictation/delete-model': {
+    params: { model: DictationModelName };
+    result: { success: boolean };
+  };
+  'dictation/start-server': {
+    params: { model: DictationModelName; language?: string };
+    result: { success: boolean };
+  };
+  'dictation/stop-server': {
+    params: void;
+    result: { success: boolean };
+  };
+  'dictation/server-status': {
+    params: void;
+    result: DictationServerInfo;
+  };
+  'dictation/transcribe': {
+    params: { audioBuffer: ArrayBuffer };
+    result: TranscriptionResult;
+  };
+  'dictation/ensure-binary': {
+    params: void;
+    result: { path: string };
+  };
+  'dictation/binary-status': {
+    params: void;
+    result: { available: boolean; path: string | null };
+  };
+  'dictation/post-process': {
+    params: { text: string; language?: string; noteContext?: string };
+    result: { text: string; wasProcessed: boolean };
+  };
+  'dictation/dictation-config-read': {
+    params: void;
+    result: DictationConfig;
+  };
+  'dictation/dictation-config-write': {
+    params: { config: DictationConfig };
+    result: { success: boolean };
+  };
+  'dictation/dictionary-add': {
+    params: { words: string[] };
+    result: { dictionary: string[] };
+  };
+  'dictation/dictionary-remove': {
+    params: { word: string };
+    result: { dictionary: string[] };
+  };
+  'dictation/learn-correction': {
+    params: { original: string; edited: string };
+    result: { addedWords: string[] };
+  };
+  'dictation/update-hotkey': {
+    params: { hotkey: string };
+    result: { success: boolean };
+  };
+  'dictation/is-gpu-available': {
+    params: void;
+    result: { available: boolean; gpuName: string | null };
+  };
+  'dictation/gpu-binary-status': {
+    params: void;
+    result: { available: boolean; path: string | null };
+  };
+  'dictation/ensure-gpu-binary': {
+    params: void;
+    result: { path: string };
+  };
 }
 
 export interface RPCServerNotificationMap {
   'workspace/filesChanged': { changes: FileChange[] };
   'workspace/fileChangedOnDisk': { filePath: string; mtime: number };
   'config/changed': { file: string };
+
+  'dictation/download-progress': {
+    model: DictationModelName;
+    downloadedBytes: number;
+    totalBytes: number;
+    percent: number;
+    bytesPerSec: number;
+  };
+  'dictation/download-complete': {
+    model: DictationModelName;
+  };
+  'dictation/download-error': {
+    model: DictationModelName;
+    error: string;
+  };
+  'dictation/server-status-changed': DictationServerInfo;
+  'dictation/binary-download-progress': {
+    downloadedBytes: number;
+    totalBytes: number;
+    percent: number;
+  };
+  'dictation/binary-download-complete': { path: string };
+  'dictation/binary-download-error': { error: string };
+  'dictation/gpu-binary-download-progress': {
+    downloadedBytes: number;
+    totalBytes: number;
+    percent: number;
+  };
+  'dictation/gpu-binary-download-complete': { path: string };
+  'dictation/gpu-binary-download-error': { error: string };
+  'dictation/hotkey-pressed': {};
+  'dictation/hotkey-registration-failed': { hotkey: string; error: string };
 }
 
 export type RPCMethodName = keyof RPCMethodMap;

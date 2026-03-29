@@ -52,7 +52,7 @@ export function EditorTabRow({
     >
       <div
         className={cn(
-          'flex items-center self-center flex-shrink-0',
+          'flex items-center self-center flex-shrink-0 transition-[width] duration-300 ease-in-out',
           sidebarOpen && 'border-r border-border'
         )}
         style={{ width: sidebarOpen ? sidebarWidth : undefined }}

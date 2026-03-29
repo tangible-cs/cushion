@@ -16,7 +16,7 @@ export class TrashManager {
 
   async init(workspacePath: string): Promise<void> {
     this.workspacePath = workspacePath;
-    this.trashDir = path.join(workspacePath, '.cushion-trash');
+    this.trashDir = path.join(workspacePath, '.cushion', 'trash');
     this.manifestPath = path.join(this.trashDir, 'manifest.json');
 
     await fs.mkdir(this.trashDir, { recursive: true });

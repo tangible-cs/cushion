@@ -18,6 +18,9 @@ import { ExportOptionsDialog } from './ExportOptionsDialog';
 import type { PdfExportOptions } from '@cushion/types';
 import { getViewForFile } from '@/lib/view-registry';
 import { EditorPanelProvider } from './EditorPanelContext';
+import { RecordingOverlay } from './RecordingOverlay';
+import { setInsertTextCallback, setGetNoteContextCallback, setOnTextInsertedCallback, useDictationStore } from '@/stores/dictationStore';
+import { showGlobalToast } from '@/utils/toast-bridge';
 
 const MonacoEditor = lazy(() => import('./MonacoEditor'));
 
@@ -121,17 +124,14 @@ export function EditorPanel({
     return () => container.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Restore scroll position after CodeMirror measures the new editor
   useEffect(() => {
     if (!currentFile) return;
     const container = editorContainerRef.current;
     if (!container) return;
     const target = scrollPositionsRef.current.get(currentFile) ?? 0;
-    // First attempt: immediate rAF (before paint)
     const id1 = requestAnimationFrame(() => {
       container.scrollTop = target;
     });
-    // Second attempt: after CM6 measurement settles
     let id3 = 0;
     const id2 = requestAnimationFrame(() => {
       id3 = requestAnimationFrame(() => {
@@ -326,9 +326,13 @@ export function EditorPanel({
   const diffRejectAllRef = useRef<(() => void) | null>(null);
   const diffExitReviewRef = useRef<(() => void) | null>(null);
   const diffSaveRef = useRef<((filePath: string, content: string) => Promise<void>) | null>(null);
+  const insertTextAtCursorRef = useRef<((text: string) => { from: number; to: number } | void) | null>(null);
+  const getNoteContextRef = useRef<(() => string) | null>(null);
+  const startEditTrackingRef = useRef<((originalText: string, from: number, to: number) => void) | null>(null);
+  const clearEditTrackingRef = useRef<(() => void) | null>(null);
+  const onDictationCorrectionRef = useRef<((original: string, edited: string) => void) | null>(null);
   const isReviewing = useDiffReviewStore((s) => s.reviewingFilePath === currentFile);
 
-  // Wire up diffSaveRef: saves to disk, marks saved, clears pending autosave
   useEffect(() => {
     diffSaveRef.current = async (fp: string, content: string) => {
       try {
@@ -345,6 +349,55 @@ export function EditorPanel({
     };
     return () => { diffSaveRef.current = null; };
   }, [client, markFileSaved]);
+
+  useEffect(() => {
+    setInsertTextCallback((text) => insertTextAtCursorRef.current?.(text));
+    setGetNoteContextCallback(() => getNoteContextRef.current?.() ?? '');
+    setOnTextInsertedCallback((originalText, from, to) => {
+      startEditTrackingRef.current?.(originalText, from, to);
+    });
+    return () => {
+      setInsertTextCallback(null);
+      setGetNoteContextCallback(null);
+      setOnTextInsertedCallback(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    onDictationCorrectionRef.current = async (original, edited) => {
+      try {
+        const result = await client.call('dictation/learn-correction', { original, edited });
+        if (result.addedWords.length > 0) {
+          const { dictionary } = useDictationStore.getState();
+          const newDict = [...dictionary, ...result.addedWords.filter((w) => !dictionary.includes(w))];
+          useDictationStore.setState({ dictionary: newDict });
+
+          showGlobalToast({
+            description: `Added "${result.addedWords.join('", "')}" to dictionary`,
+            variant: 'success',
+            duration: 6000,
+            actions: [{
+              label: 'Undo',
+              onClick: () => {
+                for (const word of result.addedWords) {
+                  useDictationStore.getState().removeDictionaryWord(word);
+                }
+              },
+            }],
+          });
+        }
+      } catch (err) {
+        console.error('[EditorPanel] Learn correction failed:', err);
+      }
+    };
+    return () => {
+      onDictationCorrectionRef.current = null;
+    };
+  }, [client]);
+
+  useEffect(() => {
+    clearEditTrackingRef.current?.();
+  }, [currentFile]);
 
   const handleRename = useCallback(async (newName: string): Promise<boolean> => {
     if (!currentFile) return false;
@@ -451,6 +504,11 @@ export function EditorPanel({
     diffRejectAllRef,
     diffExitReviewRef,
     diffSaveRef,
+    insertTextAtCursorRef,
+    getNoteContextRef,
+    startEditTrackingRef,
+    clearEditTrackingRef,
+    onDictationCorrectionRef,
   }), [handleChange, handleSave, handlePasteImages, handleWikiLinkNavigate, filePaths, focusModeEnabled, onAddSelectionToChat]);
 
   return (
@@ -481,11 +539,12 @@ export function EditorPanel({
       )}
 
       <div
-        className="flex-1 min-h-0 min-w-0 overflow-auto rounded-tl-lg thin-scrollbar"
+        className="relative flex-1 min-h-0 min-w-0 overflow-auto rounded-tl-lg thin-scrollbar"
         ref={editorContainerRef}
         data-editor-scroll-container
         style={{ background: 'var(--md-bg, var(--background))' }}
       >
+        <RecordingOverlay />
         {Array.from(openFiles.entries()).map(([fp]) => {
           const isActive = fp === currentFile;
           const resolved = getViewForFile(fp);
