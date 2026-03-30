@@ -20,6 +20,7 @@ import {
   syntaxHighlighting,
   defaultHighlightStyle,
   indentOnInput,
+  indentUnit,
   bracketMatching,
   foldGutter,
   foldKeymap,
@@ -44,7 +45,7 @@ import {
 } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
 import { markdown } from '@codemirror/lang-markdown';
-import { Table } from '@lezer/markdown';
+import { Table, Strikethrough } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -110,7 +111,7 @@ async function getLanguageExtension(filePath: string, language?: string): Promis
   if (ext === 'md' || ext === 'markdown') {
     return markdown({
       codeLanguages: languages,
-      extensions: [Table, TaskListWithCanceled, Highlight, InlineMath, BlockMath, DisableSetextHeading],
+      extensions: [Table, Strikethrough, TaskListWithCanceled, Highlight, InlineMath, BlockMath, DisableSetextHeading],
     });
   }
 
@@ -464,7 +465,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: 'var(--md-code-number)' },
       { tag: [tags.definition(tags.name), tags.separator], color: 'var(--md-text)' },
       { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: 'var(--md-code-type)' },
-      { tag: [tags.operator, tags.operatorKeyword, tags.escape, tags.regexp, tags.special(tags.string)], color: 'var(--md-code-operator)' },
+      { tag: [tags.operator, tags.operatorKeyword, tags.regexp, tags.special(tags.string)], color: 'var(--md-code-operator)' },
       { tag: tags.url, color: 'var(--md-link-color)' },
       { tag: [tags.meta, tags.comment], color: 'var(--md-code-comment)', fontStyle: 'italic' },
       { tag: tags.strong, fontWeight: '500' },
@@ -496,6 +497,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       drawSelection(),
       dropCursor(),
       EditorState.allowMultipleSelections.of(true),
+      indentUnit.of('\t'),
       indentOnInput(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       bracketMatching(),

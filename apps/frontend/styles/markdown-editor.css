@@ -80,7 +80,7 @@
   --md-autocomplete-item-hover-bg: var(--background-modifier-hover);
 
   /* Colors - Blockquote */
-  --md-blockquote-border: var(--background-modifier-border-focus);
+  --md-blockquote-border: var(--interactive-accent);
   --md-blockquote-text: var(--text-muted);
 
   /* Colors - HR */
@@ -137,7 +137,7 @@
   --md-image-shadow-hover: var(--shadow-md);
   --md-autocomplete-item-hover-bg: var(--background-modifier-hover);
 
-  --md-blockquote-border: var(--background-modifier-border-focus);
+  --md-blockquote-border: var(--interactive-accent);
   --md-blockquote-text: var(--text-muted);
 
   --md-hr-color: var(--text-faint);
@@ -280,19 +280,6 @@
   color: var(--md-text-muted);
 }
 
-/* --- Hidden System (single-phase: no decoration = cursor in range) --- */
-
-/* Hidden state - applied only when cursor NOT in range.
-   !important guards against specificity conflicts with styling classes
-   (e.g. cm-inline-code's font-size: 0.9em) that can land on the same span. */
-.cm-editor.cm-markdown-wysiwyg .cm-hidden {
-  font-size: 0 !important;
-  line-height: 0 !important;
-  tab-size: 0;
-  overflow: hidden;
-  display: inline;
-}
-
 /* --- Typography - Inline formatting --- */
 
 /* Lezer-provided classes (syntax highlighting) */
@@ -379,84 +366,136 @@
 
 /* --- Lists --- */
 
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-item {
+/* List line indentation */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-1 { padding-left: 2em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-2 { padding-left: 4em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-3 { padding-left: 6em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-4 { padding-left: 8em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-5 { padding-left: 10em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-6 { padding-left: 12em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-7 { padding-left: 14em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-8 { padding-left: 16em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-9 { padding-left: 18em; }
+
+/* Continuous vertical indent guide lines (Obsidian-style) */
+.cm-editor.cm-markdown-wysiwyg .cm-line[class*="cm-list-line-"] {
   position: relative;
-  padding-left: var(--md-indent-width);
 }
 
-/* Bullet widget */
-.cm-editor.cm-markdown-wysiwyg .cm-list-bullet {
-  color: var(--md-accent);
-  user-select: none;
-  font-weight: 600;
-  margin-right: 4px;
-  display: inline-block;
-  min-width: 1.25em;
-  text-align: left;
-}
-
-/* Hidden list marker with pseudo-element rendering */
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden {
-  position: relative;
-  display: inline-block;
-  min-width: 1.25em;
-  text-align: left;
-  margin-right: 4px;
-  color: transparent;
-  user-select: none;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden * {
-  color: transparent !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden::after {
-  content: attr(data-list-marker);
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-2::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-3::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-4::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-5::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-6::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-7::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-8::before,
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-9::before {
+  content: '';
   position: absolute;
-  left: 0;
   top: 0;
-  color: var(--md-accent);
-  font-weight: 600;
-  font-size: var(--md-font-size);
-  line-height: var(--md-baseline);
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1.25em,
+    var(--md-border) 1.25em,
+    var(--md-border) calc(1.25em + 2px),
+    transparent calc(1.25em + 2px),
+    transparent 2em
+  );
+  background-repeat: no-repeat;
 }
 
-/* Raw list marker (cursor line) */
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker {
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-2::before { width: 2em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-3::before { width: 4em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-4::before { width: 6em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-5::before { width: 8em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-6::before { width: 10em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-7::before { width: 12em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-8::before { width: 14em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line-9::before { width: 16em; }
+
+/* Indent guides for non-list tab-indented content (reuses list guide pattern) */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-1 { padding-left: 2em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-2 { padding-left: 4em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-3 { padding-left: 6em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-4 { padding-left: 8em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-5 { padding-left: 10em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-6 { padding-left: 12em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-7 { padding-left: 14em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-8 { padding-left: 16em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-9 { padding-left: 18em; }
+
+.cm-editor.cm-markdown-wysiwyg .cm-line[class*="cm-indent-line-"] {
+  position: relative;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line[class*="cm-indent-line-"]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1.25em,
+    var(--md-border) 1.25em,
+    var(--md-border) calc(1.25em + 2px),
+    transparent calc(1.25em + 2px),
+    transparent 2em
+  );
+  background-repeat: no-repeat;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-1::before { width: 2em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-2::before { width: 4em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-3::before { width: 6em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-4::before { width: 8em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-5::before { width: 10em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-6::before { width: 12em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-7::before { width: 14em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-8::before { width: 16em; }
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-indent-line-9::before { width: 18em; }
+
+/* Inter-item spacing (Obsidian pattern) */
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-list-line:not(.cm-list-line-nobullet) {
+  padding-top: 0.1em;
+}
+
+/* List prefix widget (indent guides + bullet) */
+.cm-editor.cm-markdown-wysiwyg .cm-list-prefix {
+  display: inline;
+  user-select: none;
+  pointer-events: none;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-list-indent-guide {
   display: inline-block;
-  min-width: 1.25em;
-  text-align: left;
-  margin-right: 4px;
+  width: 2em;
+  box-sizing: border-box;
+  line-height: inherit;
 }
 
-/* Depth-specific marker widths */
-.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-0,
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-0 {
-  min-width: 1.25em;
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet {
+  display: inline-block;
+  width: 2em;
+  text-align: right;
+  padding-right: 0.5em;
+  box-sizing: border-box;
+  color: var(--md-text-faint);
+  font-weight: 600;
+  user-select: none;
 }
 
-.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-1,
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-1 {
-  min-width: 1.25em;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-depth-2,
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker.cm-list-depth-2 {
-  min-width: 2.25em;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-0 {
-  min-width: 1.25em;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-1 {
-  min-width: 1.25em;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-list-marker-hidden.cm-list-depth-2 {
-  min-width: 2.25em;
+.cm-editor.cm-markdown-wysiwyg .cm-list-bullet.cm-list-bullet-revealed {
+  color: var(--md-text-muted);
+  font-weight: normal;
 }
 
 /* Checkbox widget */
@@ -476,8 +515,6 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-bullet,
-.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-marker,
-.cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-list-marker-hidden,
 .cm-editor.cm-markdown-wysiwyg .cm-task-checked .cm-checkbox-widget {
   text-decoration: none;
   color: var(--md-accent);

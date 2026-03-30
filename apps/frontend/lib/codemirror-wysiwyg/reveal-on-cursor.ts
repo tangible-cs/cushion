@@ -40,10 +40,19 @@ export const mouseSelectingField = StateField.define<boolean>({
   },
 });
 
+let mousePressed = false;
+
+/** Synchronous check — true from mousedown until mouseup, no transaction delay */
+export function isMousePressed(): boolean {
+  return mousePressed;
+}
+
 export const mouseSelectionTracker = EditorView.domEventHandlers({
   mousedown(_event, view) {
+    mousePressed = true;
     view.dispatch({ effects: mouseSelectEffect.of(true) });
     const onUp = () => {
+      mousePressed = false;
       view.dispatch({ effects: mouseSelectEffect.of(false) });
       window.removeEventListener('mouseup', onUp);
     };
