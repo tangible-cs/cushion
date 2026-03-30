@@ -19,8 +19,6 @@ import { MathWidget } from './widgets/math-widget';
 import { filePathsField } from './wiki-link-plugin';
 import { resolveWikiLink } from '../wiki-link-resolver';
 
-
-
 function getChildRanges(node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } }) {
   const ranges: { name: string; from: number; to: number }[] = [];
   const cursor = node.node.cursor();
@@ -73,27 +71,46 @@ function formatCodeBlockLanguage(lang: string): string {
   return lower.length <= 3 ? lower.toUpperCase() : lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
 class CodeBlockInfoWidget extends WidgetType {
-  constructor(readonly lang: string, readonly code: string) {
+  constructor(
+    readonly lang: string,
+    readonly codeLength: number,
+    readonly contentFrom: number,
+    readonly contentTo: number,
+  ) {
     super();
   }
 
   eq(other: CodeBlockInfoWidget) {
-    return this.lang === other.lang && this.code === other.code;
+    return this.lang === other.lang && this.codeLength === other.codeLength;
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const span = document.createElement('span');
     span.className = 'cm-code-block-info';
-    span.textContent = formatCodeBlockLanguage(this.lang);
     span.title = 'Click to copy';
+    if (this.lang) {
+      span.textContent = formatCodeBlockLanguage(this.lang);
+    } else {
+      span.innerHTML = COPY_SVG;
+    }
+    const { contentFrom, contentTo } = this;
     span.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      navigator.clipboard.writeText(this.code);
-      const original = span.textContent;
-      span.textContent = 'Copied!';
-      setTimeout(() => { span.textContent = original; }, 2000);
+      const code = view.state.doc.sliceString(contentFrom, contentTo);
+      navigator.clipboard.writeText(code);
+      if (this.lang) {
+        const original = span.textContent;
+        span.textContent = 'Copied!';
+        setTimeout(() => { span.textContent = original; }, 2000);
+      } else {
+        span.innerHTML = CHECK_SVG;
+        setTimeout(() => { span.innerHTML = COPY_SVG; }, 2000);
+      }
     });
     return span;
   }
@@ -215,7 +232,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
 
         const isExternal = isExternalLinkUrl(linkUrl);
 
-        // Always apply styling mark (provides hover, click, data-href)
         decorations.push(
           Decoration.mark({
             class: 'cm-link',
@@ -227,7 +243,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
           }).range(from, to),
         );
 
-        // When cursor in range, show LinkMark with muted syntax styling
         if (isSelectRange(state, { from, to })) {
           const childRanges = getChildRanges(node);
           for (const child of childRanges) {
@@ -263,10 +278,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         const listMark = node.node.getChild('ListMark');
         const markLine = listMark ? state.doc.lineAt(listMark.from).number : -1;
 
-        // Skip lines owned by child lists — they apply their own depth classes.
-        // Without this, nested lines get both parent and child classes (e.g. cm-list-line-1
-        // AND cm-list-line-2), and the parent's cm-list-line-nobullet wrongly suppresses
-        // inter-item spacing on nested bullet lines.
         const childListLines = [
           ...node.node.getChildren('BulletList'),
           ...node.node.getChildren('OrderedList'),
@@ -350,7 +361,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
     });
   }
 
-  // Indent guides for non-list tab-indented content: add line decoration classes
   for (const { from, to } of view.visibleRanges) {
     const startLine = state.doc.lineAt(from);
     const endLine = state.doc.lineAt(to);
@@ -358,7 +368,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       const line = state.doc.line(i);
       if (line.length === 0 || line.text.charCodeAt(0) !== 9) continue;
 
-      // Skip lines inside list/code/blockquote/etc.
       let skip = false;
       const resolved = tree.resolveInner(line.from, 1);
       for (let n: typeof resolved | null = resolved; n; n = n.parent) {
@@ -565,27 +574,21 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
 
       if (type === 'FencedCode') {
         const codeInfoNode = node.node.getChild('CodeInfo');
-        if (codeInfoNode) {
-          const lang = state.doc.sliceString(codeInfoNode.from, codeInfoNode.to).trim();
-          if (lang) {
-            const startLine = state.doc.lineAt(from);
-            const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
-            let code = '';
-            if (endLine.number - startLine.number > 1) {
-              const contentFrom = state.doc.line(startLine.number + 1).from;
-              const contentTo = state.doc.line(endLine.number - 1).to;
-              if (contentFrom <= contentTo) {
-                code = state.doc.sliceString(contentFrom, contentTo);
-              }
-            }
-            decorations.push(
-              Decoration.widget({
-                widget: new CodeBlockInfoWidget(lang, code),
-                side: -1,
-              }).range(from),
-            );
-          }
+        const lang = codeInfoNode ? state.doc.sliceString(codeInfoNode.from, codeInfoNode.to).trim() : '';
+        const startLine = state.doc.lineAt(from);
+        const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
+        let contentFrom = 0, contentTo = 0, codeLength = 0;
+        if (endLine.number - startLine.number > 1) {
+          contentFrom = state.doc.line(startLine.number + 1).from;
+          contentTo = state.doc.line(endLine.number - 1).to;
+          if (contentFrom <= contentTo) codeLength = contentTo - contentFrom;
         }
+        decorations.push(
+          Decoration.widget({
+            widget: new CodeBlockInfoWidget(lang, codeLength, contentFrom, contentTo),
+            side: -1,
+          }).range(from),
+        );
         return false;
       }
 
@@ -638,11 +641,6 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     }
     const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
     if (tr.docChanged) {
-      // Map positions through changes first to preserve stable decorations.
-      // Only do a full rebuild when the tree actually changed (Lezer finished
-      // reparsing) or an explicit selection transaction arrived in the same
-      // update.  This avoids a full-document rebuild on every keystroke that
-      // would use a potentially-incomplete tree and cause scroll jumps.
       if (treeChanged || tr.selection) {
         return buildWidgetDecorations(tr.state);
       }
@@ -658,7 +656,6 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
   },
   provide: (f) => EditorView.decorations.from(f),
 });
-
 
 export const linkClickHandler = EditorView.domEventHandlers({
   click(event, view) {

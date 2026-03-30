@@ -559,6 +559,8 @@
 
 .cm-editor.cm-markdown-wysiwyg .cm-code-block-info {
   float: right;
+  display: inline-flex;
+  align-items: center;
   margin-right: 4px;
   margin-top: 0;
   padding: 2px 10px;
@@ -656,8 +658,16 @@
   color: var(--md-text-muted) !important;
 }
 
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start .cm-code-block-info svg {
+  stroke: var(--md-text-muted) !important;
+}
+
 .cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start .cm-code-block-info:hover {
   color: var(--md-text) !important;
+}
+
+.cm-editor.cm-markdown-wysiwyg .cm-line.cm-code-block-start .cm-code-block-info:hover svg {
+  stroke: var(--md-text) !important;
 }
 
 /* --- Horizontal Rule --- */
