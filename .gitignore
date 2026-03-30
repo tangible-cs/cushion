@@ -49,5 +49,5 @@ apps/frontend/public/excalidraw-assets/
 # TypeScript
 *.tsbuildinfo
 
-*.md
+CLAUDE.md
 *.txt

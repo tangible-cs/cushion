@@ -9,6 +9,7 @@ import {
 import { syntaxTree } from '@codemirror/language';
 import { EditorState, Range, StateField } from '@codemirror/state';
 import { isSelectRange, isSelectLine, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
+import { getListNestingDepth } from './list-utils';
 import { ImageWidget } from './widgets/image-widget';
 import { PdfWidget } from './widgets/pdf-widget';
 import { NoteEmbedWidget } from './widgets/note-embed-widget';
@@ -18,79 +19,7 @@ import { MathWidget } from './widgets/math-widget';
 import { filePathsField } from './wiki-link-plugin';
 import { resolveWikiLink } from '../wiki-link-resolver';
 
-function getListNestingDepth(syntaxNode: { parent: any; type: { name: string } }): number {
-  let depth = 0;
-  let current = syntaxNode.parent;
-  while (current) {
-    if (current.type.name === 'BulletList' || current.type.name === 'OrderedList') {
-      depth++;
-    }
-    current = current.parent;
-  }
-  return Math.max(0, depth - 1);
-}
 
-
-function numberToAlpha(n: number): string {
-  let result = '';
-  while (n > 0) {
-    n--;
-    result = String.fromCharCode(97 + (n % 26)) + result;
-    n = Math.floor(n / 26);
-  }
-  return result;
-}
-
-function numberToRoman(n: number): string {
-  const values: [number, string][] = [
-    [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'],
-    [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'],
-    [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
-  ];
-  let result = '';
-  for (const [value, numeral] of values) {
-    while (n >= value) {
-      result += numeral;
-      n -= value;
-    }
-  }
-  return result;
-}
-
-function hasListBreak(state: EditorState, from: number, to: number): boolean {
-  if (from >= to) return false;
-  const between = state.doc.sliceString(from, to);
-  return /\n\s*\n/.test(between);
-}
-
-function addHiddenMark(
-  decorations: Range<Decoration>[],
-  from: number,
-  to: number,
-  syntaxType: string,
-): void {
-  decorations.push(
-    Decoration.mark({
-      class: `cm-hidden cm-${syntaxType}-syntax`,
-    }).range(from, to),
-  );
-}
-
-function hideSubNodeMarks(
-  node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } },
-  names: string | string[],
-  decorations: Range<Decoration>[],
-  syntaxType: string,
-): void {
-  const isArray = Array.isArray(names);
-  const cursor = node.node.cursor();
-  cursor.iterate((child) => {
-    const isMatch = isArray ? names.includes(child.type.name) : child.type.name === names;
-    if (isMatch) {
-      addHiddenMark(decorations, child.from, child.to, syntaxType);
-    }
-  });
-}
 
 function getChildRanges(node: { node: { cursor: () => { iterate: (cb: (node: { type: { name: string }; from: number; to: number }) => void) => void } } }) {
   const ranges: { name: string; from: number; to: number }[] = [];
@@ -110,11 +39,6 @@ function findLinkUrl(state: EditorState, node: { node: { cursor: () => { iterate
 
 function isExternalLinkUrl(url: string): boolean {
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(url.trim());
-}
-
-function getBulletSymbol(depth: number): string {
-  const bullets = ['•', '◦', '▪'];
-  return bullets[Math.min(depth, 2)];
 }
 
 const languageLabelMap: Record<string, string> = {
@@ -238,20 +162,11 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
 
       if (/^ATXHeading[1-6]$/.test(type)) {
         const level = parseInt(type.charAt(type.length - 1), 10);
-
         decorations.push(
           Decoration.line({
             class: `cm-heading-${level}`,
           }).range(state.doc.lineAt(from).from),
         );
-
-        const child = node.node.getChild('HeaderMark');
-        if (child) {
-          const hideEnd = Math.min(child.to + 1, to);
-          if (hideEnd < to && !isSelectRange(state, { from, to })) {
-            addHiddenMark(decorations, child.from, hideEnd, 'heading');
-          }
-        }
         return true;
       }
 
@@ -259,9 +174,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         decorations.push(
           Decoration.mark({ class: 'cm-strong-text' }).range(from, to),
         );
-        if (!isSelectRange(state, { from, to })) {
-          hideSubNodeMarks(node, 'EmphasisMark', decorations, 'emphasis');
-        }
         return false;
       }
 
@@ -269,9 +181,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         decorations.push(
           Decoration.mark({ class: 'cm-emphasis-text' }).range(from, to),
         );
-        if (!isSelectRange(state, { from, to })) {
-          hideSubNodeMarks(node, 'EmphasisMark', decorations, 'emphasis');
-        }
         return false;
       }
 
@@ -279,9 +188,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         decorations.push(
           Decoration.mark({ class: 'cm-strikethrough-text' }).range(from, to),
         );
-        if (!isSelectRange(state, { from, to })) {
-          hideSubNodeMarks(node, 'StrikethroughMark', decorations, 'strikethrough');
-        }
         return false;
       }
 
@@ -289,19 +195,13 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
         decorations.push(
           Decoration.mark({ class: 'cm-highlight-text' }).range(from, to),
         );
-        if (!isSelectRange(state, { from, to })) {
-          hideSubNodeMarks(node, 'HighlightMark', decorations, 'highlight');
-        }
         return false;
       }
 
       if (type === 'InlineCode') {
-        if (!isSelectRange(state, { from, to })) {
-          decorations.push(
-            Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
-          );
-          hideSubNodeMarks(node, 'CodeMark', decorations, 'code');
-        }
+        decorations.push(
+          Decoration.mark({ class: 'cm-inline-code' }).range(from, to),
+        );
         return false;
       }
 
@@ -311,14 +211,11 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
 
       if (type === 'Link') {
         const linkUrl = findLinkUrl(state, node);
+        if (!linkUrl) return false;
 
-        if (!linkUrl) {
-          return false;
-        }
-
-        const childRanges = getChildRanges(node);
         const isExternal = isExternalLinkUrl(linkUrl);
 
+        // Always apply styling mark (provides hover, click, data-href)
         decorations.push(
           Decoration.mark({
             class: 'cm-link',
@@ -330,29 +227,9 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
           }).range(from, to),
         );
 
-        if (!isSelectRange(state, { from, to })) {
-          for (const child of childRanges) {
-            if (child.name === 'LinkMark' || child.name === 'URL') {
-              addHiddenMark(decorations, child.from, child.to, 'link');
-            } else if (child.name === 'LinkTitle') {
-              let hideFrom = child.from;
-              let hideTo = child.to;
-              if (hideFrom > 0) {
-                const before = state.doc.sliceString(hideFrom - 1, hideFrom);
-                if (before === '"' || before === "'") {
-                  hideFrom -= 1;
-                }
-              }
-              if (hideTo < state.doc.length) {
-                const after = state.doc.sliceString(hideTo, hideTo + 1);
-                if (after === '"' || after === "'") {
-                  hideTo += 1;
-                }
-              }
-              addHiddenMark(decorations, hideFrom, hideTo, 'link');
-            }
-          }
-        } else {
+        // When cursor in range, show LinkMark with muted syntax styling
+        if (isSelectRange(state, { from, to })) {
+          const childRanges = getChildRanges(node);
           for (const child of childRanges) {
             if (child.name === 'LinkMark') {
               decorations.push(
@@ -361,6 +238,7 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
             }
           }
         }
+
         return false;
       }
 
@@ -371,23 +249,40 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       if (type === 'Blockquote') {
         const startLine = state.doc.lineAt(from).number;
         const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
-
         for (let i = startLine; i <= endLine; i++) {
           const line = state.doc.line(i);
-
-          decorations.push(
-            Decoration.line({ class: 'cm-blockquote' }).range(line.from),
-          );
-
-          const qMatch = line.text.match(/^(>\s?)+/);
-          if (qMatch) {
-            const markerEnd = line.from + qMatch[0].length;
-            if (markerEnd < line.to && !isSelectLine(state, line.from, line.to)) {
-              addHiddenMark(decorations, line.from, markerEnd, 'blockquote');
-            }
-          }
+          decorations.push(Decoration.line({ class: 'cm-blockquote' }).range(line.from));
         }
         return true;
+      }
+
+      if (type === 'ListItem') {
+        const depth = Math.min(getListNestingDepth(node.node) + 1, 9); // 1-based, capped at 9
+        const startLine = state.doc.lineAt(from).number;
+        const endLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
+        const listMark = node.node.getChild('ListMark');
+        const markLine = listMark ? state.doc.lineAt(listMark.from).number : -1;
+
+        // Skip lines owned by child lists — they apply their own depth classes.
+        // Without this, nested lines get both parent and child classes (e.g. cm-list-line-1
+        // AND cm-list-line-2), and the parent's cm-list-line-nobullet wrongly suppresses
+        // inter-item spacing on nested bullet lines.
+        const childListLines = [
+          ...node.node.getChildren('BulletList'),
+          ...node.node.getChildren('OrderedList'),
+        ].map(c => ({
+          start: state.doc.lineAt(c.from).number,
+          end: state.doc.lineAt(Math.min(c.to, state.doc.length)).number,
+        }));
+
+        for (let i = startLine; i <= endLine; i++) {
+          if (childListLines.some(c => i >= c.start && i <= c.end)) continue;
+          const line = state.doc.line(i);
+          let cls = `cm-list-line cm-list-line-${depth}`;
+          if (i !== markLine) cls += ' cm-list-line-nobullet';
+          decorations.push(Decoration.line({ class: cls }).range(line.from));
+        }
+        return; // continue into children for nested lists + inline marks
       }
 
       if (type === 'HorizontalRule') {
@@ -408,9 +303,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       }
 
       if (type === 'Escape') {
-        if (!isSelectRange(state, { from, to })) {
-          hideSubNodeMarks(node, 'EscapeMark', decorations, 'escape');
-        }
         return false;
       }
 
@@ -423,93 +315,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
             Decoration.line({ class: 'cm-task-checked' }).range(line.from),
           );
         }
-        return false;
-      }
-
-      if (type === 'ListMark') {
-        const text = state.doc.sliceString(from, to);
-        const parent = node.node.parent;
-        const line = state.doc.lineAt(from);
-        let offsetInLine = to - line.from;
-        while (offsetInLine < line.text.length) {
-          const ch = line.text[offsetInLine];
-          if (ch !== ' ' && ch !== '\t') break;
-          offsetInLine += 1;
-        }
-        const hideEnd = Math.min(line.from + offsetInLine, state.doc.length);
-
-        if (parent && (parent.getChild('Task') || parent.getChild('TaskMarker'))) {
-          const listRoot = parent.parent;
-          const isBulletList = listRoot?.type?.name === 'BulletList';
-          if (isBulletList) {
-            if (hideEnd < line.to && !isSelectRange(state, { from, to: hideEnd })) {
-              addHiddenMark(decorations, from, hideEnd, 'list');
-            }
-            return false;
-          }
-        }
-
-        const isOrdered = /^\d+[.)]$/.test(text);
-        const depth = getListNestingDepth(node.node);
-        const styleDepth = depth % 3;
-        const depthClass = `cm-list-depth-${Math.min(styleDepth, 2)}`;
-
-        if (isSelectRange(state, { from, to: hideEnd })) {
-          decorations.push(
-            Decoration.mark({
-              class: `cm-list-marker ${depthClass}`,
-            }).range(from, hideEnd),
-          );
-          return false;
-        }
-
-        let displayText = text;
-        if (isOrdered && parent && parent.type.name === 'ListItem') {
-          const listParent = parent.parent;
-          const suffix = text.endsWith(')') ? ')' : '.';
-          let startNum = 1;
-          let position = 0;
-          if (listParent && listParent.type.name === 'OrderedList') {
-            let segmentStart = parent;
-            let sibling = parent.prevSibling;
-            while (sibling) {
-              if (hasListBreak(state, sibling.to, segmentStart.from)) break;
-              if (sibling.type.name === 'ListItem') {
-                position++;
-                segmentStart = sibling;
-              }
-              sibling = sibling.prevSibling;
-            }
-
-            if (depth === 0) {
-              const firstMark = segmentStart.getChild('ListMark');
-              if (firstMark) {
-                const parsed = parseInt(state.doc.sliceString(firstMark.from, firstMark.to), 10);
-                if (!isNaN(parsed)) startNum = parsed;
-              }
-            }
-          }
-
-          const num = startNum + position;
-          if (styleDepth === 0) {
-            displayText = num + suffix;
-          } else if (styleDepth === 1) {
-            displayText = numberToAlpha(num) + suffix;
-          } else {
-            displayText = numberToRoman(num) + suffix;
-          }
-        } else {
-          displayText = getBulletSymbol(styleDepth);
-        }
-
-        decorations.push(
-          Decoration.mark({
-            class: `cm-list-marker-hidden ${depthClass}`,
-            attributes: {
-              'data-list-marker': displayText,
-            },
-          }).range(from, hideEnd),
-        );
         return false;
       }
 
@@ -543,6 +348,38 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       return true;
     },
     });
+  }
+
+  // Indent guides for non-list tab-indented content: add line decoration classes
+  for (const { from, to } of view.visibleRanges) {
+    const startLine = state.doc.lineAt(from);
+    const endLine = state.doc.lineAt(to);
+    for (let i = startLine.number; i <= endLine.number; i++) {
+      const line = state.doc.line(i);
+      if (line.length === 0 || line.text.charCodeAt(0) !== 9) continue;
+
+      // Skip lines inside list/code/blockquote/etc.
+      let skip = false;
+      const resolved = tree.resolveInner(line.from, 1);
+      for (let n: typeof resolved | null = resolved; n; n = n.parent) {
+        const name = n.type.name;
+        if (name === 'ListItem' || name === 'BulletList' || name === 'OrderedList' ||
+            name === 'FencedCode' || name === 'CodeBlock' || name === 'Blockquote' ||
+            name === 'FrontMatter' || name === 'Frontmatter' || name === 'BlockMath' ||
+            name === 'Table' || name === 'HTMLBlock') {
+          skip = true;
+          break;
+        }
+      }
+      if (skip) continue;
+
+      let tabCount = 0;
+      while (tabCount < line.text.length && line.text.charCodeAt(tabCount) === 9) tabCount++;
+      const depth = Math.min(tabCount, 9);
+      decorations.push(
+        Decoration.line({ class: `cm-indent-line cm-indent-line-${depth}` }).range(line.from)
+      );
+    }
   }
 
   decorations.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);

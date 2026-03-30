@@ -1,8 +1,8 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, embedRevealedField } from './hide-markup';
+import { inlineReplacePlugin } from './inline-replace';
 import { diffTheme as aiDiffTheme } from './ai-diff';
-import { hiddenRangesField, hiddenAtomicRanges } from './atomic-ranges';
 import { focusState, focusListener, mouseSelectingField, mouseSelectionTracker } from './reveal-on-cursor';
 import {
   wikiLinkExtension,
@@ -105,54 +105,6 @@ const wysiwygWidgetTheme = EditorView.baseTheme({
   '.cm-image-widget .cm-image:hover': {
     boxShadow: 'var(--md-image-shadow-hover)',
   },
-  '.cm-list-bullet': {
-    color: 'var(--md-accent)',
-    userSelect: 'none',
-    fontWeight: '600',
-    marginRight: '4px',
-    display: 'inline-block',
-    minWidth: '1.25em',
-    textAlign: 'left',
-  },
-  '.cm-list-marker-hidden': {
-    position: 'relative',
-    display: 'inline-block',
-    minWidth: '1.25em',
-    textAlign: 'left',
-    marginRight: '4px',
-    color: 'transparent',
-    userSelect: 'none',
-  },
-  '.cm-list-marker-hidden *': {
-    color: 'transparent !important',
-    fontSize: '0 !important',
-    lineHeight: '0 !important',
-  },
-  '.cm-list-marker-hidden::after': {
-    content: 'attr(data-list-marker)',
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    color: 'var(--md-accent)',
-    fontWeight: '600',
-    fontSize: 'var(--md-font-size, 16px)',
-    lineHeight: 'var(--md-baseline, 1.6)',
-  },
-  '.cm-list-marker': {
-    display: 'inline-block',
-    minWidth: '1.25em',
-    textAlign: 'left',
-    marginRight: '4px',
-  },
-  '.cm-list-bullet.cm-list-depth-0': { minWidth: '1.25em' },
-  '.cm-list-bullet.cm-list-depth-1': { minWidth: '1.25em' },
-  '.cm-list-bullet.cm-list-depth-2': { minWidth: '2.25em' },
-  '.cm-list-marker.cm-list-depth-0': { minWidth: '1.25em' },
-  '.cm-list-marker.cm-list-depth-1': { minWidth: '1.25em' },
-  '.cm-list-marker.cm-list-depth-2': { minWidth: '2.25em' },
-  '.cm-list-marker-hidden.cm-list-depth-0': { minWidth: '1.25em' },
-  '.cm-list-marker-hidden.cm-list-depth-1': { minWidth: '1.25em' },
-  '.cm-list-marker-hidden.cm-list-depth-2': { minWidth: '2.25em' },
   '.cm-line.cm-hr-line': {
     padding: '0',
   },
@@ -244,9 +196,8 @@ export function wysiwygExtension(): Extension {
     mouseSelectingField,
     mouseSelectionTracker,
     embedRevealedField,
-    hiddenRangesField,
-    hiddenAtomicRanges,
     markDecorationsPlugin,
+    inlineReplacePlugin,
     widgetDecorationsField,
     linkClickHandler,
     wikiLinkExtension(),

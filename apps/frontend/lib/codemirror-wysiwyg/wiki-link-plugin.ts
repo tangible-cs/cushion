@@ -15,7 +15,7 @@ import {
 } from '@codemirror/view';
 import { EditorState, Range, StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { isSelectRange, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
+import { isSelectRange, isMousePressed, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
 import { wikiLinkRegex, getWikiLinkDisplayText } from '../wiki-link';
 import { resolveWikiLink } from '../wiki-link-resolver';
 import type { WikiLinkInfo, WikiLinkState } from '@cushion/types';
@@ -80,6 +80,7 @@ export const navigateCallbackField = StateField.define<WikiLinkNavigateCallback 
  */
 function buildWikiLinkDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = [];
+  const replace = Decoration.replace({});
   const text = state.doc.toString();
   const filePaths = state.field(filePathsField, false) || [];
   
@@ -135,7 +136,8 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
     }
     
     // Check if cursor/selection overlaps this wiki-link range (purrmd pattern)
-    const isInLink = isSelectRange(state, { from: start, to: end });
+    // Suppress reveal during mousedown to prevent flash (same as inlineReplacePlugin)
+    const isInLink = !isMousePressed() && isSelectRange(state, { from: start, to: end });
 
     // =============================================================================
     // Single-Phase Pattern (purrmd style)
@@ -146,17 +148,13 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
 
     if (!isInLink) {
       // Hide opening brackets [[
-      decorations.push(
-        Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(start, openBracketEnd),
-      );
+      decorations.push(replace.range(start, openBracketEnd));
 
       // If there's display text, also hide the href|
       if (match[3]) {
         const pipePos = text.indexOf('|', openBracketEnd);
         if (pipePos !== -1 && pipePos < closeBracketStart) {
-          decorations.push(
-            Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(openBracketEnd, pipePos + 1),
-          );
+          decorations.push(replace.range(openBracketEnd, pipePos + 1));
         }
       }
 
@@ -164,16 +162,12 @@ function buildWikiLinkDecorations(state: EditorState): DecorationSet {
       if (match[2] && !match[3]) {
         const hashPos = text.indexOf('#', openBracketEnd);
         if (hashPos !== -1 && hashPos < closeBracketStart) {
-          decorations.push(
-            Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(hashPos, closeBracketStart),
-          );
+          decorations.push(replace.range(hashPos, closeBracketStart));
         }
       }
 
       // Hide closing brackets ]]
-      decorations.push(
-        Decoration.mark({ class: 'cm-hidden cm-wikilink-syntax' }).range(closeBracketStart, end),
-      );
+      decorations.push(replace.range(closeBracketStart, end));
     } else {
       // When revealed, keep bracket glyphs muted for better visual hierarchy.
       decorations.push(
