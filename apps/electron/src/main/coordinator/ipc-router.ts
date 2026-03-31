@@ -284,7 +284,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleLoginFinish();
   });
 
-  // --- Unified dictation handlers ---
+  // Dictation handlers
   ipcMain.handle('coordinator:dictation/list-models', async () => {
     return handleDictationListModels(sherpaModelManager);
   });

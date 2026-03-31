@@ -27,7 +27,6 @@ const DEFAULT_CONFIG: DictationConfig = {
   accelerator: 'cpu',
 };
 
-/** Map old whisper model name to unified DictationModelName */
 function migrateWhisperModel(name: string): DictationModelName {
   switch (name) {
     case 'tiny': return 'whisper-small';
@@ -40,7 +39,6 @@ function migrateWhisperModel(name: string): DictationModelName {
   }
 }
 
-/** Detect old config format and migrate to unified */
 function migrateConfig(raw: Record<string, unknown>): DictationConfig {
   // Already migrated — no legacy selectedEngine field present
   if (raw.selectedModel && typeof raw.selectedModel === 'string' && !raw.selectedEngine) {
@@ -95,7 +93,6 @@ export class DictationConfigManager {
     const parsed = JSON.parse(raw);
     this.cache = migrateConfig(parsed);
 
-    // Write back migrated config if it was in old format
     if (parsed.selectedEngine !== undefined) {
       await this.write(this.cache);
     }
