@@ -56,16 +56,14 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    ...(process.platform === 'linux'
-      ? { frame: false }
-      : {
-          titleBarStyle: 'hidden' as const,
-          titleBarOverlay: {
-            color: '#262626',
-            symbolColor: '#dadada',
-            height: 40,
-          },
-        }),
+    titleBarStyle: 'hidden' as const,
+    ...(process.platform !== 'linux' && {
+      titleBarOverlay: {
+        color: '#262626',
+        symbolColor: '#dadada',
+        height: 40,
+      },
+    }),
     show: false,
   });
 
