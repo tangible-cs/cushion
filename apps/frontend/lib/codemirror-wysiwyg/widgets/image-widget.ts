@@ -87,9 +87,10 @@ export class ImageWidget extends WidgetType {
         const view = getEditorView(wrapper);
         if (!view) return;
         const pos = view.posAtDOM(wrapper);
+        const line = view.state.doc.lineAt(pos);
         view.dispatch({
           effects: embedSourceRevealEffect.of(pos),
-          selection: { anchor: pos },
+          selection: { anchor: line.from, head: line.to },
         });
       };
       container.appendChild(toggleBtn);

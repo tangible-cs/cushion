@@ -6,6 +6,7 @@ import { hasFocus, isFocusEvent, isMousePressed, mouseSelectEffect } from './rev
 import { wikiLinkRegex } from '../wiki-link';
 import { getListNestingDepth, computeListDisplayText } from './list-utils';
 import { ListPrefixWidget } from './widgets/list-marker-widget';
+import { CheckboxWidget } from './widgets/checkbox-widget';
 
 /** Node types handled by this plugin, mapped to their child mark node name */
 const inlineMarkTypes: Record<string, string> = {
@@ -54,7 +55,9 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
         // decorations inside tables to avoid conflicting with cell boundaries.
         if (type === 'Table') return false;
 
-        // ATX Heading: hide # marks + trailing space (Zettlr pattern)
+        // ATX Heading: hide # marks + trailing space via mark decoration
+        // Uses font-size:0 mark instead of replace to avoid DOM rebuild that
+        // causes vertical shift at large heading font-sizes (H1-H3).
         if (/^ATXHeading[1-6]$/.test(type)) {
           if (!shouldRevealLine(state, node.from)) {
             const mark = node.node.getChild('HeaderMark');
@@ -66,7 +69,9 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
               }
               const hideEnd = mark.to + offset;
               if (hideEnd < node.to) {
-                ranges.push(replace.range(mark.from, hideEnd));
+                ranges.push(
+                  Decoration.mark({ class: 'cm-heading-mark-hidden' }).range(mark.from, hideEnd),
+                );
               }
             }
           }
@@ -147,17 +152,35 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
           const depth = getListNestingDepth(node.node);
           const depth1Based = Math.min(depth + 1, 9);
           const rawMarker = state.sliceDoc(node.from, node.to);
-          const revealed = shouldRevealLine(state, node.from);
+          // Task list in BulletList: replace entire prefix (- [ ] ) with indent guides + checkbox
+          const taskNode = parent?.getChild('Task');
+          if (taskNode && parent?.parent?.type?.name === 'BulletList') {
+            const taskMarker = taskNode.getChild('TaskMarker');
+            if (taskMarker) {
+              const markerText = state.sliceDoc(taskMarker.from, taskMarker.to);
+              const isChecked = markerText.includes('x') || markerText.includes('X');
+              const isCanceled = markerText.includes('-');
+              // Consume TaskMarker + trailing space
+              let taskEnd = taskMarker.to;
+              if (taskEnd < line.to && state.sliceDoc(taskEnd, taskEnd + 1) === ' ') taskEnd++;
 
-          // Task list in BulletList: prefix widget with empty displayText (checkbox handles the visual)
-          if (parent && (parent.getChild('Task') || parent.getChild('TaskMarker'))) {
-            const listRoot = parent.parent;
-            if (listRoot?.type?.name === 'BulletList') {
-              if (hideEnd < line.to) {
+              const revealed = shouldRevealInline(state, line.from, taskEnd);
+              if (revealed) {
                 ranges.push(
                   Decoration.replace({
-                    widget: new ListPrefixWidget(depth1Based, true, '', rawMarker, revealed),
+                    widget: new ListPrefixWidget(depth1Based, true, '', rawMarker, true),
                   }).range(line.from, hideEnd),
+                );
+              } else {
+                ranges.push(
+                  Decoration.replace({
+                    widget: new ListPrefixWidget(depth1Based, false, ''),
+                  }).range(line.from, hideEnd),
+                );
+                ranges.push(
+                  Decoration.replace({
+                    widget: new CheckboxWidget(isChecked, isCanceled, taskMarker.from, taskMarker.to),
+                  }).range(taskMarker.from, taskEnd),
                 );
               }
               return false;
@@ -165,6 +188,7 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
           }
 
           // Normal case: replace from line.from to hideEnd with ListPrefixWidget
+          const revealed = shouldRevealInline(state, line.from, hideEnd);
           const displayText = computeListDisplayText(state, rawMarker, parent, depth);
           ranges.push(
             Decoration.replace({

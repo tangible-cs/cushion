@@ -1,6 +1,6 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, embedRevealedField } from './hide-markup';
+import { markDecorationsPlugin, widgetDecorationsField, linkClickHandler, hrClickHandler, embedRevealedField } from './hide-markup';
 import { inlineReplacePlugin } from './inline-replace';
 import { diffTheme as aiDiffTheme } from './ai-diff';
 import { focusState, focusListener, mouseSelectingField, mouseSelectionTracker } from './reveal-on-cursor';
@@ -221,6 +221,7 @@ export function wysiwygExtension(): Extension {
     inlineReplacePlugin,
     widgetDecorationsField,
     linkClickHandler,
+    hrClickHandler,
     wikiLinkExtension(),
     combinedAutocomplete(),
     slashCommandExtension(),
