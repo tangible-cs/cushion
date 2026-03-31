@@ -57,13 +57,11 @@ function createWindow() {
       nodeIntegration: false,
     },
     titleBarStyle: 'hidden' as const,
-    ...(process.platform !== 'linux' && {
-      titleBarOverlay: {
-        color: '#262626',
-        symbolColor: '#dadada',
-        height: 40,
-      },
-    }),
+    titleBarOverlay: {
+      color: '#262626',
+      symbolColor: '#dadada',
+      height: 40,
+    },
     show: false,
   });
 
@@ -95,9 +93,7 @@ function loadRenderer() {
 }
 
 ipcMain.handle('titlebar:update-theme', (_event, colors: { color: string; symbolColor: string }) => {
-  if (process.platform !== 'linux') {
-    mainWindow?.setTitleBarOverlay(colors);
-  }
+  mainWindow?.setTitleBarOverlay(colors);
 });
 
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
