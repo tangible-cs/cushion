@@ -18,12 +18,27 @@ function isPortListening(port: number): Promise<boolean> {
 }
 
 function getOpenCodeBin(): string {
-  const binName = process.platform === 'win32' ? 'opencode.exe' : 'opencode';
-  if (app.isPackaged) {
-    const unpackedDir = __dirname.replace('app.asar', 'app.asar.unpacked');
-    return path.join(unpackedDir, '../../node_modules/.bin', binName);
+  const base = app.isPackaged
+    ? __dirname.replace('app.asar', 'app.asar.unpacked')
+    : __dirname;
+  const modulesDir = path.join(base, '../../node_modules');
+
+  const platformMap: Record<string, string> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
+  const platform = platformMap[process.platform] || process.platform;
+  const arch = process.arch;
+  const binary = platform === 'windows' ? 'opencode.exe' : 'opencode';
+
+  const candidates = [
+    `opencode-${platform}-${arch}-baseline`,
+    `opencode-${platform}-${arch}`,
+  ];
+
+  for (const name of candidates) {
+    const candidate = path.join(modulesDir, name, 'bin', binary);
+    try { require('fs').accessSync(candidate); return candidate; } catch {}
   }
-  return path.join(__dirname, '../../node_modules/.bin', binName);
+
+  return path.join(modulesDir, '.bin', binary);
 }
 
 export async function startOpenCodeServer(): Promise<void> {
