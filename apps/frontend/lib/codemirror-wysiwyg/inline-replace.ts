@@ -56,8 +56,6 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
         if (type === 'Table') return false;
 
         // ATX Heading: hide # marks + trailing space via mark decoration
-        // Uses font-size:0 mark instead of replace to avoid DOM rebuild that
-        // causes vertical shift at large heading font-sizes (H1-H3).
         if (/^ATXHeading[1-6]$/.test(type)) {
           if (!shouldRevealLine(state, node.from)) {
             const mark = node.node.getChild('HeaderMark');
@@ -160,7 +158,6 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
               const markerText = state.sliceDoc(taskMarker.from, taskMarker.to);
               const isChecked = markerText.includes('x') || markerText.includes('X');
               const isCanceled = markerText.includes('-');
-              // Consume TaskMarker + trailing space
               let taskEnd = taskMarker.to;
               if (taskEnd < line.to && state.sliceDoc(taskEnd, taskEnd + 1) === ' ') taskEnd++;
 

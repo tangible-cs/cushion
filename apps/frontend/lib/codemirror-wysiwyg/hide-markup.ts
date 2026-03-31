@@ -127,7 +127,7 @@ class HrWidget extends WidgetType {
   }
 }
 
-function isCursorAdjacentToLine(state: EditorState, from: number, to: number): boolean {
+function isCursorAdjacentToLine(state: EditorState, from: number): boolean {
   if (!hasFocus(state)) return false;
   const doc = state.doc;
   const hrLine = doc.lineAt(from).number;
@@ -604,7 +604,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'HorizontalRule') {
-        if (isCursorAdjacentToLine(state, from, to)) return false;
+        if (isCursorAdjacentToLine(state, from)) return false;
         decorations.push(
           Decoration.replace({
             widget: new HrWidget(),

@@ -280,9 +280,6 @@
   color: var(--md-text-muted);
 }
 
-/* Hidden heading marks (# symbols) — uses font-size:0 instead of
-   Decoration.replace to avoid CM6 widgetBuffer elements that cause
-   vertical shift at large heading font-sizes. */
 .cm-editor.cm-markdown-wysiwyg .cm-heading-mark-hidden {
   font-size: 0;
 }
