@@ -1,0 +1,46 @@
+name: Build Electron
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: mac
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Build types
+        run: bun run --filter @cushion/types build
+
+      - name: Build Electron
+        run: cd apps/electron && bun run build
+
+      - name: Package
+        run: cd apps/electron && bun run package
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cushion-${{ matrix.platform }}
+          path: |
+            apps/electron/release/*.exe
+            apps/electron/release/*.dmg
+            apps/electron/release/*.AppImage
+          if-no-files-found: error
