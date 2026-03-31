@@ -216,6 +216,11 @@
   background: var(--md-selection-bg) !important;
 }
 
+.cm-editor.cm-markdown-wysiwyg .cm-content div.tbl-table-widget .tbl-cell-editor .cm-line,
+.cm-editor.cm-markdown-wysiwyg .cm-content div.tbl-table-widget .tbl-cell-editor .cm-content {
+  caret-color: var(--md-text) !important;
+}
+
 .cm-editor.cm-markdown-wysiwyg .cm-activeLine {
   background: transparent;
 }
