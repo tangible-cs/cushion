@@ -11,11 +11,7 @@ extraResources:
   - from: ../coordinator/dist
     to: coordinator/dist
 win:
-  target: nsis
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-  include: build/installer.nsh
+  target: portable
 mac:
   target: dmg
   category: public.app-category.productivity
