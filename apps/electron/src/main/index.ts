@@ -1,6 +1,10 @@
 import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron';
 import './pdf-export';
 import { join } from 'path';
+
+if (process.platform === 'linux') {
+  app.disableHardwareAcceleration();
+}
 import windowStateKeeper from 'electron-window-state';
 import { initCoordinator, stopCoordinator } from './coordinator/ipc-router';
 import { startOpenCodeServer, stopOpenCodeServer } from './coordinator/opencode-server';
