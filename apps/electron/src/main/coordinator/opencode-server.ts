@@ -31,6 +31,8 @@ function getOpenCodeBin(): string {
   const candidates = [
     `opencode-${platform}-${arch}-baseline`,
     `opencode-${platform}-${arch}`,
+    `opencode-${platform}-${arch}-baseline-musl`,
+    `opencode-${platform}-${arch}-musl`,
   ];
 
   for (const name of candidates) {
@@ -38,7 +40,9 @@ function getOpenCodeBin(): string {
     try { require('fs').accessSync(candidate); return candidate; } catch {}
   }
 
-  return path.join(modulesDir, '.bin', binary);
+  const fallback = path.join(modulesDir, '.bin', binary);
+  console.error(`[OpenCode] Binary not found. Tried: ${candidates.join(', ')}. Falling back to ${fallback}`);
+  return fallback;
 }
 
 export async function startOpenCodeServer(): Promise<void> {
