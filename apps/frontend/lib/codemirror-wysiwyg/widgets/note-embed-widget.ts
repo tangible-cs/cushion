@@ -2,6 +2,13 @@ import { WidgetType } from '@codemirror/view';
 import { getSharedCoordinatorClient } from '@/lib/shared-coordinator-client';
 import { getEditorView, createSourceToggle } from '../embed-utils';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+const SANITIZE_CONFIG = {
+  USE_PROFILES: { html: true, mathMl: true },
+  FORBID_TAGS: ['style'],
+  FORBID_CONTENTS: ['style', 'script'],
+};
 
 const heightCache = new Map<string, number>();
 
@@ -33,8 +40,9 @@ function extractHeadingSection(content: string, heading: string): string {
   return lines.slice(startIndex, endIndex).join('\n');
 }
 
-function stripScriptTags(html: string): string {
-  return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+function sanitize(html: string): string {
+  if (!DOMPurify.isSupported) return '';
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG);
 }
 
 export class NoteEmbedWidget extends WidgetType {
@@ -95,7 +103,7 @@ export class NoteEmbedWidget extends WidgetType {
           markdown = extractHeadingSection(markdown, this.heading);
         }
 
-        const html = stripScriptTags(marked.parse(markdown, { async: false }) as string);
+        const html = sanitize(marked.parse(markdown, { async: false }) as string);
         content.innerHTML = html;
 
         queueMicrotask(() => {
