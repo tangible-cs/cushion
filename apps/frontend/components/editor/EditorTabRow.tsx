@@ -4,6 +4,7 @@ import { PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorTabs } from './EditorTabs';
 import { isElectron, noDragStyle } from './editor-path';
+import logoSvg from '/logo.svg?url';
 
 interface EditorTabRowProps {
   sidebarOpen?: boolean;
@@ -69,7 +70,7 @@ export function EditorTabRow({
             title="Open workspace"
             aria-label="Open workspace"
           >
-            <img src="/logo.svg" alt="Cushion" className="h-7 w-7" />
+            <img src={logoSvg} alt="Cushion" className="h-7 w-7" />
           </button>
         )}
         {onToggleSidebar && (

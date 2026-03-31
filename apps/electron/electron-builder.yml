@@ -8,10 +8,18 @@ files:
 asarUnpack:
   - "**/node_modules/ffmpeg-static/**/*"
 extraResources:
-  - from: ../coordinator/dist
-    to: coordinator/dist
+  - from: build/icon.ico
+    to: icon.ico
+  - from: build/icon.png
+    to: icon.png
 win:
-  target: portable
+  target: nsis
+  icon: build/icon.ico
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: true
 mac:
   target: dmg
   category: public.app-category.productivity
