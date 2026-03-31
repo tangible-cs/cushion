@@ -76,6 +76,52 @@ import { useEditorPanelContext } from './EditorPanelContext';
 import { extractNoteContext } from '@/lib/extract-note-context';
 import { createDictationEditTracker, type DictationEditTracker } from '@/lib/dictation-edit-tracker';
 
+const buildAdaptiveTheme = (dark: boolean): Extension => EditorView.theme({
+  '&': {
+    backgroundColor: 'var(--md-bg)',
+    color: 'var(--md-text)',
+    outline: 'none',
+  },
+  '&.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-content': {
+    caretColor: 'var(--md-text)',
+  },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: 'var(--md-text)',
+  },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+    backgroundColor: 'var(--md-selection-bg) !important',
+  },
+  '.cm-panels': {
+    backgroundColor: 'var(--md-bg-secondary)',
+    color: 'var(--md-text)',
+  },
+  '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--md-border)' },
+  '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--md-border)' },
+  '.cm-searchMatch': {
+    backgroundColor: 'var(--accent-primary-12)',
+    outline: '1px solid var(--border-subtle)',
+    borderRadius: '2px',
+  },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    backgroundColor: 'var(--accent-primary-12)',
+    outline: '1px solid var(--accent-primary)',
+  },
+  '.cm-activeLine': {
+    backgroundColor: 'var(--md-active-line-bg)',
+  },
+  '.cm-gutters': {
+    backgroundColor: 'var(--md-bg)',
+    color: 'var(--md-text-faint)',
+    border: 'none',
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'var(--md-active-line-gutter-bg)',
+  },
+}, { dark });
+
 interface CodeEditorProps {
   filePath: string;
   hidden?: boolean;
@@ -190,6 +236,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
   const readableLineLengthCompartmentRef = useRef(new Compartment());
   const mergeViewCompartmentRef = useRef(new Compartment());
   const diffKeymapCompartmentRef = useRef(new Compartment());
+  const darkModeCompartmentRef = useRef(new Compartment());
   const isReviewingRef = useRef(false);
   const editTrackerRef = useRef<DictationEditTracker | null>(null);
 
@@ -414,51 +461,6 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     let cancelled = false;
     const isDark = useAppearanceStore.getState().resolvedTheme === 'dark';
 
-    const adaptiveTheme = EditorView.theme({
-      '&': {
-        backgroundColor: 'var(--md-bg)',
-        color: 'var(--md-text)',
-        outline: 'none',
-      },
-      '&.cm-focused': {
-        outline: 'none',
-      },
-      '.cm-content': {
-        caretColor: 'var(--md-text)',
-      },
-      '.cm-cursor, .cm-dropCursor': {
-        borderLeftColor: 'var(--md-text)',
-      },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-        backgroundColor: 'var(--md-selection-bg) !important',
-      },
-      '.cm-panels': {
-        backgroundColor: 'var(--md-bg-secondary)',
-        color: 'var(--md-text)',
-      },
-      '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--md-border)' },
-      '.cm-panels.cm-panels-bottom': { borderTop: '1px solid var(--md-border)' },
-      '.cm-searchMatch': {
-        backgroundColor: 'var(--accent-primary-12)',
-        outline: '1px solid var(--border-subtle)',
-        borderRadius: '2px',
-      },
-      '.cm-searchMatch.cm-searchMatch-selected': {
-        backgroundColor: 'var(--accent-primary-12)',
-        outline: '1px solid var(--accent-primary)',
-      },
-      '.cm-activeLine': {
-        backgroundColor: 'var(--md-active-line-bg)',
-      },
-      '.cm-gutters': {
-        backgroundColor: 'var(--md-bg)',
-        color: 'var(--md-text-faint)',
-        border: 'none',
-      },
-      '.cm-activeLineGutter': {
-        backgroundColor: 'var(--md-active-line-gutter-bg)',
-      },
-    }, { dark: isDark });
 
     const adaptiveHighlight = HighlightStyle.define([
       { tag: tags.keyword, color: 'var(--md-code-keyword)' },
@@ -532,7 +534,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
         ...lintKeymap,
       ]),
       focusModeExtension(),
-      adaptiveTheme,
+      darkModeCompartmentRef.current.of(buildAdaptiveTheme(isDark)),
       syntaxHighlighting(adaptiveHighlight),
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !isReviewingRef.current && !isSyncingContentRef.current) {
@@ -795,6 +797,22 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
     preferences.foldIndent,
     preferences.readableLineLength,
   ]);
+
+  useEffect(() => {
+    return useAppearanceStore.subscribe(
+      (state) => state.resolvedTheme,
+      (resolvedTheme) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const dark = resolvedTheme === 'dark';
+        view.dispatch({
+          effects: darkModeCompartmentRef.current.reconfigure(
+            buildAdaptiveTheme(dark)
+          ),
+        });
+      },
+    );
+  }, []);
 
   useEffect(() => {
     if (viewRef.current && filePaths) {
