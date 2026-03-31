@@ -61,7 +61,7 @@ export function HeroSection() {
                     size="lg"
                     className="rounded-xl px-5 text-base"
                   >
-                    <a href="#download">
+                    <a href="https://github.com/Aleexc12/cushion/releases/latest" target="_blank" rel="noopener noreferrer">
                       <span className="text-nowrap">Download for free</span>
                     </a>
                   </Button>
