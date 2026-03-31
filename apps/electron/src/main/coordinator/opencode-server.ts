@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { app } from 'electron';
 import net from 'node:net';
 import path from 'node:path';
 
@@ -17,8 +18,12 @@ function isPortListening(port: number): Promise<boolean> {
 }
 
 function getOpenCodeBin(): string {
-  const binDir = path.join(__dirname, '../../node_modules/.bin');
-  return path.join(binDir, process.platform === 'win32' ? 'opencode.exe' : 'opencode');
+  const binName = process.platform === 'win32' ? 'opencode.exe' : 'opencode';
+  if (app.isPackaged) {
+    const unpackedDir = __dirname.replace('app.asar', 'app.asar.unpacked');
+    return path.join(unpackedDir, '../../node_modules/.bin', binName);
+  }
+  return path.join(__dirname, '../../node_modules/.bin', binName);
 }
 
 export async function startOpenCodeServer(): Promise<void> {

@@ -7,6 +7,7 @@ files:
   - out/**/*
 asarUnpack:
   - "**/node_modules/ffmpeg-static/**/*"
+  - "**/node_modules/opencode-*/**/*"
 extraResources:
   - from: build/icon.ico
     to: icon.ico
