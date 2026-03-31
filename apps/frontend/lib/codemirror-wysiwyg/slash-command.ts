@@ -9,6 +9,7 @@ import { EditorView, ViewPlugin, ViewUpdate, showTooltip, Tooltip } from '@codem
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { startCompletion } from '@codemirror/autocomplete';
 import type { Extension } from '@codemirror/state';
+import { insertEmptyMarkdownTable } from 'codemirror-markdown-tables';
 import { getResolvedBindings } from '@/stores/shortcutsStore';
 import { matchShortcut, formatShortcutList } from '@/lib/shortcuts/utils';
 
@@ -124,12 +125,8 @@ const SLASH_COMMANDS: SlashCommand[] = [
     icon: 'table',
     keywords: ['table', 'grid', 'rows', 'columns'],
     apply: (view, from, to) => {
-      const insert = '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |\n';
-      view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from + 2 },
-      });
-      view.focus();
+      view.dispatch({ changes: { from, to, insert: '' } });
+      insertEmptyMarkdownTable({ size: { rows: 3, cols: 3 } })(view);
     },
   },
 ];

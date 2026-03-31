@@ -44,11 +44,13 @@ import {
   completionKeymap,
 } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Table, Strikethrough } from '@lezer/markdown';
+import { markdownTables, markdownTableAutocompleter, insertEmptyMarkdownTable, TableTheme } from 'codemirror-markdown-tables';
 import { languages } from '@codemirror/language-data';
 import type { Extension } from '@codemirror/state';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import {
   wysiwygExtension,
   focusModeExtension,
@@ -410,6 +412,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
 
     const container = containerRef.current;
     let cancelled = false;
+    const isDark = useAppearanceStore.getState().resolvedTheme === 'dark';
 
     const adaptiveTheme = EditorView.theme({
       '&': {
@@ -455,7 +458,7 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
       '.cm-activeLineGutter': {
         backgroundColor: 'var(--md-active-line-gutter-bg)',
       },
-    });
+    }, { dark: isDark });
 
     const adaptiveHighlight = HighlightStyle.define([
       { tag: tags.keyword, color: 'var(--md-code-keyword)' },
@@ -610,6 +613,16 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
           paddingLeft: '0',
           paddingRight: '0',
         },
+        '.tbl-cell-editor .cm-scroller': {
+          overflow: 'hidden',
+          padding: '0',
+        },
+        '.tbl-cell-editor .cm-content': {
+          padding: '7px 9px !important',
+          paddingBottom: '7px !important',
+          minWidth: '0',
+          width: 'auto',
+        },
       }),
       readableLineLengthCompartmentRef.current.of(
         prefs.readableLineLength
@@ -640,7 +653,18 @@ export function CodeEditor({ filePath, hidden }: CodeEditorProps) {
 
       const fileExt = filePath.split('.').pop()?.toLowerCase() || '';
       if (fileExt === 'md' || fileExt === 'markdown') {
-        extensions.push(wysiwygExtension());
+        extensions.push(
+          wysiwygExtension(),
+          markdownTables({
+            theme: { light: TableTheme.light, dark: TableTheme.dark },
+            handlePosition: 'inside',
+            selectionType: 'native',
+            extensions: [keymap.of(defaultKeymap)],
+            globalKeyBindings: [...historyKeymap, ...searchKeymap],
+          }),
+          markdownLanguage.data.of({ autocomplete: markdownTableAutocompleter() }),
+          keymap.of([{ key: 'Alt-Mod-t', run: insertEmptyMarkdownTable({ size: { rows: 2, cols: 2 } }) }]),
+        );
       }
 
       const state = EditorState.create({

@@ -14,7 +14,7 @@ import { combinedAutocomplete } from './combined-autocomplete';
 import { slashCommandExtension } from './slash-command';
 import { headingFoldExtension } from './heading-fold';
 import { headingFoldGutterExtension } from './heading-fold-gutter';
-import { tableExtension } from './table/table-extension';
+
 
 export { focusModeExtension, setFocusMode, isFocusModeEnabled } from './focus-mode';
 
@@ -86,6 +86,26 @@ const markdownProseTheme = EditorView.theme({
     backgroundColor: 'transparent !important',
   },
   '.cm-activeLineGutter': {
+    backgroundColor: 'transparent !important',
+  },
+});
+
+const tableNestingReset = EditorView.theme({
+  '.tbl-cell-editor .cm-scroller': {
+    overflow: 'hidden',
+    padding: '0',
+    backgroundColor: 'unset',
+  },
+  '.tbl-cell-editor .cm-content': {
+    maxWidth: 'none',
+    padding: '7px 9px !important',
+    paddingBottom: '7px !important',
+    lineHeight: '1.5',
+  },
+  '.tbl-cell-editor .cm-gutters': {
+    display: 'none',
+  },
+  '.tbl-cell-editor .cm-activeLine': {
     backgroundColor: 'transparent !important',
   },
 });
@@ -190,6 +210,7 @@ export function wysiwygExtension(): Extension {
   return [
     editorAttributes,
     markdownProseTheme,
+    tableNestingReset,
     wysiwygWidgetTheme,
     focusState,
     focusListener,
@@ -205,7 +226,6 @@ export function wysiwygExtension(): Extension {
     slashCommandExtension(),
     headingFoldExtension(),
     headingFoldGutterExtension(),
-    tableExtension(),
     aiDiffTheme,
   ];
 }
