@@ -49,6 +49,9 @@ function buildInlineReplaceDecorations(view: EditorView): DecorationSet {
       to,
       enter(node) {
         const type = node.type.name;
+
+        // Tables use mark/line decorations from the table plugin — skip replace
+        // decorations inside tables to avoid conflicting with cell boundaries.
         if (type === 'Table') return false;
 
         // ATX Heading: hide # marks + trailing space (Zettlr pattern)

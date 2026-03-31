@@ -159,9 +159,8 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       const from = node.from;
       const to = node.to;
 
-      if (type === 'Table') {
-        return false;
-      }
+      // Tables are decorated by the table plugin — skip entirely
+      if (type === 'Table') return false;
 
       if (type === 'FrontMatter' || type === 'Frontmatter') {
         const startLine = state.doc.lineAt(from).number;
@@ -443,9 +442,9 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       const from = node.from;
       const to = node.to;
 
-      if (type === 'Table') {
-        return false;
-      }
+      // Tables use mark/line decorations — skip widget/replace decorations
+      // inside tables to avoid breaking cell layout.
+      if (type === 'Table') return false;
 
       if (type === 'Image') {
         if (isSelectRange(state, { from, to })) return false;
