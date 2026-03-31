@@ -56,14 +56,16 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    ...(process.platform !== 'linux' ? {
-      titleBarStyle: 'hidden' as const,
-      titleBarOverlay: {
-        color: '#262626',
-        symbolColor: '#dadada',
-        height: 40,
-      },
-    } : {}),
+    ...(process.platform === 'linux'
+      ? { frame: false }
+      : {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: '#262626',
+            symbolColor: '#dadada',
+            height: 40,
+          },
+        }),
     show: false,
   });
 
@@ -99,6 +101,13 @@ ipcMain.handle('titlebar:update-theme', (_event, colors: { color: string; symbol
     mainWindow?.setTitleBarOverlay(colors);
   }
 });
+
+ipcMain.handle('window:minimize', () => mainWindow?.minimize());
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
+});
+ipcMain.handle('window:close', () => mainWindow?.close());
 
 ipcMain.handle('workspace:opened', (_event, projectPath: string) => {
   app.addRecentDocument(projectPath);

@@ -1,9 +1,9 @@
 
 import type { TabState } from '@cushion/types';
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { Minus, Square, X, PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorTabs } from './EditorTabs';
-import { hasCustomTitlebar, noDragStyle } from './editor-path';
+import { hasCustomTitlebar, isLinux, noDragStyle } from './editor-path';
 import logoSvg from '/logo.svg?url';
 
 interface EditorTabRowProps {
@@ -48,7 +48,7 @@ export function EditorTabRow({
       )}
       style={hasCustomTitlebar ? {
         WebkitAppRegion: 'drag',
-        paddingRight: rightPanelOpen ? undefined : 140,
+        paddingRight: rightPanelOpen || isLinux ? undefined : 140,
       } as React.CSSProperties : undefined}
     >
       <div
@@ -137,6 +137,32 @@ export function EditorTabRow({
           className="flex-shrink-0 self-stretch border-l border-border"
           style={{ width: rightPanelWidth }}
         />
+      )}
+
+      {isLinux && (
+        <div className="flex items-center flex-shrink-0 ml-auto" style={noDragStyle}>
+          <button
+            onClick={() => window.electronAPI?.windowMinimize()}
+            className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Minimize"
+          >
+            <Minus size={16} strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={() => window.electronAPI?.windowMaximize()}
+            className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+            aria-label="Maximize"
+          >
+            <Square size={14} strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={() => window.electronAPI?.windowClose()}
+            className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-red-500 transition-colors"
+            aria-label="Close"
+          >
+            <X size={16} strokeWidth={1.5} />
+          </button>
+        </div>
       )}
     </div>
   );
