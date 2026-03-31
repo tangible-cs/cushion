@@ -2,6 +2,8 @@
 
 A local-first markdown workspace with a built-in AI sidebar. Cursor, but for your notes and documents.
 
+![Cushion](.github/images/cushion-preview.png)
+
 ## Why?
 
 I liked Obsidian. I liked Cursor. But I kept switching between the two and never fully settled in either. Obsidian's markdown editing felt great, but it had no AI chat that felt native to me, and honestly I spent way too much time finding the best theme and best plugins. Cursor, on the other hand, had the AI sidebar I wanted, but it's a code editor and writing long-form text in it was exhausting.
