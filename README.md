@@ -49,31 +49,6 @@ bun run dev:electron
 bun run package:electron
 ```
 
-## Project Structure
-
-```
-cushion/
-  apps/
-    frontend/       Vite + React 19 + Tailwind + CodeMirror 6
-    electron/       Electron shell + coordinator (file I/O, AI server, dictation)
-  packages/
-    types/          Shared TypeScript types
-    tsconfig/       Shared TS configs
-```
-
-## Tech Stack
-
-| Layer     | Tech                                          |
-| --------- | --------------------------------------------- |
-| Frontend  | React 19, Tailwind 3, CodeMirror 6, Zustand 5 |
-| Desktop   | Electron 35                                   |
-| AI        | OpenCode (via `@opencode-ai/sdk`)             |
-| Dictation | Sherpa ONNX (local)                           |
-| Drawings  | Excalidraw                                    |
-| PDF       | pdfjs-dist                                    |
-| Math      | KaTeX                                         |
-| Build     | Vite, Bun                                     |
-
 ## Status
 
 Beta. I use it every day and it works, but there are rough edges. Contributions and feedback welcome.
