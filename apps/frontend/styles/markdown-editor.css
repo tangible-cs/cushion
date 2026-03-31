@@ -212,7 +212,8 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line ::selection,
-.cm-editor.cm-markdown-wysiwyg .cm-line::selection {
+.cm-editor.cm-markdown-wysiwyg .cm-line::selection,
+.cm-editor.cm-markdown-wysiwyg .cm-content div.tbl-table-widget .tbl-cell-editor ::selection {
   background: var(--md-selection-bg) !important;
 }
 
