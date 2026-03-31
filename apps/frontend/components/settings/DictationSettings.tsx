@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 
 export function DictationSettings() {
   const loadSettings = useDictationStore((s) => s.loadSettings);
+  const enabled = useDictationStore((s) => s.enabled);
+  const setEnabled = useDictationStore((s) => s.setEnabled);
   const serverStatus = useDictationStore((s) => s.serverStatus);
   const selectedModel = useDictationStore((s) => s.selectedModel);
   const models = useDictationStore((s) => s.models);
@@ -35,23 +37,32 @@ export function DictationSettings() {
 
   return (
     <div className="p-6 overflow-y-auto thin-scrollbar space-y-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold">Dictation</h2>
-        <span
-          className={cn(
-            'inline-block h-2 w-2 rounded-full',
-            serverStatus === 'running'
-              ? 'bg-accent-green'
-              : serverStatus === 'starting'
-                ? 'bg-accent animate-pulse'
-                : serverStatus === 'error'
-                  ? 'bg-accent-red'
-                  : 'bg-foreground-faint',
-          )}
-          title={`Server: ${serverStatus}`}
+      <div className="flex items-center gap-3">
+        <ToggleRow
+          label="Enable Whisper"
+          description="Start the transcription server and register the global hotkey"
+          checked={enabled}
+          onChange={() => setEnabled(!enabled)}
+          className="flex-1"
         />
+        {enabled && (
+          <span
+            className={cn(
+              'inline-block h-2 w-2 rounded-full shrink-0',
+              serverStatus === 'running'
+                ? 'bg-accent-green'
+                : serverStatus === 'starting'
+                  ? 'bg-accent animate-pulse'
+                  : serverStatus === 'error'
+                    ? 'bg-accent-red'
+                    : 'bg-foreground-faint',
+            )}
+            title={`Server: ${serverStatus}`}
+          />
+        )}
       </div>
 
+      {!enabled ? null : <>
       <div>
         <h3 className="text-xs uppercase tracking-wide text-foreground-faint mb-3">Model</h3>
         <div className="flex items-center justify-between">
@@ -109,6 +120,7 @@ export function DictationSettings() {
 
       <DictationPostProcessing />
       <DictationDictionary />
+      </>}
     </div>
   );
 }

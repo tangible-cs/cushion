@@ -51,6 +51,7 @@ export interface DictationServerInfo {
 }
 
 export interface DictationConfig {
+  enabled: boolean;
   selectedModel: DictationModelName;
   hotkey: string;
   postProcessing: {

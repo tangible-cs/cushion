@@ -6,6 +6,7 @@ import type { DictationConfig, DictationModelName } from '@cushion/types';
 const CONFIG_FILE = 'dictation.json';
 
 const DEFAULT_CONFIG: DictationConfig = {
+  enabled: false,
   selectedModel: 'parakeet-v3',
   hotkey: 'Control+W',
   postProcessing: {
@@ -46,6 +47,7 @@ function migrateConfig(raw: Record<string, unknown>): DictationConfig {
     return {
       ...DEFAULT_CONFIG,
       ...raw,
+      enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
       selectedModel: raw.selectedModel as DictationModelName,
       postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...(raw.postProcessing as object) },
     };
@@ -64,6 +66,7 @@ function migrateConfig(raw: Record<string, unknown>): DictationConfig {
   }
 
   return {
+    enabled: true,
     selectedModel,
     hotkey: (raw.hotkey as string) || DEFAULT_CONFIG.hotkey,
     postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...(raw.postProcessing as object) },
