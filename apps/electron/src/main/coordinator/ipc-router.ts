@@ -107,6 +107,7 @@ async function loadFileFilter() {
 
 async function warmStartDictationServer() {
   const config = await dictationConfigManager.read();
+  if (!config.enabled) return;
   const model = config.selectedModel;
   const accelerator = config.accelerator || 'cpu';
   if (!sherpaModelManager.isModelDownloaded(model)) return;
@@ -140,7 +141,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
   hotkeyManager = new HotkeyManager(notifyRenderer);
   try {
     const config = await dictationConfigManager.read();
-    if (config.hotkey) hotkeyManager.register(config.hotkey);
+    if (config.enabled && config.hotkey) hotkeyManager.register(config.hotkey);
   } catch {}
 
   sherpaModelManager = new SherpaModelManager(notifyRenderer);
@@ -283,7 +284,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
     return handleLoginFinish();
   });
 
-  // --- Unified dictation handlers ---
+  // Dictation handlers
   ipcMain.handle('coordinator:dictation/list-models', async () => {
     return handleDictationListModels(sherpaModelManager);
   });
@@ -333,7 +334,7 @@ export async function initCoordinator(mainWindow: BrowserWindow) {
   });
 
   ipcMain.handle('coordinator:dictation/dictation-config-write', async (_event, params: RPCParams<'dictation/dictation-config-write'>) => {
-    return handleDictationConfigWrite(dictationConfigManager, params);
+    return handleDictationConfigWrite(dictationConfigManager, hotkeyManager, params);
   });
 
   ipcMain.handle('coordinator:dictation/dictionary-add', async (_event, params: RPCParams<'dictation/dictionary-add'>) => {

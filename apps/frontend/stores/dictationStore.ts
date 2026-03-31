@@ -42,10 +42,12 @@ interface DictationState {
   gpuAvailable: boolean;
   gpuName: string | null;
   gpuBinaryDownloaded: boolean;
+  enabled: boolean;
   gpuBinaryDownloading: boolean;
   gpuBinaryDownloadProgress: GpuDownloadProgress | null;
   setClient: (client: CoordinatorClient) => void;
   loadSettings: () => Promise<void>;
+  setEnabled: (enabled: boolean) => Promise<void>;
   refreshModels: () => Promise<void>;
   downloadModel: (model: DictationModelName) => Promise<void>;
   cancelDownload: () => Promise<void>;
@@ -117,6 +119,7 @@ export const useDictationStore = create<DictationState>()(
     postProcessing: { enabled: false, provider: 'openai', apiKey: '', model: 'gpt-4o-mini', fillerRemoval: true, stutterCollapse: true, includeNoteContext: true, autoLearnCorrections: true, skipShortTranscriptions: true, shortTextThreshold: 3 } as DictationConfig['postProcessing'],
     dictionary: [],
     hotkey: 'Control+W',
+    enabled: false,
     accelerator: 'cpu',
     gpuAvailable: false,
     gpuName: null,
@@ -229,6 +232,7 @@ export const useDictationStore = create<DictationState>()(
 
       dictationConfig = config;
       set({
+        enabled: config.enabled ?? false,
         models: modelsResult.models,
         selectedModel: config.selectedModel,
         postProcessing: config.postProcessing,
@@ -240,6 +244,20 @@ export const useDictationStore = create<DictationState>()(
         gpuBinaryDownloaded: gpuBinaryResult.available,
         settingsLoaded: true,
       });
+    },
+
+    setEnabled: async (enabled) => {
+      const client = coordinatorClient;
+      if (!client || !dictationConfig) return;
+      dictationConfig = { ...dictationConfig, enabled };
+      await client.call('dictation/dictation-config-write', { config: dictationConfig });
+      set({ enabled });
+
+      if (enabled) {
+        await client.call('dictation/start-server', { model: dictationConfig.selectedModel });
+      } else {
+        await client.call('dictation/stop-server');
+      }
     },
 
     refreshModels: async () => {

@@ -3,6 +3,7 @@ import './pdf-export';
 import { join } from 'path';
 import windowStateKeeper from 'electron-window-state';
 import { initCoordinator, stopCoordinator } from './coordinator/ipc-router';
+import { startOpenCodeServer, stopOpenCodeServer } from './coordinator/opencode-server';
 
 const iconExt = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
 const iconPath = app.isPackaged
@@ -156,6 +157,7 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  await startOpenCodeServer();
   await initCoordinator(mainWindow!);
 
   app.on('activate', () => {
@@ -173,4 +175,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopCoordinator();
+  stopOpenCodeServer();
 });
