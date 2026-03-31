@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron';
 import './pdf-export';
 import { join } from 'path';
 import windowStateKeeper from 'electron-window-state';
@@ -62,6 +62,14 @@ function createWindow() {
   });
 
   mainWindowState.manage(mainWindow);
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();

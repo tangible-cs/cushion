@@ -202,7 +202,6 @@
   border: none;
 }
 
-/* Cursor color */
 .cm-editor.cm-markdown-wysiwyg .cm-cursor {
   border-left-color: var(--md-text);
 }
@@ -212,16 +211,15 @@
 }
 
 .cm-editor.cm-markdown-wysiwyg .cm-line ::selection,
-.cm-editor.cm-markdown-wysiwyg .cm-line::selection {
+.cm-editor.cm-markdown-wysiwyg .cm-line::selection,
+.cm-editor.cm-markdown-wysiwyg .cm-content div.tbl-table-widget .tbl-cell-editor ::selection {
   background: var(--md-selection-bg) !important;
 }
 
-/* Active line - no highlight for cleaner look */
 .cm-editor.cm-markdown-wysiwyg .cm-activeLine {
   background: transparent;
 }
 
-/* Remove active line gutter highlight too */
 .cm-editor.cm-markdown-wysiwyg .cm-activeLineGutter {
   background: transparent;
 }
