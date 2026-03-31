@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+
   coordinatorInvoke: (method: string, params: unknown) =>
     ipcRenderer.invoke(`coordinator:${method}`, params),
   onCoordinatorNotification: (channel: string, callback: (...args: any[]) => void) => {

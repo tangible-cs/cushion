@@ -1,4 +1,5 @@
 export interface ElectronAPI {
+  platform: string;
   coordinatorInvoke: (method: string, params: unknown) => Promise<any>;
   onCoordinatorNotification: (channel: string, callback: (...args: any[]) => void) => () => void;
   updateTitleBarTheme: (colors: { color: string; symbolColor: string }) => Promise<void>;

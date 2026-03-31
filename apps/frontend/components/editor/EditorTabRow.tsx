@@ -3,7 +3,7 @@ import type { TabState } from '@cushion/types';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorTabs } from './EditorTabs';
-import { isElectron, noDragStyle } from './editor-path';
+import { hasCustomTitlebar, noDragStyle } from './editor-path';
 import logoSvg from '/logo.svg?url';
 
 interface EditorTabRowProps {
@@ -44,9 +44,9 @@ export function EditorTabRow({
       className={cn(
         'relative flex items-center bg-tab-container min-h-[40px] flex-shrink-0',
         "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:content-['']",
-        isElectron && 'select-none'
+        hasCustomTitlebar && 'select-none'
       )}
-      style={isElectron ? {
+      style={hasCustomTitlebar ? {
         WebkitAppRegion: 'drag',
         paddingRight: rightPanelOpen ? undefined : 140,
       } as React.CSSProperties : undefined}
