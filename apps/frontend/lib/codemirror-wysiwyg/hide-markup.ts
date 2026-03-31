@@ -8,7 +8,7 @@ import {
 } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { EditorState, Range, StateField } from '@codemirror/state';
-import { isSelectRange, isSelectLine, isFocusEvent, mouseSelectEffect } from './reveal-on-cursor';
+import { isSelectRange, isSelectLine, isFocusEvent, mouseSelectEffect, mouseSelectingField, hasFocus } from './reveal-on-cursor';
 import { getListNestingDepth } from './list-utils';
 import { ImageWidget } from './widgets/image-widget';
 import { PdfWidget } from './widgets/pdf-widget';
@@ -116,6 +116,31 @@ class CodeBlockInfoWidget extends WidgetType {
   }
 
   ignoreEvent() { return true; }
+}
+
+class HrWidget extends WidgetType {
+  eq() { return true; }
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-hr-widget';
+    return span;
+  }
+}
+
+function isCursorAdjacentToLine(state: EditorState, from: number): boolean {
+  if (!hasFocus(state)) return false;
+  const doc = state.doc;
+  const hrLine = doc.lineAt(from).number;
+  return state.selection.ranges.some((r) => {
+    const headLine = doc.lineAt(r.head).number;
+    if (headLine >= hrLine - 1 && headLine <= hrLine + 1) return true;
+    if (!r.empty) {
+      const selFrom = doc.lineAt(Math.min(r.head, r.anchor)).number;
+      const selTo = doc.lineAt(Math.max(r.head, r.anchor)).number;
+      return selFrom <= hrLine + 1 && selTo >= hrLine - 1;
+    }
+    return false;
+  });
 }
 
 export const embedRevealedField = StateField.define<number | null>({
@@ -296,19 +321,6 @@ function buildMarkDecorations(view: EditorView): DecorationSet {
       }
 
       if (type === 'HorizontalRule') {
-        const line = state.doc.lineAt(from);
-        const cursorOnHr = isSelectLine(state, from, to);
-
-        decorations.push(
-          Decoration.line({
-            class: cursorOnHr ? 'cm-hr-line cm-hr-line-revealed' : 'cm-hr-line',
-          }).range(line.from),
-        );
-        decorations.push(
-          Decoration.mark({
-            class: cursorOnHr ? 'cm-hr-content cm-hr-content-revealed' : 'cm-hr-content',
-          }).range(from, to),
-        );
         return false;
       }
 
@@ -447,8 +459,6 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       if (type === 'Table') return false;
 
       if (type === 'Image') {
-        if (isSelectRange(state, { from, to })) return false;
-
         const isRevealed = revealedPos !== null && from === revealedPos;
         const text = state.doc.sliceString(from, to);
 
@@ -471,6 +481,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
             heading = decodeURIComponent(href.slice(hashIdx + 1));
           }
           const embedType = classifyEmbed(href);
+          if (embedType === 'unsupported' && isSelectRange(state, { from, to })) return false;
           addEmbedDecoration(decorations, from, to, href, alt, isRevealed, width, embedType, heading);
           return false;
         }
@@ -498,6 +509,7 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
             }
           }
           const embedType = classifyEmbed(filePath);
+          if (embedType === 'unsupported' && isSelectRange(state, { from, to })) return false;
           addEmbedDecoration(decorations, from, to, filePath, wikiAlt, isRevealed, wikiWidth, embedType, heading);
         }
         return false;
@@ -592,6 +604,13 @@ function buildWidgetDecorations(state: EditorState): DecorationSet {
       }
 
       if (type === 'HorizontalRule') {
+        if (isCursorAdjacentToLine(state, from)) return false;
+        decorations.push(
+          Decoration.replace({
+            widget: new HrWidget(),
+            inclusive: false,
+          }).range(from, to),
+        );
         return false;
       }
 
@@ -635,7 +654,7 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     return buildWidgetDecorations(state);
   },
   update(value, tr) {
-    if (tr.effects.some(e => e.is(embedSourceRevealEffect) || e.is(mouseSelectEffect))) {
+    if (tr.effects.some(e => e.is(embedSourceRevealEffect) || (e.is(mouseSelectEffect) && !e.value))) {
       return buildWidgetDecorations(tr.state);
     }
     const treeChanged = syntaxTree(tr.state) !== syntaxTree(tr.startState);
@@ -646,6 +665,7 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
       return value.map(tr.changes);
     }
     if (tr.selection) {
+      if (tr.state.field(mouseSelectingField, false)) return value;
       return buildWidgetDecorations(tr.state);
     }
     if (treeChanged) {
@@ -654,6 +674,20 @@ export const widgetDecorationsField = StateField.define<DecorationSet>({
     return value;
   },
   provide: (f) => EditorView.decorations.from(f),
+});
+
+export const hrClickHandler = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    const target = event.target as HTMLElement;
+    const hr = target.querySelector('.cm-hr-widget') || target.closest('.cm-hr-widget');
+    if (!hr) return false;
+    const pos = view.posAtDOM(hr);
+    const line = view.state.doc.lineAt(pos);
+    event.preventDefault();
+    view.dispatch({ selection: { anchor: line.from, head: line.to } });
+    view.focus();
+    return true;
+  },
 });
 
 export const linkClickHandler = EditorView.domEventHandlers({

@@ -280,6 +280,10 @@
   color: var(--md-text-muted);
 }
 
+.cm-editor.cm-markdown-wysiwyg .cm-heading-mark-hidden {
+  font-size: 0;
+}
+
 /* --- Typography - Inline formatting --- */
 
 /* Lezer-provided classes (syntax highlighting) */
@@ -672,33 +676,11 @@
 
 /* --- Horizontal Rule --- */
 
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-hr-line {
-  position: relative;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-hr-line::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  border-top: 1px solid var(--md-hr-color);
-  pointer-events: none;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-hr-content,
-.cm-editor.cm-markdown-wysiwyg .cm-hr-content * {
-  color: transparent !important;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-line.cm-hr-line-revealed::after {
-  display: none;
-}
-
-.cm-editor.cm-markdown-wysiwyg .cm-hr-content-revealed,
-.cm-editor.cm-markdown-wysiwyg .cm-hr-content-revealed * {
-  color: var(--md-text-faint) !important;
+.cm-editor.cm-markdown-wysiwyg .cm-hr-widget {
+  display: inline-block;
+  width: 100%;
+  border-top: 2px solid var(--md-hr-color);
+  vertical-align: middle;
 }
 
 /* --- Images --- */
@@ -706,6 +688,11 @@
 .cm-editor.cm-markdown-wysiwyg .cm-image-widget {
   display: block;
   padding: 2px 0;
+}
+
+/* Block widget (revealed) sits outside .cm-line — match its left padding */
+.cm-editor.cm-markdown-wysiwyg .cm-content > .cm-image-widget {
+  padding-left: 6px;
 }
 
 /* Collapse the host .cm-line that contains only a replace-widget image.
