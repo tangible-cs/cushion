@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "bun run --filter frontend dev",
     "dev:frontend": "bun run --filter frontend dev",
+    "dev:landing": "bun run --filter landing dev",
     "dev:electron": "bun run --filter @cushion/types build && bun run --filter electron-app dev",
     "build": "bun run --filter @cushion/types build && bun run --filter frontend build",
     "build:electron": "bun run --filter @cushion/types build && bun run --filter electron-app build",
