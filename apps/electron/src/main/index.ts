@@ -73,6 +73,11 @@ function createWindow() {
 
   mainWindowState.manage(mainWindow);
 
+  if (isLinux) {
+    mainWindow.setMenuBarVisibility(false);
+    mainWindow.setAutoHideMenuBar(true);
+  }
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:') || url.startsWith('http:')) {
       shell.openExternal(url);
