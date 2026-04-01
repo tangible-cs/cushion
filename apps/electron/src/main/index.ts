@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, screen, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron';
 import './pdf-export';
 import { join } from 'path';
 
@@ -59,7 +59,7 @@ function createWindow() {
       nodeIntegration: false,
     },
     ...(isLinux
-      ? { frame: false }
+      ? {}
       : {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
@@ -72,18 +72,6 @@ function createWindow() {
   });
 
   mainWindowState.manage(mainWindow);
-
-  // Linux frame:false maximize fix — constrain to work area so no gap appears
-  if (isLinux) {
-    let adjustingBounds = false;
-    mainWindow.on('maximize', () => {
-      if (adjustingBounds) return;
-      adjustingBounds = true;
-      const { workArea } = screen.getDisplayMatching(mainWindow!.getBounds());
-      mainWindow!.setBounds(workArea);
-      adjustingBounds = false;
-    });
-  }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:') || url.startsWith('http:')) {
