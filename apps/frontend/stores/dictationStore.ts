@@ -118,7 +118,7 @@ export const useDictationStore = create<DictationState>()(
     settingsLoaded: false,
     postProcessing: { enabled: false, provider: 'openai', apiKey: '', model: 'gpt-4o-mini', fillerRemoval: true, stutterCollapse: true, includeNoteContext: true, autoLearnCorrections: true, skipShortTranscriptions: true, shortTextThreshold: 3 } as DictationConfig['postProcessing'],
     dictionary: [],
-    hotkey: 'Control+W',
+    hotkey: 'Control+D',
     enabled: false,
     accelerator: 'cpu',
     gpuAvailable: false,
@@ -214,7 +214,7 @@ export const useDictationStore = create<DictationState>()(
           selectedModel: config.selectedModel,
           postProcessing: config.postProcessing,
           dictionary: config.dictionary,
-          hotkey: config.hotkey || 'Control+W',
+          hotkey: config.hotkey || 'Control+D',
         });
       }).catch(() => {});
     },
@@ -237,7 +237,7 @@ export const useDictationStore = create<DictationState>()(
         selectedModel: config.selectedModel,
         postProcessing: config.postProcessing,
         dictionary: config.dictionary,
-        hotkey: config.hotkey || 'Control+W',
+        hotkey: config.hotkey || 'Control+D',
         accelerator: config.accelerator || 'cpu',
         gpuAvailable: gpuAvailableResult.available,
         gpuName: gpuAvailableResult.gpuName,

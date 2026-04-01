@@ -8,7 +8,7 @@ const CONFIG_FILE = 'dictation.json';
 const DEFAULT_CONFIG: DictationConfig = {
   enabled: false,
   selectedModel: 'parakeet-v3',
-  hotkey: 'Control+W',
+  hotkey: 'Control+D',
   postProcessing: {
     enabled: false,
     provider: 'openai',
