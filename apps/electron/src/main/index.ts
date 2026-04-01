@@ -75,9 +75,13 @@ function createWindow() {
 
   // Linux frame:false maximize fix — constrain to work area so no gap appears
   if (isLinux) {
+    let adjustingBounds = false;
     mainWindow.on('maximize', () => {
+      if (adjustingBounds) return;
+      adjustingBounds = true;
       const { workArea } = screen.getDisplayMatching(mainWindow!.getBounds());
       mainWindow!.setBounds(workArea);
+      adjustingBounds = false;
     });
   }
 
