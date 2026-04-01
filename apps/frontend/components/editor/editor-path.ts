@@ -1,7 +1,7 @@
 export const isElectron = !!window.electronAPI;
 export const isLinux = window.electronAPI?.platform === 'linux';
 export const hasCustomTitlebar = isElectron;
-export const needsCustomWindowControls = false; // native titleBarOverlay now works on Linux
+export const needsCustomWindowControls = isLinux;
 export const noDragStyle = hasCustomTitlebar ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined;
 
 interface BuildEditorBreadcrumbInput {

@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, screen, shell } from 'electron';
 import './pdf-export';
 import { join } from 'path';
 
-if (process.platform === 'linux') {
+const isLinux = process.platform === 'linux';
+
+if (isLinux) {
   app.disableHardwareAcceleration();
 }
 import windowStateKeeper from 'electron-window-state';
@@ -56,16 +58,28 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    titleBarStyle: 'hidden' as const,
-    titleBarOverlay: {
-      color: '#262626',
-      symbolColor: '#dadada',
-      height: 40,
-    },
+    ...(isLinux
+      ? { frame: false }
+      : {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: '#262626',
+            symbolColor: '#dadada',
+            height: 40,
+          },
+        }),
     show: false,
   });
 
   mainWindowState.manage(mainWindow);
+
+  // Linux frame:false maximize fix — constrain to work area so no gap appears
+  if (isLinux) {
+    mainWindow.on('maximize', () => {
+      const { workArea } = screen.getDisplayMatching(mainWindow!.getBounds());
+      mainWindow!.setBounds(workArea);
+    });
+  }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:') || url.startsWith('http:')) {
@@ -93,7 +107,7 @@ function loadRenderer() {
 }
 
 ipcMain.handle('titlebar:update-theme', (_event, colors: { color: string; symbolColor: string }) => {
-  mainWindow?.setTitleBarOverlay(colors);
+  if (!isLinux) mainWindow?.setTitleBarOverlay(colors);
 });
 
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());

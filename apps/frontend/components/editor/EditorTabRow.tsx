@@ -48,7 +48,7 @@ export function EditorTabRow({
       )}
       style={hasCustomTitlebar ? {
         WebkitAppRegion: 'drag',
-        paddingRight: rightPanelOpen ? undefined : 140,
+        paddingRight: (!needsCustomWindowControls && !rightPanelOpen) ? 140 : undefined,
       } as React.CSSProperties : undefined}
     >
       <div
