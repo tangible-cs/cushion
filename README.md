@@ -49,6 +49,20 @@ bun run dev:electron
 bun run package:electron
 ```
 
+## Roadmap
+
+- [ ] CSV and XLSX file support
+- [ ] Canvas for connecting notes visually
+- [ ] Split page view
+- [ ] Rich text formatting inside tables (bold, italic, links, etc.)
+- [ ] Floating toolbar for quick styling (Notion-style)
+- [ ] Document export via Pandoc (Word, LaTeX, HTML, etc.)
+- [ ] LLM post-processing for dictation in the AI chat bar, optimized for code
+
+## Platform Support
+
+Fully tested on **Windows** and **Linux** (Ubuntu). Linux may have small visual quirks, if you run into anything please open an issue. macOS builds are possible but untested.
+
 ## Status
 
 Beta. I use it every day and it works, but there are rough edges. Contributions and feedback welcome.
