@@ -1,82 +1,56 @@
-# Cushion
+# Cushion for Mac
 
-A local-first markdown workspace with a built-in AI sidebar. Cursor, but for your notes and documents.
+Cushion for Mac is a native Apple silicon rewrite of Cushion designed to make local-first markdown workspaces feel deeply at home on macOS.
 
-![Cushion](.github/images/cushion-preview.png)
+This project is not a wrapper around the existing desktop application. It is a native re-architecture built with SwiftUI, AppKit interoperability where needed, file-first workspace management, a high-performance markdown editing engine, and a modular AI service layer.
 
-## Why?
+## Goals
 
-I liked Obsidian. I liked Cursor. But I kept switching between the two and never fully settled in either. Obsidian's markdown editing felt great, but it had no AI chat that felt native to me, and honestly I spent way too much time finding the best theme and best plugins. Cursor, on the other hand, had the AI sidebar I wanted, but it's a code editor and writing long-form text in it was exhausting.
+- Build a first-class native Mac writing and thinking environment
+- Preserve local-first trust and markdown portability
+- Deliver a superior editing experience to the existing Electron-based app
+- Integrate AI in a way that feels fast, private where appropriate, and optional
+- Optimize from day one for Apple silicon performance, battery life, and responsiveness
 
-I wanted one app that did both. And I didn't want to pay for another subscription just to get AI in my notes.
+## Core principles
 
-So I started building Cushion. Not as some grand plan, just to solve my own problem. When I needed dictation, I added local speech-to-text. When I wanted to chat with AI while writing, I integrated OpenCode (with MCP, skills, agents, the whole thing). Diagrams? Excalidraw. PDFs? Built a viewer. NotebookLM? Plugged it in. It kept growing from there.
+- SwiftUI-first shell
+- Native editor architecture
+- File-first and local-first
+- Modular design
+- AI as an adapter layer
+- Metal only where it creates real value
+- Mac-native ergonomics over feature parity theater
 
-It was only for me at first. But at some point I figured, why not open source it. So here it is. Use it, fork it, break it apart, whatever you want.
+## Planned modules
 
-## Features
+- CushionApp
+- WorkspaceCore
+- EditorCore
+- AIClient
+- FilePreview
+- SpeechServices
+- CanvasKit
+- DesignSystem
 
-- **WYSIWYG Markdown**: CodeMirror 6 editor that hides syntax when you're not editing it. Write markdown, see rich text.
-- **AI Chat Sidebar**: Powered by [OpenCode](https://opencode.ai). Skills, MCP servers, agents, multiple models (autodiscovered by OpenCode). No extra subscriptions.
-- **Local Dictation**: Speech-to-text via Sherpa ONNX. Runs entirely on your machine, no cloud API needed.
-- **Rich file support**: Excalidraw drawings, PDF viewer, KaTeX math, and more coming (CSV, calendar, ...).
+## Delivery approach
 
-## Getting Started
+The app will be built in phases:
 
-### Prerequisites
+1. Product discovery and planning
+2. Native foundation
+3. Markdown editor parity and superiority
+4. Mac-first pro workflows
+5. AI sidebar and assistance layer
+6. PDF, speech, and canvas support
+7. Performance and Apple silicon polish
 
-- [Bun](https://bun.sh) (v1.0+)
-- [Node.js](https://nodejs.org) (v18+, required for Electron)
+## Out of scope for v1
 
-### Install
+- Reproducing every advanced feature before the editor is excellent
+- Rebuilding browser-based diagram tooling without validating native UX value
+- Cross-platform abstractions that weaken Mac quality
 
-```bash
-git clone https://github.com/Aleexc12/cushion.git
-cd cushion
-bun install
-```
+## Definition of success
 
-### Run
-
-```bash
-bun run dev:electron
-```
-
-### Build
-
-```bash
-# Package Electron app
-bun run package:electron
-```
-
-## Roadmap
-
-- [ ] CSV and XLSX file support
-- [ ] Canvas for connecting notes visually
-- [ ] Split page view
-- [ ] Rich text formatting inside tables (bold, italic, links, etc.)
-- [ ] Floating toolbar for quick styling (Notion-style)
-- [ ] Document export via Pandoc (Word, LaTeX, HTML, etc.)
-- [ ] LLM post-processing for dictation in the AI chat bar, optimized for code
-
-## Platform Support
-
-Fully tested on **Windows** and **Linux** (Ubuntu). Linux may have small visual quirks, if you run into anything please open an issue. macOS builds are possible but untested.
-
-## Status
-
-Beta. I use it every day and it works, but there are rough edges. Contributions and feedback welcome.
-
-## Acknowledgments
-
-Cushion wouldn't exist without these projects:
-
-- [Obsidian](https://obsidian.md) and [Zettlr](https://www.zettlr.com) for showing what a markdown workspace can be
-- [OpenCode](https://opencode.ai) for the AI backend that powers the chat sidebar
-- [Handy](https://handy.computer/) for the inspiration behind local AI dictation
-- [codemirror-markdown-tables](https://github.com/ckant/codemirror-markdown-tables) for saving me from markdown table hell
-- [notebooklm-py](https://github.com/teng-lin/notebooklm-py) for making the NotebookLM integration possible
-
-## License
-
-MIT
+A serious markdown-heavy user should prefer Cushion for Mac over the existing app for day-to-day work because it is faster, smoother, more integrated with the OS, and more trustworthy as a Mac-native tool.

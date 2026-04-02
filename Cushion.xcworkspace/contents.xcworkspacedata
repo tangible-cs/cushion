@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:CushionApp">
+   </FileRef>
+   <FileRef
+      location = "group:WorkspaceCore">
+   </FileRef>
+   <FileRef
+      location = "group:EditorCore">
+   </FileRef>
+   <FileRef
+      location = "group:AIClient">
+   </FileRef>
+   <FileRef
+      location = "group:FilePreview">
+   </FileRef>
+   <FileRef
+      location = "group:SpeechServices">
+   </FileRef>
+   <FileRef
+      location = "group:CanvasKit">
+   </FileRef>
+   <FileRef
+      location = "group:DesignSystem">
+   </FileRef>
+</Workspace>
